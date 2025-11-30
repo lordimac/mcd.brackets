@@ -102,7 +102,11 @@
                         <h2>Bracket Visualisierung</h2>
                         <p class="bracket-event-name" id="bracketEventName"></p>
                     </div>
-                    <button class="btn btn-secondary" onclick="closeBracketViewer()">✕ Schließen</button>
+                    <div class="section-actions">
+                        <button class="btn btn-info" id="exportBracketBtn" onclick="exportBracketAsImage()">📸 Als JPG exportieren</button>
+                        <button class="btn btn-success" id="exportBracketPdfBtn" onclick="exportBracketAsPdf()">📄 Als PDF exportieren</button>
+                        <button class="btn btn-secondary" onclick="closeBracketViewer()">✕ Schließen</button>
+                    </div>
                 </div>
                 <div class="brackets-viewer"></div>
             </section>
@@ -114,7 +118,11 @@
                         <h2>🏆 Rangliste</h2>
                         <p class="bracket-event-name" id="rankingsEventName"></p>
                     </div>
-                    <button class="btn btn-secondary" onclick="closeRankings()">✕ Schließen</button>
+                    <div class="section-actions">
+                        <button class="btn btn-info" id="exportRankingsBtn" onclick="exportRankingsAsImage()">📸 Als JPG exportieren</button>
+                        <button class="btn btn-success" id="exportRankingsPdfBtn" onclick="exportRankingsAsPdf()">📄 Als PDF exportieren</button>
+                        <button class="btn btn-secondary" onclick="closeRankings()">✕ Schließen</button>
+                    </div>
                 </div>
                 <div id="rankingsList" class="rankings-list"></div>
             </section>
@@ -237,6 +245,8 @@
     </div>
 
     <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/brackets-viewer@latest/dist/brackets-viewer.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

@@ -1201,6 +1201,363 @@ function formatType(type) {
     return types[type] || type;
 }
 
+// Export bracket as image
+async function exportBracketAsImage() {
+    const exportButton = document.getElementById('exportBracketBtn');
+    const bracketSection = document.getElementById('bracketViewerSection');
+    const bracketContainer = document.querySelector('.brackets-viewer');
+    const eventName = document.getElementById('bracketEventName').textContent;
+    
+    if (!bracketContainer) {
+        alert('❌ Kein Bracket zum Exportieren vorhanden!');
+        return;
+    }
+    
+    try {
+        // Show loading indicator
+        const originalText = exportButton.textContent;
+        exportButton.textContent = '⏳ Exportiere...';
+        exportButton.disabled = true;
+        
+        // Save original styles
+        const originalOverflow = bracketContainer.style.overflow;
+        const originalMaxHeight = bracketContainer.style.maxHeight;
+        const originalMaxWidth = bracketContainer.style.maxWidth;
+        const originalSectionOverflow = bracketSection.style.overflow;
+        const originalBorder = bracketContainer.style.border;
+        const originalBoxShadow = bracketContainer.style.boxShadow;
+        const originalOutline = bracketContainer.style.outline;
+        const originalPadding = bracketContainer.style.padding;
+        
+        // Temporarily remove overflow, size constraints, and visual boundaries
+        // Add padding for better export
+        bracketContainer.style.overflow = 'visible';
+        bracketContainer.style.maxHeight = 'none';
+        bracketContainer.style.maxWidth = 'none';
+        bracketContainer.style.border = 'none';
+        bracketContainer.style.boxShadow = 'none';
+        bracketContainer.style.outline = 'none';
+        bracketContainer.style.padding = '2rem';
+        bracketSection.style.overflow = 'visible';
+        
+        // Wait for layout to update
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // Get the full dimensions with extra padding
+        const scrollWidth = bracketContainer.scrollWidth;
+        const scrollHeight = bracketContainer.scrollHeight;
+        const paddingExtra = 64; // Extra padding in pixels
+        
+        // Create canvas from bracket with full dimensions plus padding
+        const canvas = await html2canvas(bracketContainer, {
+            backgroundColor: '#0f172a',
+            scale: 2,
+            logging: false,
+            allowTaint: true,
+            useCORS: true,
+            width: scrollWidth + paddingExtra,
+            height: scrollHeight + paddingExtra,
+            x: -32, // Offset to center content
+            y: -32
+        });
+        
+        // Restore original styles
+        bracketContainer.style.overflow = originalOverflow;
+        bracketContainer.style.maxHeight = originalMaxHeight;
+        bracketContainer.style.maxWidth = originalMaxWidth;
+        bracketContainer.style.border = originalBorder;
+        bracketContainer.style.boxShadow = originalBoxShadow;
+        bracketContainer.style.outline = originalOutline;
+        bracketContainer.style.padding = originalPadding;
+        bracketSection.style.overflow = originalSectionOverflow;
+        
+        // Convert to JPG and download
+        canvas.toBlob((blob) => {
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            const filename = `bracket-${eventName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-${Date.now()}.jpg`;
+            link.href = url;
+            link.download = filename;
+            link.click();
+            URL.revokeObjectURL(url);
+            
+            // Restore button
+            exportButton.textContent = originalText;
+            exportButton.disabled = false;
+        }, 'image/jpeg', 0.95);
+        
+    } catch (error) {
+        alert('❌ Fehler beim Exportieren: ' + error.message);
+        console.error('Export error:', error);
+        // Restore button
+        exportButton.textContent = '📸 Als JPG exportieren';
+        exportButton.disabled = false;
+    }
+}
+
+// Export rankings as image
+async function exportRankingsAsImage() {
+    const exportButton = document.getElementById('exportRankingsBtn');
+    const rankingsContainer = document.getElementById('rankingsList');
+    const eventName = document.getElementById('rankingsEventName').textContent;
+    
+    if (!rankingsContainer) {
+        alert('❌ Keine Rangliste zum Exportieren vorhanden!');
+        return;
+    }
+    
+    try {
+        // Show loading indicator
+        const originalText = exportButton.textContent;
+        exportButton.textContent = '⏳ Exportiere...';
+        exportButton.disabled = true;
+        
+        // Create a wrapper with padding and title for better export
+        const exportWrapper = document.createElement('div');
+        exportWrapper.style.cssText = 'background: #0f172a; padding: 2rem; border-radius: 8px;';
+        
+        const title = document.createElement('h2');
+        title.textContent = eventName;
+        title.style.cssText = 'color: white; margin-bottom: 1.5rem; text-align: center;';
+        
+        exportWrapper.appendChild(title);
+        exportWrapper.appendChild(rankingsContainer.cloneNode(true));
+        document.body.appendChild(exportWrapper);
+        
+        // Create canvas from rankings
+        const canvas = await html2canvas(exportWrapper, {
+            backgroundColor: '#0f172a',
+            scale: 2,
+            logging: false,
+            allowTaint: true,
+            useCORS: true
+        });
+        
+        // Remove temporary wrapper
+        document.body.removeChild(exportWrapper);
+        
+        // Convert to JPG and download
+        canvas.toBlob((blob) => {
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            const filename = `rankings-${eventName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-${Date.now()}.jpg`;
+            link.href = url;
+            link.download = filename;
+            link.click();
+            URL.revokeObjectURL(url);
+            
+            // Restore button
+            exportButton.textContent = originalText;
+            exportButton.disabled = false;
+        }, 'image/jpeg', 0.95);
+        
+    } catch (error) {
+        alert('❌ Fehler beim Exportieren: ' + error.message);
+        console.error('Export error:', error);
+        // Restore button
+        exportButton.textContent = '📸 Als JPG exportieren';
+        exportButton.disabled = false;
+    }
+}
+
+// Export bracket as PDF
+async function exportBracketAsPdf() {
+    const exportButton = document.getElementById('exportBracketPdfBtn');
+    const bracketSection = document.getElementById('bracketViewerSection');
+    const bracketContainer = document.querySelector('.brackets-viewer');
+    const eventName = document.getElementById('bracketEventName').textContent;
+    
+    if (!bracketContainer) {
+        alert('❌ Kein Bracket zum Exportieren vorhanden!');
+        return;
+    }
+    
+    try {
+        // Show loading indicator
+        const originalText = exportButton.textContent;
+        exportButton.textContent = '⏳ Exportiere...';
+        exportButton.disabled = true;
+        
+        // Save original styles
+        const originalOverflow = bracketContainer.style.overflow;
+        const originalMaxHeight = bracketContainer.style.maxHeight;
+        const originalMaxWidth = bracketContainer.style.maxWidth;
+        const originalSectionOverflow = bracketSection.style.overflow;
+        const originalBorder = bracketContainer.style.border;
+        const originalBoxShadow = bracketContainer.style.boxShadow;
+        const originalOutline = bracketContainer.style.outline;
+        const originalPadding = bracketContainer.style.padding;
+        
+        // Temporarily remove overflow, size constraints, and visual boundaries
+        bracketContainer.style.overflow = 'visible';
+        bracketContainer.style.maxHeight = 'none';
+        bracketContainer.style.maxWidth = 'none';
+        bracketContainer.style.border = 'none';
+        bracketContainer.style.boxShadow = 'none';
+        bracketContainer.style.outline = 'none';
+        bracketContainer.style.padding = '2rem';
+        bracketSection.style.overflow = 'visible';
+        
+        // Wait for layout to update
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // Get the full dimensions with extra padding
+        const scrollWidth = bracketContainer.scrollWidth;
+        const scrollHeight = bracketContainer.scrollHeight;
+        const paddingExtra = 64;
+        
+        // Create canvas from bracket
+        const canvas = await html2canvas(bracketContainer, {
+            backgroundColor: '#0f172a',
+            scale: 2,
+            logging: false,
+            allowTaint: true,
+            useCORS: true,
+            width: scrollWidth + paddingExtra,
+            height: scrollHeight + paddingExtra,
+            x: -32,
+            y: -32
+        });
+        
+        // Restore original styles
+        bracketContainer.style.overflow = originalOverflow;
+        bracketContainer.style.maxHeight = originalMaxHeight;
+        bracketContainer.style.maxWidth = originalMaxWidth;
+        bracketContainer.style.border = originalBorder;
+        bracketContainer.style.boxShadow = originalBoxShadow;
+        bracketContainer.style.outline = originalOutline;
+        bracketContainer.style.padding = originalPadding;
+        bracketSection.style.overflow = originalSectionOverflow;
+        
+        // Convert canvas to image data
+        const imgData = canvas.toDataURL('image/jpeg', 0.95);
+        
+        // Calculate PDF dimensions (A4 landscape or custom size)
+        const imgWidth = canvas.width;
+        const imgHeight = canvas.height;
+        const ratio = imgWidth / imgHeight;
+        
+        // Use landscape orientation with appropriate size
+        let pdfWidth, pdfHeight;
+        if (ratio > 1.4) {
+            // Very wide bracket - use custom size
+            pdfWidth = Math.min(imgWidth / 2, 1200);
+            pdfHeight = pdfWidth / ratio;
+        } else {
+            // Standard A4 landscape
+            pdfWidth = 297;
+            pdfHeight = pdfWidth / ratio;
+        }
+        
+        // Create PDF
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF({
+            orientation: pdfWidth > pdfHeight ? 'landscape' : 'portrait',
+            unit: 'mm',
+            format: [pdfWidth, pdfHeight]
+        });
+        
+        pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
+        
+        // Download PDF
+        const filename = `bracket-${eventName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-${Date.now()}.pdf`;
+        pdf.save(filename);
+        
+        // Restore button
+        exportButton.textContent = originalText;
+        exportButton.disabled = false;
+        
+    } catch (error) {
+        alert('❌ Fehler beim Exportieren: ' + error.message);
+        console.error('Export error:', error);
+        // Restore button
+        exportButton.textContent = '📄 Als PDF exportieren';
+        exportButton.disabled = false;
+    }
+}
+
+// Export rankings as PDF
+async function exportRankingsAsPdf() {
+    const exportButton = document.getElementById('exportRankingsPdfBtn');
+    const rankingsContainer = document.getElementById('rankingsList');
+    const eventName = document.getElementById('rankingsEventName').textContent;
+    
+    if (!rankingsContainer) {
+        alert('❌ Keine Rangliste zum Exportieren vorhanden!');
+        return;
+    }
+    
+    try {
+        // Show loading indicator
+        const originalText = exportButton.textContent;
+        exportButton.textContent = '⏳ Exportiere...';
+        exportButton.disabled = true;
+        
+        // Create a wrapper with padding and title
+        const exportWrapper = document.createElement('div');
+        exportWrapper.style.cssText = 'background: #0f172a; padding: 2rem; border-radius: 8px;';
+        
+        const title = document.createElement('h2');
+        title.textContent = eventName;
+        title.style.cssText = 'color: white; margin-bottom: 1.5rem; text-align: center;';
+        
+        exportWrapper.appendChild(title);
+        exportWrapper.appendChild(rankingsContainer.cloneNode(true));
+        document.body.appendChild(exportWrapper);
+        
+        // Create canvas from rankings
+        const canvas = await html2canvas(exportWrapper, {
+            backgroundColor: '#0f172a',
+            scale: 2,
+            logging: false,
+            allowTaint: true,
+            useCORS: true
+        });
+        
+        // Remove temporary wrapper
+        document.body.removeChild(exportWrapper);
+        
+        // Convert canvas to image data
+        const imgData = canvas.toDataURL('image/jpeg', 0.95);
+        
+        // Calculate PDF dimensions (A4 portrait)
+        const imgWidth = canvas.width;
+        const imgHeight = canvas.height;
+        const ratio = imgWidth / imgHeight;
+        
+        const pdfWidth = 210; // A4 width in mm
+        const pdfHeight = pdfWidth / ratio;
+        
+        // Create PDF
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF({
+            orientation: 'portrait',
+            unit: 'mm',
+            format: 'a4'
+        });
+        
+        // Add image to PDF, centered
+        const xOffset = 0;
+        const yOffset = 0;
+        pdf.addImage(imgData, 'JPEG', xOffset, yOffset, pdfWidth, pdfHeight);
+        
+        // Download PDF
+        const filename = `rankings-${eventName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-${Date.now()}.pdf`;
+        pdf.save(filename);
+        
+        // Restore button
+        exportButton.textContent = originalText;
+        exportButton.disabled = false;
+        
+    } catch (error) {
+        alert('❌ Fehler beim Exportieren: ' + error.message);
+        console.error('Export error:', error);
+        // Restore button
+        exportButton.textContent = '📄 Als PDF exportieren';
+        exportButton.disabled = false;
+    }
+}
+
 // Close modal on outside click
 window.onclick = function(event) {
     const matchModal = document.getElementById('matchModal');

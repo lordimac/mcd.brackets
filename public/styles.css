@@ -188,6 +188,11 @@ header p {
     margin-bottom: 1.5rem;
 }
 
+.section-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
 .collapsible-header {
     cursor: pointer;
     user-select: none;
