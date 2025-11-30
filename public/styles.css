@@ -5,12 +5,12 @@
 }
 
 :root {
-    --primary-color: #6366f1;
-    --primary-dark: #4f46e5;
-    --secondary-color: #8b5cf6;
+    --primary-color: #f08228;
+    --primary-dark: #d66e1f;
+    --secondary-color: #28a0f0;
     --success-color: #10b981;
     --danger-color: #ef4444;
-    --warning-color: #f59e0b;
+    --warning-color: #f0c828;
     --bg-color: #0f172a;
     --bg-light: #1e293b;
     --card-bg: #1e293b;
