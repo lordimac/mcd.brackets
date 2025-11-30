@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tournament Bracket Manager</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/brackets-viewer@latest/dist/brackets-viewer.min.css"> -->
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🏆 Tournament Bracket Manager</h1>
+            <p>Erstelle und verwalte deine Turniere</p>
+        </header>
+
+        <main>
+            <!-- Create Tournament Section -->
+            <section class="card">
+                <div class="section-header collapsible-header" onclick="toggleSection('createTournamentSection')">
+                    <h2>Neues Turnier erstellen</h2>
+                    <span class="collapse-icon" id="createTournamentIcon">▼</span>
+                </div>
+                <div id="createTournamentSection" class="collapsible-content" style="display: none;">
+                <form id="createTournamentForm">
+                    <div class="form-group">
+                        <label for="eventName">Event:</label>
+                        <div class="event-selector">
+                            <select id="eventName" required>
+                                <option value="">Event auswählen...</option>
+                                <option value="__new__">+ Neues Event erstellen</option>
+                            </select>
+                            <input type="text" id="newEventName" placeholder="Neuer Event-Name" style="display: none;">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="stageName">Stage Name:</label>
+                        <input type="text" id="stageName" required placeholder="z.B. Hauptrunde">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="tournamentType">Turnier-Typ:</label>
+                        <select id="tournamentType" required>
+                            <option value="single_elimination">Single Elimination</option>
+                            <option value="double_elimination">Double Elimination</option>
+                            <option value="round_robin">Round Robin</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="participants">Teilnehmer (einer pro Zeile):</label>
+                        <textarea id="participants" rows="8" required placeholder="Team Alpha&#10;Team Beta&#10;Team Gamma&#10;Team Delta"></textarea>
+                    </div>
+
+                    <div class="form-group" id="settingsGroup">
+                        <label>Zusätzliche Einstellungen:</label>
+                        <div class="checkbox-group">
+                            <label>
+                                <input type="checkbox" id="grandFinalDouble">
+                                Grand Final (Double) - nur für Double Elimination
+                            </label>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">Turnier erstellen</button>
+                </form>
+                </div>
+            </section>
+
+            <!-- Events List Section -->
+            <section class="card">
+                <div class="section-header">
+                    <h2>🎯 Events</h2>
+                    <button class="btn btn-secondary" onclick="loadStages()">🔄 Aktualisieren</button>
+                </div>
+                <div id="eventsList" class="events-list">
+                    <p class="loading">Lade Events...</p>
+                </div>
+            </section>
+
+            <!-- Tournament List Section -->
+            <section class="card">
+                <div class="section-header">
+                    <h2>Aktive Turniere</h2>
+                    <button class="btn btn-secondary" onclick="loadStages()">🔄 Aktualisieren</button>
+                </div>
+                <div class="filters">
+                    <select id="eventFilter" onchange="filterStages()">
+                        <option value="">Alle Events</option>
+                    </select>
+                </div>
+                <div id="stagesList" class="stages-list">
+                    <p class="loading">Lade Turniere...</p>
+                </div>
+            </section>
+
+            <!-- Bracket Viewer Section -->
+            <section class="card" id="bracketViewerSection" style="display: none;">
+                <div class="section-header">
+                    <div>
+                        <h2>Bracket Visualisierung</h2>
+                        <p class="bracket-event-name" id="bracketEventName"></p>
+                    </div>
+                    <button class="btn btn-secondary" onclick="closeBracketViewer()">✕ Schließen</button>
+                </div>
+                <div class="brackets-viewer"></div>
+            </section>
+
+            <!-- Rankings Section -->
+            <section class="card" id="rankingsSection" style="display: none;">
+                <div class="section-header">
+                    <div>
+                        <h2>🏆 Rangliste</h2>
+                        <p class="bracket-event-name" id="rankingsEventName"></p>
+                    </div>
+                    <button class="btn btn-secondary" onclick="closeRankings()">✕ Schließen</button>
+                </div>
+                <div id="rankingsList" class="rankings-list"></div>
+            </section>
+
+            <!-- Matches Section -->
+            <section class="card" id="matchesSection" style="display: none;">
+                <div class="section-header">
+                    <h2>Matches</h2>
+                    <button class="btn btn-secondary" onclick="closeMatchesSection()">✕ Schließen</button>
+                </div>
+                <div class="filters">
+                    <select id="stageFilter" onchange="filterMatches()">
+                        <option value="">Alle Stages</option>
+                    </select>
+                    <label class="checkbox-filter">
+                        <input type="checkbox" id="showOpenOnly" onchange="filterMatches()">
+                        Nur offene Matches anzeigen
+                    </label>
+                    <label class="checkbox-filter">
+                        <input type="checkbox" id="hideTBD" onchange="filterMatches()">
+                        Matches mit TBD ausblenden
+                    </label>
+                </div>
+                <div id="matchesList" class="matches-list">
+                    <p class="loading">Lade Matches...</p>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Match Update Modal -->
+    <div id="matchModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeMatchModal()">&times;</span>
+            <h2>Match Ergebnis aktualisieren</h2>
+            <form id="updateMatchForm">
+                <input type="hidden" id="matchId">
+                
+                <div class="match-update">
+                    <div class="opponent-group">
+                        <h3 id="opponent1Name">Opponent 1</h3>
+                        <div class="form-group">
+                            <label>Ergebnis:</label>
+                            <select id="opponent1Result">
+                                <option value="">-</option>
+                                <option value="win">Win</option>
+                                <option value="loss">Loss</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="vs">VS</div>
+
+                    <div class="opponent-group">
+                        <h3 id="opponent2Name">Opponent 2</h3>
+                        <div class="form-group">
+                            <label>Ergebnis:</label>
+                            <select id="opponent2Result">
+                                <option value="">-</option>
+                                <option value="win">Win</option>
+                                <option value="loss">Loss</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="submit" class="btn btn-primary">Speichern</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeMatchModal()">Abbrechen</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Quick Winner Modal -->
+    <div id="winnerModal" class="modal">
+        <div class="modal-content winner-modal">
+            <span class="close" onclick="closeWinnerModal()">&times;</span>
+            <h2>Gewinner wählen</h2>
+            <p id="winnerModalInfo" class="match-info-text"></p>
+            
+            <div class="winner-selection">
+                <button type="button" class="winner-btn" id="winner1Btn" onclick="selectWinner(1)">
+                    <span class="winner-name" id="winner1Name">Opponent 1</span>
+                    <span class="winner-icon">👑</span>
+                </button>
+                
+                <div class="vs-large">VS</div>
+                
+                <button type="button" class="winner-btn" id="winner2Btn" onclick="selectWinner(2)">
+                    <span class="winner-name" id="winner2Name">Opponent 2</span>
+                    <span class="winner-icon">👑</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Participants Modal -->
+    <div id="editParticipantsModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeEditParticipantsModal()">&times;</span>
+            <h2>Teilnehmer bearbeiten</h2>
+            <p class="match-info-text">⚠️ Das Bracket wird automatisch mit den neuen Teilnehmern neu erzeugt!</p>
+            
+            <form id="editParticipantsForm">
+                <input type="hidden" id="editTournamentId">
+                <input type="hidden" id="editStageId">
+                
+                <div class="form-group">
+                    <label for="editParticipantsText">Teilnehmer (einer pro Zeile):</label>
+                    <textarea id="editParticipantsText" rows="10" required placeholder="Team Alpha&#10;Team Beta&#10;Team Gamma&#10;Team Delta"></textarea>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="submit" class="btn btn-primary">Speichern</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeEditParticipantsModal()">Abbrechen</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/brackets-viewer@latest/dist/brackets-viewer.min.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
