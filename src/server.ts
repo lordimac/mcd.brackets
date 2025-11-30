@@ -3,12 +3,19 @@ import cors from 'cors';
 import { BracketsManager } from 'brackets-manager';
 import { JsonDatabase } from 'brackets-json-db';
 import path from 'path';
+import fs from 'fs';
 
 const app = express();
 const PORT = 3000;
 
-// Initialize brackets manager
-const storage = new JsonDatabase();
+// Initialize data directory
+const dataDir = path.join(__dirname, '../data');
+if (!fs.existsSync(dataDir)) {
+  fs.mkdirSync(dataDir, { recursive: true });
+}
+
+// Initialize brackets manager with data directory
+const storage = new JsonDatabase(path.join(dataDir, 'db.json'));
 const manager = new BracketsManager(storage);
 
 // Middleware

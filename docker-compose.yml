@@ -10,8 +10,8 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      # Persist database
-      - ./db.json:/app/db.json
+      # Persist tournament data
+      - ./data:/app/data
     restart: unless-stopped
     environment:
       - NODE_ENV=production

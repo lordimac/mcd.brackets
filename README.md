@@ -61,7 +61,7 @@ npm install
 **Mit vorgebautem Image von GitHub Container Registry:**
 ```bash
 docker pull ghcr.io/lordimac/mcd.brackets:latest
-docker run -d -p 3000:3000 -v $(pwd)/db.json:/app/db.json ghcr.io/lordimac/mcd.brackets:latest
+docker run -d -p 3000:3000 -v $(pwd)/data:/app/data ghcr.io/lordimac/mcd.brackets:latest
 ```
 
 **Mit Docker Compose:**
@@ -73,7 +73,7 @@ docker-compose up -d
 **Lokales Build:**
 ```bash
 docker build -t mcd-brackets .
-docker run -d -p 3000:3000 -v $(pwd)/db.json:/app/db.json mcd-brackets
+docker run -d -p 3000:3000 -v $(pwd)/data:/app/data mcd-brackets
 ```
 
 ## Verwendung

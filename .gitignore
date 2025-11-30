@@ -8,6 +8,7 @@ build/
 # Database files
 database.json
 db.json
+data/
 
 # Logs
 *.log
