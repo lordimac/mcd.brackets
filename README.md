@@ -50,8 +50,30 @@ Ein vollständiges Turnierverwaltungssystem mit Event-basiertem Meisterschafts-P
 
 ## Installation
 
+### Option 1: NPM (Development)
+
 ```bash
 npm install
+```
+
+### Option 2: Docker (Production)
+
+**Mit vorgebautem Image von GitHub Container Registry:**
+```bash
+docker pull ghcr.io/lordimac/mcd.brackets:latest
+docker run -d -p 3000:3000 -v $(pwd)/db.json:/app/db.json ghcr.io/lordimac/mcd.brackets:latest
+```
+
+**Mit Docker Compose:**
+```bash
+# Bearbeite docker-compose.yml und kommentiere die image-Zeile ein
+docker-compose up -d
+```
+
+**Lokales Build:**
+```bash
+docker build -t mcd-brackets .
+docker run -d -p 3000:3000 -v $(pwd)/db.json:/app/db.json mcd-brackets
 ```
 
 ## Verwendung

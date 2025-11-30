@@ -2,6 +2,9 @@ version: '3.8'
 
 services:
   mcd-brackets:
+    # Use pre-built image from GitHub Container Registry
+    # image: ghcr.io/lordimac/mcd.brackets:latest
+    # Or build locally
     build: .
     container_name: mcd-brackets
     ports:
@@ -12,3 +15,9 @@ services:
     restart: unless-stopped
     environment:
       - NODE_ENV=production
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/stages"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s

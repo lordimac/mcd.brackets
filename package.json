@@ -1,6 +1,6 @@
 {
   "name": "mcd-brackets",
-  "version": "1.0.0",
+  "version": "0.2.0-beta",
   "description": "Tournament bracket management system using brackets-manager",
   "main": "dist/index.js",
   "scripts": {
@@ -15,8 +15,20 @@
     "brackets",
     "manager",
     "elimination",
-    "round-robin"
+    "round-robin",
+    "double-elimination",
+    "event-management",
+    "championship",
+    "rankings"
   ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lordimac/mcd.brackets.git"
+  },
+  "bugs": {
+    "url": "https://github.com/lordimac/mcd.brackets/issues"
+  },
+  "homepage": "https://github.com/lordimac/mcd.brackets#readme",
   "author": "",
   "license": "ISC",
   "dependencies": {
