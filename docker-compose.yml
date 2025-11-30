@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  mcd-brackets:
+    build: .
+    container_name: mcd-brackets
+    ports:
+      - "3000:3000"
+    volumes:
+      # Persist database
+      - ./db.json:/app/db.json
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
