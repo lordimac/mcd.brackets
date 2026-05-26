@@ -1,9 +1,37 @@
-const API_URL = 'http://localhost:3000/api';
+const API_URL = '/api';
+
+// Points system for tournament placements
+const POINTS_SYSTEM = [30, 22, 16, 12, 9, 7, 5, 3, 2, 2, 2, 2, 1, 1, 1, 1];
 
 // State
 let stages = [];
 let matches = [];
 let participants = [];
+
+// Import/Restore backup
+async function importBackup(input) {
+    const file = input.files[0];
+    if (!file) return;
+    const statusEl = document.getElementById('importStatus');
+    statusEl.textContent = '⏳ Wird eingelesen...';
+    try {
+        const text = await file.text();
+        let parsed;
+        try { parsed = JSON.parse(text); } catch { throw new Error('Ungültiges JSON'); }
+        const response = await fetch(`${API_URL}/restore`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(parsed)
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Fehler beim Import');
+        statusEl.textContent = '✅ ' + result.message;
+        setTimeout(() => location.reload(), 1500);
+    } catch (err) {
+        statusEl.textContent = '❌ ' + err.message;
+    }
+    input.value = '';
+}
 
 // Initialize
 document.addEventListener('DOMContentLoaded', async () => {
@@ -103,6 +131,7 @@ async function loadStages() {
 async function loadMatches() {
     try {
         const response = await fetch(`${API_URL}/matches`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
         matches = await response.json();
         displayMatches();
     } catch (error) {
@@ -115,6 +144,7 @@ async function loadMatches() {
 async function loadParticipants() {
     try {
         const response = await fetch(`${API_URL}/participants`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
         participants = await response.json();
     } catch (error) {
         console.error('Error loading participants:', error);
@@ -373,19 +403,10 @@ async function createTournament(e) {
 // Get next power of 2
 function getNextPowerOfTwo(n) {
     if (n <= 1) return 2;
-    if (isPowerOfTwo(n)) return n;
-    
     let power = 1;
-    while (power < n) {
-        power *= 2;
-    }
+    while (power < n) power *= 2;
     return power;
 }
-
-function isPowerOfTwo(n) {
-    return n > 0 && (n & (n - 1)) === 0;
-}
-
 // Shuffle array randomly (Fisher-Yates algorithm)
 function shuffleArray(array) {
     const shuffled = [...array];
@@ -418,19 +439,6 @@ async function deleteStage(stageId) {
     }
 
     try {
-        // Get stage info to find tournament_id
-        const stage = stages.find(s => s.id === stageId);
-        if (stage) {
-            // Delete all participants for this tournament
-            const tournamentParticipants = participants.filter(p => p.tournament_id === stage.tournament_id);
-            for (const participant of tournamentParticipants) {
-                await fetch(`${API_URL}/participants/${participant.id}`, {
-                    method: 'DELETE'
-                });
-            }
-        }
-
-        // Delete the stage
         const response = await fetch(`${API_URL}/stages/${stageId}`, {
             method: 'DELETE'
         });
@@ -476,17 +484,13 @@ async function resetBracket(stageId) {
             }
         }
 
-        // Delete all participants for this tournament
-        for (const participant of tournamentParticipants) {
-            await fetch(`${API_URL}/participants/${participant.id}`, {
-                method: 'DELETE'
-            });
-        }
-
-        // Delete the stage
-        await fetch(`${API_URL}/stages/${stageId}`, {
+        // Delete the stage (backend also deletes all participants)
+        const deleteResponse = await fetch(`${API_URL}/stages/${stageId}`, {
             method: 'DELETE'
         });
+        if (!deleteResponse.ok) {
+            throw new Error('Failed to delete stage during reset');
+        }
 
         const settings = {};
         if (stage.type === 'double_elimination') {
@@ -502,7 +506,8 @@ async function resetBracket(stageId) {
                 name: stage.name,
                 type: stage.type,
                 seeding,
-                settings
+                settings,
+                eventName: stage.event_name
             })
         });
 
@@ -524,9 +529,7 @@ async function resetBracket(stageId) {
         
         // Reopen bracket with new stage ID
         if (newStageData && newStageData.id) {
-            setTimeout(() => {
-                viewBracket(newStageData.id);
-            }, 500);
+            viewBracket(newStageData.id);
         }
     } catch (error) {
         alert('❌ Fehler beim Neu-Erzeugen: ' + error.message);
@@ -627,7 +630,8 @@ async function saveParticipants(e) {
                 name: stage.name,
                 type: stage.type,
                 seeding,
-                settings
+                settings,
+                eventName: stage.event_name
             })
         });
 
@@ -752,17 +756,16 @@ async function viewRankings(stageId) {
             const standings = await standingsResponse.json();
             
             // Convert standings to rankings format
-            const pointsSystem = [30, 22, 16, 12, 9, 7, 5, 3, 2, 2, 2, 2, 1, 1, 1, 1];
             rankings = standings.map((standing, index) => ({
                 name: standing.participant_name,
                 wins: standing.wins,
                 losses: standing.losses,
-                pending: 0, // Standings only include completed matches
+                pending: 0,
                 played: standing.wins + standing.losses,
                 winRate: standing.wins + standing.losses > 0 
                     ? (standing.wins / (standing.wins + standing.losses) * 100).toFixed(1) 
                     : 0,
-                points: index < pointsSystem.length ? pointsSystem[index] : 1
+                points: index < POINTS_SYSTEM.length ? POINTS_SYSTEM[index] : 1
             }));
         } catch (error) {
             console.error('Error fetching standings, falling back to match-based calculation:', error);
@@ -804,7 +807,7 @@ async function viewRankings(stageId) {
                 return parseFloat(b.winRate) - parseFloat(a.winRate);
             });
             
-            const pointsSystem = [30, 22, 16, 12, 9, 7, 5, 3, 2, 2, 2, 2, 1, 1, 1, 1];
+            const pointsSystem = POINTS_SYSTEM;
             rankings.forEach((ranking, index) => {
                 // Award points based on placement, with diminishing returns after top 16
                 if (index < pointsSystem.length) {
@@ -897,7 +900,7 @@ async function viewEventRankings(eventName) {
         );
         
         // Points system for placements
-        const pointsSystem = [30, 22, 16, 12, 9, 7, 5, 3, 2, 2, 2, 2, 1, 1, 1, 1];
+        const pointsSystem = POINTS_SYSTEM;
         
         // Calculate overall rankings with points
         const participantStats = new Map();

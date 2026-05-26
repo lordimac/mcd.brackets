@@ -20,8 +20,8 @@ const manager = new BracketsManager(storage);
 
 // Middleware
 app.use(cors());
-app.use(express.json());
-app.use(express.static(path.join(__dirname, '../public')));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.static(path.join(__dirname, '../public'), { etag: true, lastModified: true, setHeaders: (res) => { res.setHeader('Cache-Control', 'no-cache'); } }));
 
 // API Routes
 
@@ -125,10 +125,30 @@ app.put('/api/matches/:id', async (req: Request, res: Response) => {
   }
 });
 
-// Delete a stage
+// Delete a stage (including all participants for that tournament)
 app.delete('/api/stages/:id', async (req: Request, res: Response) => {
   try {
-    await manager.delete.stage(parseInt(req.params.id));
+    const stageId = parseInt(req.params.id);
+
+    // Find the stage to get tournament_id
+    const stage = await storage.select('stage', { id: stageId });
+    if (!stage || stage.length === 0) {
+      return res.status(404).json({ error: 'Stage not found' });
+    }
+    const tournamentId = (stage[0] as any).tournament_id;
+
+    // Delete all participants for this tournament
+    const allParticipants = await storage.select('participant');
+    const tournamentParticipants = (allParticipants || []).filter(
+      (p: any) => p.tournament_id === tournamentId
+    );
+    for (const participant of tournamentParticipants) {
+      await storage.delete('participant', { id: (participant as any).id });
+    }
+
+    // Delete the stage (brackets-manager handles matches/rounds/groups)
+    await manager.delete.stage(stageId);
+
     res.status(204).send();
   } catch (error: any) {
     res.status(500).json({ error: error.message || 'Failed to delete stage' });
@@ -408,6 +428,48 @@ function calculatePlacements(stage: any, matches: any[], groups: any[], rounds: 
   
   return placements;
 }
+
+// DB Backup: download db.json
+app.get('/api/backup', (_req: Request, res: Response) => {
+  try {
+    const dbPath = path.join(dataDir, 'db.json');
+    if (!fs.existsSync(dbPath)) {
+      return res.status(404).json({ error: 'No database file found' });
+    }
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    res.setHeader('Content-Disposition', `attachment; filename="mcd-brackets-backup-${timestamp}.json"`);
+    res.setHeader('Content-Type', 'application/json');
+    res.sendFile(path.resolve(dbPath));
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || 'Backup failed' });
+  }
+});
+
+// DB Import: restore db.json from uploaded backup
+app.post('/api/restore', (req: Request, res: Response) => {
+  try {
+    const parsed = req.body;
+    if (!parsed || typeof parsed !== 'object') {
+      return res.status(400).json({ error: 'Keine Daten empfangen' });
+    }
+    // Basic sanity check — db.json must have known top-level keys
+    const knownKeys = ['participant', 'stage', 'group', 'round', 'match', 'match_game'];
+    const hasAny = knownKeys.some(k => Array.isArray(parsed[k]));
+    if (!hasAny) {
+      return res.status(400).json({ error: 'Die Datei sieht nicht wie ein gültiges mcd.brackets-Backup aus' });
+    }
+    const dbPath = path.join(dataDir, 'db.json');
+    // Write backup of current db first
+    if (fs.existsSync(dbPath)) {
+      const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      fs.copyFileSync(dbPath, path.join(dataDir, `db-before-restore-${ts}.json`));
+    }
+    fs.writeFileSync(dbPath, JSON.stringify(parsed, null, 2), 'utf-8');
+    res.json({ ok: true, message: 'Datenbank wiederhergestellt. Bitte Seite neu laden.' });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || 'Restore failed' });
+  }
+});
 
 // Start server
 app.listen(PORT, () => {

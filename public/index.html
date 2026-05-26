@@ -151,6 +151,14 @@
                 </div>
             </section>
         </main>
+
+        <footer class="app-footer">
+            <span class="footer-label">Datenbank</span>
+            <a href="/api/backup" class="btn btn-secondary btn-sm" download>💾 Backup herunterladen</a>
+            <button class="btn btn-secondary btn-sm" onclick="document.getElementById('importBackupInput').click()">📂 Backup einlesen</button>
+            <input type="file" id="importBackupInput" accept=".json" style="display:none;" onchange="importBackup(this)">
+            <span class="footer-hint" id="importStatus"></span>
+        </footer>
     </div>
 
     <!-- Match Update Modal -->
