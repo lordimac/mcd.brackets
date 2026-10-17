@@ -1,478 +1,245 @@
-import express, { Request, Response } from 'express';
+import express, { ErrorRequestHandler, Request, Response } from 'express';
 import cors from 'cors';
-import { BracketsManager } from 'brackets-manager';
-import { JsonDatabase } from 'brackets-json-db';
 import path from 'path';
 import fs from 'fs';
+import { APP_TABLES, dataDir, dbPath, ensureAppTables, getManager, getStorage, replaceDatabase, withLock, withRollback } from './db';
+import { HttpError } from './http-error';
+import { ValidationError } from './lan';
+import { lanRouter } from './lan-routes';
+import { playerNamesForEvent, syncEventsFromStages } from './lan-store';
+import { isStageType, normalizeNames } from './seeding';
+import { createStage, deleteStage, findStage, pickSettings } from './stages';
+import { getStandings } from './standings';
 
 const app = express();
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
-// Initialize data directory
-const dataDir = path.join(__dirname, '../data');
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir, { recursive: true });
-}
+const publicDir = path.join(__dirname, '../public');
 
-// Initialize brackets manager with data directory
-const storage = new JsonDatabase(path.join(dataDir, 'db.json'));
-const manager = new BracketsManager(storage);
+// Cache busting: every server start (i.e. every new image/container) gets its own build ID,
+// which is appended to the JS/CSS URLs in index.html, so browsers never keep stale assets.
+const version: string = JSON.parse(fs.readFileSync(path.join(__dirname, '../package.json'), 'utf-8')).version;
+const BUILD_ID = `${version}-${Date.now().toString(36)}`;
 
 // Middleware
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
-app.use(express.static(path.join(__dirname, '../public'), { etag: true, lastModified: true, setHeaders: (res) => { res.setHeader('Cache-Control', 'no-cache'); } }));
+
+app.get(['/', '/index.html'], (_req: Request, res: Response) => {
+  const html = fs.readFileSync(path.join(publicDir, 'index.html'), 'utf-8')
+    .replace(/(src|href)="((?:lib\/)?[\w.-]+\.(?:js|css))"/g, `$1="$2?v=${BUILD_ID}"`);
+  res.setHeader('Cache-Control', 'no-store');
+  res.type('html').send(html);
+});
+
+app.use(express.static(publicDir, { etag: true, lastModified: true, setHeaders: (res) => { res.setHeader('Cache-Control', 'no-cache'); } }));
 
 // API Routes
 
+// Events (LAN settings) and their attendees
+app.use('/api', lanRouter);
+
 // Get all tournaments (stages)
-app.get('/api/stages', async (req: Request, res: Response) => {
-  try {
-    const stages = await storage.select('stage');
-    res.json(stages || []);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch stages' });
-  }
+app.get('/api/stages', async (_req: Request, res: Response) => {
+  res.json((await getStorage().select('stage')) ?? []);
 });
 
 // Get specific stage
-app.get('/api/stages/:id', async (req: Request, res: Response) => {
-  try {
-    const stage = await storage.select('stage', { id: parseInt(req.params.id) });
-    if (!stage || stage.length === 0) {
-      return res.status(404).json({ error: 'Stage not found' });
-    }
-    res.json(stage[0]);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch stage' });
-  }
+app.get('/api/stages/:id', async (req: Request<{ id: string }>, res: Response) => {
+  res.json(await findStage(parseInt(req.params.id)));
 });
 
 // Get matches for a stage
-app.get('/api/stages/:id/matches', async (req: Request, res: Response) => {
-  try {
-    const matches = await storage.select('match', { stage_id: parseInt(req.params.id) });
-    res.json(matches || []);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch matches' });
-  }
+app.get('/api/stages/:id/matches', async (req: Request<{ id: string }>, res: Response) => {
+  res.json((await getStorage().select('match', { stage_id: parseInt(req.params.id) })) ?? []);
 });
 
 // Get all matches
-app.get('/api/matches', async (req: Request, res: Response) => {
-  try {
-    const matches = await storage.select('match');
-    res.json(matches || []);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch matches' });
-  }
+app.get('/api/matches', async (_req: Request, res: Response) => {
+  res.json((await getStorage().select('match')) ?? []);
 });
 
-// Create a new stage
+// Create a new stage; the server assigns the tournament ID and the random seeding.
+// Without an explicit participants list, all attendees of the event play.
 app.post('/api/stages', async (req: Request, res: Response) => {
-  try {
-    const { tournamentId, name, type, seeding, settings, eventName } = req.body;
+  const { name, type, participants, settings } = req.body ?? {};
+  const eventName = typeof req.body?.eventName === 'string' ? req.body.eventName.trim() || undefined : undefined;
+  const explicitNames = participants === undefined ? undefined : normalizeNames(participants);
 
-    if (!tournamentId || !name || !type || !seeding) {
-      return res.status(400).json({ 
-        error: 'Missing required fields: tournamentId, name, type, seeding' 
-      });
-    }
-
-    const stage = await manager.create.stage({
-      tournamentId,
-      name,
-      type,
-      seeding,
-      settings: settings || {}
-    });
-
-    // Add event_name to the stage if provided
-    if (eventName && stage) {
-      const stageId = (stage as any).id;
-      // Read current stage data
-      const currentStage = await storage.select('stage', { id: stageId });
-      if (currentStage && currentStage[0]) {
-        // Merge event_name with existing data
-        const updatedData = { ...currentStage[0], event_name: eventName };
-        await storage.update('stage', stageId, updatedData as any);
-        return res.status(201).json(updatedData);
-      }
-    }
-
-    res.status(201).json(stage);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to create stage' });
+  if (typeof name !== 'string' || !name.trim() || !isStageType(type) || explicitNames === null) {
+    throw new HttpError(400, 'Missing required fields: name, type');
   }
+
+  const stage = await withLock(async () => {
+    const names = explicitNames ?? await playerNamesForEvent(eventName);
+    if (!names) {
+      throw new HttpError(400, 'Ohne Teilnehmerliste muss ein vorhandenes Event angegeben werden');
+    }
+    const stages = (await getStorage().select('stage')) ?? [];
+    const tournamentId = stages.reduce((max, s) => Math.max(max, Number(s.tournament_id)), 0) + 1;
+    const created = await withRollback(() => createStage({
+      tournamentId,
+      name: name.trim(),
+      type,
+      names,
+      settings: pickSettings(settings),
+      eventName
+    }));
+    await syncEventsFromStages();
+    return created;
+  });
+
+  res.status(201).json(stage);
+});
+
+// Re-create a stage with a new random draw. Players: the given list, else the event's
+// current attendees, else the stage's previous players (tournaments without attendee list).
+// Keeps tournament ID, name, type, event and settings; rolls back if anything fails.
+app.post('/api/stages/:id/regenerate', async (req: Request<{ id: string }>, res: Response) => {
+  const newNames = req.body?.participants === undefined ? undefined : normalizeNames(req.body.participants);
+  if (newNames === null) {
+    throw new HttpError(400, 'participants must be an array of names');
+  }
+
+  const stage = await withLock(() => withRollback(async () => {
+    const stage = await findStage(parseInt(req.params.id));
+    const attendeeNames = await playerNamesForEvent(stage.event_name);
+    const names = newNames
+      ?? (attendeeNames?.length ? attendeeNames : null)
+      ?? ((await getStorage().select('participant', { tournament_id: stage.tournament_id })) ?? [])
+        .map(p => p.name)
+        .filter(Boolean);
+
+    await deleteStage(stage);
+    return createStage({
+      tournamentId: stage.tournament_id,
+      name: stage.name,
+      type: stage.type,
+      names,
+      settings: pickSettings(stage.settings),
+      eventName: stage.event_name
+    });
+  }));
+
+  res.status(201).json(stage);
 });
 
 // Update match result
-app.put('/api/matches/:id', async (req: Request, res: Response) => {
-  try {
-    const { opponent1, opponent2 } = req.body;
-    const matchId = parseInt(req.params.id);
+app.put('/api/matches/:id', async (req: Request<{ id: string }>, res: Response) => {
+  const { opponent1, opponent2 } = req.body ?? {};
+  const matchId = parseInt(req.params.id);
 
-    await manager.update.match({
-      id: matchId,
-      opponent1,
-      opponent2
-    });
-
-    const updatedMatch = await storage.select('match', { id: matchId });
-    res.json(updatedMatch?.[0] || {});
-  } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to update match' });
-  }
+  const updatedMatch = await withLock(async () => {
+    await getManager().update.match({ id: matchId, opponent1, opponent2 });
+    return getStorage().select('match', matchId);
+  });
+  res.json(updatedMatch ?? {});
 });
 
 // Delete a stage (including all participants for that tournament)
-app.delete('/api/stages/:id', async (req: Request, res: Response) => {
-  try {
-    const stageId = parseInt(req.params.id);
-
-    // Find the stage to get tournament_id
-    const stage = await storage.select('stage', { id: stageId });
-    if (!stage || stage.length === 0) {
-      return res.status(404).json({ error: 'Stage not found' });
-    }
-    const tournamentId = (stage[0] as any).tournament_id;
-
-    // Delete all participants for this tournament
-    const allParticipants = await storage.select('participant');
-    const tournamentParticipants = (allParticipants || []).filter(
-      (p: any) => p.tournament_id === tournamentId
-    );
-    for (const participant of tournamentParticipants) {
-      await storage.delete('participant', { id: (participant as any).id });
-    }
-
-    // Delete the stage (brackets-manager handles matches/rounds/groups)
-    await manager.delete.stage(stageId);
-
-    res.status(204).send();
-  } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to delete stage' });
-  }
+app.delete('/api/stages/:id', async (req: Request<{ id: string }>, res: Response) => {
+  await withLock(async () => deleteStage(await findStage(parseInt(req.params.id))));
+  res.status(204).send();
 });
 
 // Get participants
-app.get('/api/participants', async (req: Request, res: Response) => {
-  try {
-    const participants = await storage.select('participant');
-    res.json(participants || []);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch participants' });
-  }
+app.get('/api/participants', async (_req: Request, res: Response) => {
+  res.json((await getStorage().select('participant')) ?? []);
 });
 
 // Create participant
 app.post('/api/participants', async (req: Request, res: Response) => {
-  try {
-    const { tournamentId, name } = req.body;
-    
-    if (!tournamentId || !name) {
-      return res.status(400).json({ 
-        error: 'Missing required fields: tournamentId, name' 
-      });
-    }
+  const { tournamentId, name } = req.body ?? {};
 
-    const participant = await storage.insert('participant', {
-      tournament_id: tournamentId,
-      name: name
-    });
-
-    res.status(201).json(participant);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to create participant' });
+  if (tournamentId == null || !name) {
+    throw new HttpError(400, 'Missing required fields: tournamentId, name');
   }
+
+  const participant = await withLock(() => getStorage().insert('participant', { tournament_id: tournamentId, name }));
+  res.status(201).json(participant);
 });
 
 // Delete participant
-app.delete('/api/participants/:id', async (req: Request, res: Response) => {
-  try {
-    await storage.delete('participant', { id: parseInt(req.params.id) });
-    res.status(204).send();
-  } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to delete participant' });
-  }
+app.delete('/api/participants/:id', async (req: Request<{ id: string }>, res: Response) => {
+  await withLock(() => getStorage().delete('participant', { id: parseInt(req.params.id) }));
+  res.status(204).send();
 });
 
 // Get complete tournament data for viewer
-app.get('/api/viewer-data/:stageId', async (req: Request, res: Response) => {
-  try {
-    const stageId = parseInt(req.params.stageId);
-    
-    const stage = await storage.select('stage', { id: stageId });
-    const matches = await storage.select('match', { stage_id: stageId });
-    
-    // Try to get match_game data, but don't fail if it doesn't exist
-    let matchGames: any[] = [];
-    try {
-      matchGames = await storage.select('match_game', { stage_id: stageId }) || [];
-    } catch (e) {
-      // match_game table might not exist, that's ok
-      console.log('match_game table not available');
-    }
-    
-    // Get all participants for this stage
-    const stage_data: any = stage?.[0];
-    if (!stage_data) {
-      return res.status(404).json({ error: 'Stage not found' });
-    }
+app.get('/api/viewer-data/:stageId', async (req: Request<{ stageId: string }>, res: Response) => {
+  const stageId = parseInt(req.params.stageId);
+  const stage = await findStage(stageId);
+  const storage = getStorage();
 
-    // Get all participants for this tournament
-    const allParticipants = await storage.select('participant');
-    const stageParticipants = allParticipants?.filter((p: any) => 
-      p.tournament_id === stage_data.tournament_id
-    );
-
-    res.json({
-      stage: stage || [],
-      match: matches || [],
-      match_game: matchGames,
-      participant: stageParticipants || []
-    });
-  } catch (error: any) {
-    console.error('Error fetching viewer data:', error);
-    res.status(500).json({ error: 'Failed to fetch viewer data', details: error.message });
-  }
+  res.json({
+    stage: [stage],
+    match: (await storage.select('match', { stage_id: stageId })) ?? [],
+    match_game: (await storage.select('match_game', { stage_id: stageId })) ?? [],
+    participant: (await storage.select('participant', { tournament_id: stage.tournament_id })) ?? []
+  });
 });
 
-// Get final standings/placements for a stage
-app.get('/api/standings/:stageId', async (req: Request, res: Response) => {
-  try {
-    const stageId = parseInt(req.params.stageId);
-    
-    const stage: any = await storage.select('stage', { id: stageId });
-    const matches: any = await storage.select('match', { stage_id: stageId });
-    const groups: any = await storage.select('group', { stage_id: stageId });
-    const rounds: any = await storage.select('round', { stage_id: stageId });
-    
-    if (!stage || stage.length === 0) {
-      return res.status(404).json({ error: 'Stage not found' });
-    }
-    
-    const stageData = stage[0];
-    const allParticipants: any = await storage.select('participant');
-    const stageParticipants = allParticipants?.filter((p: any) => 
-      p.tournament_id === stageData.tournament_id
-    );
-    
-    // Calculate placements based on bracket structure
-    const placements = calculatePlacements(stageData, matches, groups, rounds, stageParticipants);
-    
-    res.json(placements);
-  } catch (error: any) {
-    console.error('Error fetching standings:', error);
-    res.status(500).json({ error: 'Failed to fetch standings', details: error.message });
-  }
+// Get final standings/placements incl. championship points for a stage
+app.get('/api/standings/:stageId', async (req: Request<{ stageId: string }>, res: Response) => {
+  const standings = await getStandings(getStorage(), getManager(), parseInt(req.params.stageId));
+  if (!standings) throw new HttpError(404, 'Stage not found');
+  res.json(standings);
 });
-
-function calculatePlacements(stage: any, matches: any[], groups: any[], rounds: any[], participants: any[]) {
-  const placements: any[] = [];
-  
-  if (stage.type === 'double_elimination') {
-    // For double elimination, we need to track final match results
-    // Winner = champion, runner-up = grand final loser, 3rd = LB final loser, etc.
-    
-    const participantData = new Map();
-    
-    participants.forEach((p: any) => {
-      if (!p.name) return; // Skip BYE
-      participantData.set(p.id, {
-        id: p.id,
-        name: p.name,
-        wins: 0,
-        losses: 0,
-        finalMatch: null, // The last match they played
-        finalMatchRound: 0,
-        finalMatchGroup: 0,
-        wonFinalMatch: false
-      });
-    });
-    
-    // Find the highest round numbers to identify finals
-    const maxRoundByGroup = new Map();
-    rounds.forEach((round: any) => {
-      const current = maxRoundByGroup.get(round.group_id) || 0;
-      if (round.number > current) {
-        maxRoundByGroup.set(round.group_id, round.number);
-      }
-    });
-    
-    // Process all matches to track participant progress
-    matches.forEach((match: any) => {
-      if (!match.opponent1?.id || !match.opponent2?.id) return;
-      if (!match.opponent1?.result && !match.opponent2?.result) return; // Skip unplayed matches
-      
-      const p1 = participantData.get(match.opponent1.id);
-      const p2 = participantData.get(match.opponent2.id);
-      
-      if (!p1 || !p2) return;
-      
-      const round = rounds.find((r: any) => r.id === match.round_id);
-      const group = groups.find((g: any) => g.id === match.group_id);
-      
-      if (!round || !group) return;
-      
-      const winner = match.opponent1?.result === 'win' ? p1 : p2;
-      const loser = match.opponent1?.result === 'win' ? p2 : p1;
-      
-      winner.wins++;
-      loser.losses++;
-      
-      // Update final match for both players
-      const isLaterMatch = (group.number > winner.finalMatchGroup) || 
-                          (group.number === winner.finalMatchGroup && round.number > winner.finalMatchRound);
-      
-      if (isLaterMatch || !winner.finalMatch) {
-        winner.finalMatch = match;
-        winner.finalMatchRound = round.number;
-        winner.finalMatchGroup = group.number;
-        winner.wonFinalMatch = true;
-      }
-      
-      const isLaterMatchLoser = (group.number > loser.finalMatchGroup) || 
-                               (group.number === loser.finalMatchGroup && round.number > loser.finalMatchRound);
-      
-      if (isLaterMatchLoser || !loser.finalMatch) {
-        loser.finalMatch = match;
-        loser.finalMatchRound = round.number;
-        loser.finalMatchGroup = group.number;
-        loser.wonFinalMatch = false;
-      }
-    });
-    
-    // Sort by final placement:
-    // 1. Players who won their final match and reached later rounds are ranked higher
-    // 2. Among those eliminated in the same round, more wins = better
-    const standings = Array.from(participantData.values())
-      .sort((a: any, b: any) => {
-        // First, sort by the group they reached (higher group number = finals)
-        if (b.finalMatchGroup !== a.finalMatchGroup) {
-          return b.finalMatchGroup - a.finalMatchGroup;
-        }
-        
-        // If same group, check if they won or lost their final match
-        if (a.wonFinalMatch !== b.wonFinalMatch) {
-          return a.wonFinalMatch ? -1 : 1;
-        }
-        
-        // If same group and same outcome, sort by round reached
-        if (b.finalMatchRound !== a.finalMatchRound) {
-          return b.finalMatchRound - a.finalMatchRound;
-        }
-        
-        // Finally by total wins
-        if (b.wins !== a.wins) {
-          return b.wins - a.wins;
-        }
-        
-        // Finally by losses (fewer = better)
-        return a.losses - b.losses;
-      });
-    
-    standings.forEach((p: any, index: number) => {
-      placements.push({
-        placement: index + 1,
-        participant_id: p.id,
-        participant_name: p.name,
-        wins: p.wins,
-        losses: p.losses
-      });
-    });
-    
-  } else {
-    // For single elimination, simpler logic
-    const participantStats = new Map();
-    
-    participants.forEach((p: any) => {
-      if (!p.name) return;
-      participantStats.set(p.id, {
-        id: p.id,
-        name: p.name,
-        wins: 0,
-        losses: 0
-      });
-    });
-    
-    matches.forEach((match: any) => {
-      const p1 = participantStats.get(match.opponent1?.id);
-      const p2 = participantStats.get(match.opponent2?.id);
-      
-      if (match.opponent1?.result === 'win' && p1 && p2) {
-        p1.wins++;
-        p2.losses++;
-      } else if (match.opponent2?.result === 'win' && p1 && p2) {
-        p2.wins++;
-        p1.losses++;
-      }
-    });
-    
-    const standings = Array.from(participantStats.values())
-      .sort((a: any, b: any) => {
-        if (b.wins !== a.wins) return b.wins - a.wins;
-        return a.losses - b.losses;
-      });
-    
-    standings.forEach((p: any, index: number) => {
-      placements.push({
-        placement: index + 1,
-        participant_id: p.id,
-        participant_name: p.name,
-        wins: p.wins,
-        losses: p.losses
-      });
-    });
-  }
-  
-  return placements;
-}
 
 // DB Backup: download db.json
 app.get('/api/backup', (_req: Request, res: Response) => {
-  try {
-    const dbPath = path.join(dataDir, 'db.json');
-    if (!fs.existsSync(dbPath)) {
-      return res.status(404).json({ error: 'No database file found' });
-    }
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-    res.setHeader('Content-Disposition', `attachment; filename="mcd-brackets-backup-${timestamp}.json"`);
-    res.setHeader('Content-Type', 'application/json');
-    res.sendFile(path.resolve(dbPath));
-  } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Backup failed' });
+  if (!fs.existsSync(dbPath)) {
+    throw new HttpError(404, 'No database file found');
   }
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  res.setHeader('Content-Disposition', `attachment; filename="mcd-brackets-backup-${timestamp}.json"`);
+  res.setHeader('Content-Type', 'application/json');
+  res.sendFile(dbPath);
 });
 
 // DB Import: restore db.json from uploaded backup
-app.post('/api/restore', (req: Request, res: Response) => {
-  try {
-    const parsed = req.body;
-    if (!parsed || typeof parsed !== 'object') {
-      return res.status(400).json({ error: 'Keine Daten empfangen' });
-    }
-    // Basic sanity check — db.json must have known top-level keys
-    const knownKeys = ['participant', 'stage', 'group', 'round', 'match', 'match_game'];
-    const hasAny = knownKeys.some(k => Array.isArray(parsed[k]));
-    if (!hasAny) {
-      return res.status(400).json({ error: 'Die Datei sieht nicht wie ein gültiges mcd.brackets-Backup aus' });
-    }
-    const dbPath = path.join(dataDir, 'db.json');
+app.post('/api/restore', async (req: Request, res: Response) => {
+  const parsed = req.body;
+  if (!parsed || typeof parsed !== 'object') {
+    throw new HttpError(400, 'Keine Daten empfangen');
+  }
+  // Basic sanity check — db.json must have known top-level keys
+  const knownKeys = ['participant', 'stage', 'group', 'round', 'match', 'match_game', ...APP_TABLES];
+  if (!knownKeys.some(k => Array.isArray(parsed[k]))) {
+    throw new HttpError(400, 'Die Datei sieht nicht wie ein gültiges mcd.brackets-Backup aus');
+  }
+
+  await withLock(async () => {
     // Write backup of current db first
     if (fs.existsSync(dbPath)) {
       const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
       fs.copyFileSync(dbPath, path.join(dataDir, `db-before-restore-${ts}.json`));
     }
-    fs.writeFileSync(dbPath, JSON.stringify(parsed, null, 2), 'utf-8');
-    res.json({ ok: true, message: 'Datenbank wiederhergestellt. Bitte Seite neu laden.' });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Restore failed' });
-  }
+    await replaceDatabase(parsed);
+    await syncEventsFromStages();
+  });
+  res.json({ ok: true, message: 'Datenbank wiederhergestellt. Bitte Seite neu laden.' });
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Server läuft auf http://localhost:${PORT}`);
-  console.log(`📊 API verfügbar unter http://localhost:${PORT}/api`);
+// JSON errors for all routes (Express 5 forwards rejected promises here)
+const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
+  const status = error instanceof HttpError ? error.status : error instanceof ValidationError ? 400 : 500;
+  if (status === 500) console.error(error);
+  res.status(status).json({ error: error.message || 'Internal server error' });
+};
+app.use(errorHandler);
+
+// Start server (after creating missing tables and event records for existing tournaments)
+async function start(): Promise<void> {
+  await ensureAppTables();
+  await syncEventsFromStages();
+  app.listen(PORT, () => {
+    console.log(`🚀 Server läuft auf http://localhost:${PORT}`);
+    console.log(`📊 API verfügbar unter http://localhost:${PORT}/api`);
+  });
+}
+
+start().catch(error => {
+  console.error('Start fehlgeschlagen:', error);
+  process.exit(1);
 });

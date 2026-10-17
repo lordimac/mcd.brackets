@@ -1,14 +1,16 @@
 {
   "name": "mcd-brackets",
-  "version": "0.9.1-beta",
+  "version": "0.15.0-beta",
   "description": "Tournament bracket management system using brackets-manager",
-  "main": "dist/index.js",
+  "main": "dist/server.js",
   "scripts": {
     "build": "tsc",
-    "start": "node dist/index.js",
-    "dev": "ts-node src/index.ts",
-    "server": "ts-node src/server.ts",
-    "server:watch": "nodemon --exec ts-node src/server.ts"
+    "start": "node dist/server.js",
+    "server": "tsx src/server.ts",
+    "server:watch": "tsx watch src/server.ts",
+    "vendor": "cp node_modules/brackets-viewer/dist/brackets-viewer.min.js node_modules/html2canvas/dist/html2canvas.min.js node_modules/jspdf/dist/jspdf.umd.min.js public/lib/",
+    "test": "tsx --test 'src/**/*.test.ts'",
+    "docker:rebuild": "scripts/docker-rebuild.sh"
   },
   "keywords": [
     "tournament",
@@ -31,21 +33,27 @@
   "homepage": "https://github.com/lordimac/mcd.brackets#readme",
   "author": "",
   "license": "ISC",
+  "engines": {
+    "node": ">=22"
+  },
   "dependencies": {
-    "@types/cors": "^2.8.19",
-    "@types/express": "^5.0.6",
     "brackets-json-db": "^1.0.3",
-    "brackets-manager": "^1.11.0",
+    "brackets-manager": "^1.11.1",
     "brackets-viewer": "^1.9.1",
     "cors": "^2.8.6",
-    "express": "^5.2.1",
+    "express": "^5.3.0",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.1"
   },
   "devDependencies": {
-    "@types/node": "^25.9.1",
-    "nodemon": "^3.1.14",
-    "ts-node": "^10.9.2",
-    "typescript": "^6.0.3"
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/node": "^24.19.2",
+    "brackets-model": "^1.7.0",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  },
+  "overrides": {
+    "uuid": "^11.1.1"
   }
 }

@@ -1,12 +1,45 @@
 const API_URL = '/api';
 
-// Points system for tournament placements
-const POINTS_SYSTEM = [30, 22, 16, 12, 9, 7, 5, 3, 2, 2, 2, 2, 1, 1, 1, 1];
+// Escape user-provided text before inserting it into HTML templates
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+// Inline SVG icon from the sprite in index.html
+function icon(name) {
+    return `<svg class="icon"><use href="#i-${name}"/></svg>`;
+}
+
+// Shared helpers for fetch calls: parse JSON and turn API errors into exceptions
+async function apiFetch(path, options = {}) {
+    const response = await fetch(`${API_URL}${path}`, {
+        ...options,
+        headers: options.body ? { 'Content-Type': 'application/json', ...options.headers } : options.headers
+    });
+    if (response.status === 204) return null;
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+    return data;
+}
+
+function openModal(id) {
+    document.getElementById(id).classList.add('show');
+}
+
+function closeModal(id) {
+    document.getElementById(id).classList.remove('show');
+}
 
 // State
 let stages = [];
 let matches = [];
 let participants = [];
+let lanEvents = []; // events incl. attendee_count, shared with lan.js
 
 // Import/Restore backup
 async function importBackup(input) {
@@ -35,63 +68,94 @@ async function importBackup(input) {
 
 // Initialize
 document.addEventListener('DOMContentLoaded', async () => {
+    setupEventListeners();
+    restoreSections();
+    showView();
+    await loadEvents();
     await loadStages();
     await loadParticipants();
     await loadMatches();
-    setupEventListeners();
 });
 
 function setupEventListeners() {
     document.getElementById('createTournamentForm').addEventListener('submit', createTournament);
-    document.getElementById('editParticipantsForm').addEventListener('submit', saveParticipants);
-    document.getElementById('eventName').addEventListener('change', handleEventSelection);
+    document.getElementById('eventName').addEventListener('change', updateEventPlayersHint);
+    window.addEventListener('hashchange', showView);
 }
 
-function toggleSection(sectionId) {
+// Views: #turniere (default) and #teilnehmer
+function showView() {
+    const view = location.hash === '#teilnehmer' ? 'attendees' : 'tournaments';
+    document.getElementById('view-tournaments').style.display = view === 'tournaments' ? '' : 'none';
+    document.getElementById('view-attendees').style.display = view === 'attendees' ? '' : 'none';
+    document.querySelectorAll('.tab').forEach(tab => tab.classList.toggle('active', tab.dataset.view === view));
+    if (view === 'attendees' && typeof showAttendeeView === 'function') showAttendeeView();
+}
+
+// Events with attendee counts (also used by the attendee view in lan.js)
+async function loadEvents() {
+    try {
+        lanEvents = await apiFetch('/events');
+    } catch (error) {
+        console.error('Error loading events:', error);
+        lanEvents = [];
+    }
+    updateEventDropdown();
+}
+
+// Collapsible cards; the open/closed state is remembered per browser
+const COLLAPSIBLE_SECTIONS = ['createTournamentSection', 'eventConfigSection'];
+
+function toggleSection(sectionId, open) {
     const section = document.getElementById(sectionId);
-    const icon = document.getElementById(sectionId.replace('Section', 'Icon'));
-    
-    if (section.style.display === 'none') {
-        section.style.display = 'block';
-        if (icon) icon.textContent = '▲';
-    } else {
-        section.style.display = 'none';
-        if (icon) icon.textContent = '▼';
+    const iconEl = document.getElementById(sectionId.replace('Section', 'Icon'));
+
+    const shouldOpen = open ?? section.style.display === 'none';
+    section.style.display = shouldOpen ? 'block' : 'none';
+    if (iconEl) iconEl.classList.toggle('is-open', shouldOpen);
+    try { localStorage.setItem(`mcd.open.${sectionId}`, shouldOpen ? '1' : '0'); } catch { /* storage unavailable */ }
+}
+
+function restoreSections() {
+    for (const id of COLLAPSIBLE_SECTIONS) {
+        let stored = null;
+        try { stored = localStorage.getItem(`mcd.open.${id}`); } catch { /* storage unavailable */ }
+        if (stored === '1') toggleSection(id, true);
     }
 }
 
-function handleEventSelection() {
-    const eventSelect = document.getElementById('eventName');
-    const newEventInput = document.getElementById('newEventName');
-    
-    if (eventSelect.value === '__new__') {
-        newEventInput.style.display = 'block';
-        newEventInput.required = true;
-        newEventInput.focus();
-    } else {
-        newEventInput.style.display = 'none';
-        newEventInput.required = false;
-        newEventInput.value = '';
-    }
-}
-
+// Event dropdown of the create form: events from the attendee management, newest first
 function updateEventDropdown() {
     const eventSelect = document.getElementById('eventName');
     const currentValue = eventSelect.value;
-    
-    // Get unique event names from stages
-    const events = [...new Set(stages.map(s => s.event_name).filter(e => e))];
-    
+    const events = [...lanEvents].reverse();
+
     eventSelect.innerHTML = '<option value="">Event auswählen...</option>' +
-        events.map(event => `<option value="${event}">${event}</option>`).join('') +
-        '<option value="__new__">+ Neues Event erstellen</option>';
-    
-    if (currentValue && events.includes(currentValue)) {
+        events.map(event => `<option value="${escapeHtml(event.name)}">${escapeHtml(event.name)} (${event.attendee_count} Teilnehmer)</option>`).join('');
+
+    if (events.some(e => e.name === currentValue)) {
         eventSelect.value = currentValue;
+    } else if (events.length > 0) {
+        eventSelect.value = events[0].name;
     }
-    
-    // Update event filter
-    updateEventFilter();
+    updateEventPlayersHint();
+}
+
+function updateEventPlayersHint() {
+    const hint = document.getElementById('eventPlayersHint');
+    const event = lanEvents.find(e => e.name === document.getElementById('eventName').value);
+    if (!event) {
+        hint.innerHTML = lanEvents.length
+            ? 'Spieler sind automatisch alle Teilnehmer des Events.'
+            : 'Noch kein Event vorhanden — unter <a href="#teilnehmer">Teilnehmer</a> anlegen.';
+        hint.classList.remove('is-warning');
+        return;
+    }
+    const enough = event.attendee_count >= 2;
+    hint.innerHTML = enough
+        ? `Es spielen alle <strong>${event.attendee_count}</strong> Teilnehmer des Events mit.`
+        : `Das Event hat erst ${event.attendee_count} Teilnehmer — unter <a href="#teilnehmer">Teilnehmer</a> ergänzen.`;
+    hint.classList.toggle('is-warning', !enough);
 }
 
 function updateEventFilter() {
@@ -101,7 +165,7 @@ function updateEventFilter() {
     const events = [...new Set(stages.map(s => s.event_name).filter(e => e))];
     
     eventFilter.innerHTML = '<option value="">Alle Events</option>' +
-        events.map(event => `<option value="${event}">${event}</option>`).join('');
+        events.map(event => `<option value="${escapeHtml(event)}">${escapeHtml(event)}</option>`).join('');
     
     if (currentValue && events.includes(currentValue)) {
         eventFilter.value = currentValue;
@@ -120,7 +184,7 @@ async function loadStages() {
         displayStages();
         displayEvents();
         updateStageFilter();
-        updateEventDropdown();
+        updateEventFilter();
     } catch (error) {
         console.error('Error loading stages:', error);
         document.getElementById('stagesList').innerHTML = 
@@ -146,6 +210,7 @@ async function loadParticipants() {
         const response = await fetch(`${API_URL}/participants`);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         participants = await response.json();
+        displayStages(); // participant counts on the tournament cards
     } catch (error) {
         console.error('Error loading participants:', error);
     }
@@ -166,37 +231,42 @@ function displayStages() {
         return;
     }
 
-    container.innerHTML = filteredStages.map(stage => `
-        <div class="stage-item">
-            <h3>${stage.name}</h3>
-            ${stage.event_name ? `<p class="event-name">🎯 ${stage.event_name}</p>` : ''}
+    container.innerHTML = filteredStages.map(stage => {
+        const participantCount = participants.filter(p => p.tournament_id === stage.tournament_id && p.name).length;
+        return `
+        <div class="stage-item type-${escapeHtml(stage.type)}">
+            <div class="stage-head">
+                <div>
+                    <h3>${escapeHtml(stage.name)}</h3>
+                    ${stage.event_name ? `<p class="event-name">${icon('flag')}${escapeHtml(stage.event_name)}</p>` : ''}
+                </div>
+            </div>
             <div class="stage-info">
                 <span class="info-badge badge-type">${formatType(stage.type)}</span>
-                <span class="info-badge badge-id">Turnier #${stage.tournament_id}</span>
-                <span class="info-badge badge-id">Stage #${stage.id}</span>
+                <span class="info-badge badge-id">${icon('users')}${participantCount}</span>
+                <span class="info-badge badge-id">#${stage.tournament_id}</span>
             </div>
             <div class="stage-actions">
-                <button class="btn btn-secondary" onclick="viewStageMatches(${stage.id})">
-                    Matches anzeigen
+                <button class="btn btn-primary btn-sm" onclick="viewBracket(${stage.id})">
+                    ${icon('bracket')}<span>Bracket</span>
                 </button>
-                <button class="btn btn-success" onclick="viewBracket(${stage.id})">
-                    📊 Bracket anzeigen
+                <button class="btn btn-secondary btn-sm" onclick="viewRankings(${stage.id})">
+                    ${icon('chart')}<span>Rangliste</span>
                 </button>
-                <button class="btn btn-info" onclick="viewRankings(${stage.id})">
-                    🏆 Rangliste
+                <span class="spacer"></span>
+                <button class="btn btn-ghost btn-icon" onclick="viewStageMatches(${stage.id})" title="Matches anzeigen" aria-label="Matches anzeigen">
+                    ${icon('list')}
                 </button>
-                <button class="btn btn-primary" onclick="editParticipants(${stage.id})">
-                    ✏️ Teilnehmer bearbeiten
+                <button class="btn btn-ghost btn-icon" onclick="resetBracket(${stage.id})" title="Neu auslosen (mit allen aktuellen Teilnehmern)" aria-label="Neu auslosen">
+                    ${icon('shuffle')}
                 </button>
-                <button class="btn btn-warning" onclick="resetBracket(${stage.id})">
-                    🔄 Bracket neu erzeugen
-                </button>
-                <button class="btn btn-danger" onclick="deleteStage(${stage.id})">
-                    Löschen
+                <button class="btn btn-danger btn-icon" onclick="deleteStage(${stage.id})" title="Turnier löschen" aria-label="Turnier löschen">
+                    ${icon('trash')}
                 </button>
             </div>
         </div>
-    `).join('');
+    `;
+    }).join('');
 }
 
 function displayEvents() {
@@ -209,13 +279,10 @@ function displayEvents() {
             if (!eventMap.has(stage.event_name)) {
                 eventMap.set(stage.event_name, {
                     name: stage.event_name,
-                    tournaments: [],
-                    tournamentIds: new Set()
+                    tournaments: []
                 });
             }
-            const event = eventMap.get(stage.event_name);
-            event.tournaments.push(stage);
-            event.tournamentIds.add(stage.tournament_id);
+            eventMap.get(stage.event_name).tournaments.push(stage);
         }
     });
     
@@ -228,14 +295,13 @@ function displayEvents() {
     
     container.innerHTML = events.map(event => `
         <div class="event-item">
-            <h3>🎯 ${event.name}</h3>
-            <div class="event-info">
-                <span class="info-badge badge-type">${event.tournaments.length} Turnier${event.tournaments.length !== 1 ? 'e' : ''}</span>
-                <span class="info-badge badge-id">${event.tournamentIds.size} Tournament ID${event.tournamentIds.size !== 1 ? 's' : ''}</span>
+            <div class="event-main">
+                <h3>${escapeHtml(event.name)}</h3>
+                <p class="event-meta">${event.tournaments.length} Turnier${event.tournaments.length !== 1 ? 'e' : ''}</p>
             </div>
-            <div class="event-actions">
-                <button class="btn btn-success" onclick="viewEventRankings('${event.name.replace(/'/g, "\\'")}')">🏆 Gesamt-Rangliste</button>
-            </div>
+            <button class="btn btn-secondary btn-sm" data-event="${escapeHtml(event.name)}" onclick="viewEventRankings(this.dataset.event)">
+                ${icon('trophy')}<span>Gesamtwertung</span>
+            </button>
         </div>
     `).join('');
 }
@@ -273,18 +339,22 @@ function displayMatches() {
     }
 
     container.innerHTML = filteredMatches.map(match => {
-        const opponent1 = getParticipantName(match.opponent1?.id);
-        const opponent2 = getParticipantName(match.opponent2?.id);
+        const opponent1 = escapeHtml(getParticipantName(match.opponent1?.id));
+        const opponent2 = escapeHtml(getParticipantName(match.opponent2?.id));
         const status = getMatchStatus(match);
-        
+        const stage = stages.find(s => s.id === match.stage_id);
+        const statusBadge = {
+            Completed: ['badge-status', 'Abgeschlossen'],
+            Pending: ['badge-pending', 'Offen'],
+            Waiting: ['badge-waiting', 'Wartet']
+        }[status];
+
         return `
             <div class="match-item">
-                <h3>Match #${match.id} - ${match.group_id ? 'Group ' + match.group_id : 'Round ' + match.round_id}</h3>
+                <h3>Match #${match.id}</h3>
                 <div class="match-info">
-                    <span class="info-badge badge-id">Stage #${match.stage_id}</span>
-                    <span class="info-badge ${status === 'Completed' ? 'badge-status' : 'badge-pending'}">
-                        ${status}
-                    </span>
+                    ${stage ? `<span class="info-badge badge-id">${escapeHtml(stage.name)}</span>` : ''}
+                    <span class="info-badge ${statusBadge[0]}">${statusBadge[1]}</span>
                 </div>
                 <div class="match-opponents">
                     <div class="opponent ${match.opponent1?.result === 'win' ? 'winner' : ''}">
@@ -296,8 +366,8 @@ function displayMatches() {
                     </div>
                 </div>
                 <div class="match-actions">
-                    <button class="btn btn-primary" onclick="showQuickWinnerSelectionById(${match.id})">
-                        Ergebnis eingeben
+                    <button class="btn btn-secondary btn-sm" onclick="showQuickWinnerSelectionById(${match.id})">
+                        ${icon('trophy')}<span>Ergebnis eingeben</span>
                     </button>
                 </div>
             </div>
@@ -309,9 +379,9 @@ function updateStageFilter() {
     const filter = document.getElementById('stageFilter');
     const currentValue = filter.value;
     
-    filter.innerHTML = '<option value="">Alle Stages</option>' + 
+    filter.innerHTML = '<option value="">Alle Turniere</option>' +
         stages.map(stage => 
-            `<option value="${stage.id}">Stage #${stage.id} - ${stage.name}</option>`
+            `<option value="${stage.id}">${escapeHtml(stage.name)}</option>`
         ).join('');
     
     if (currentValue) {
@@ -322,75 +392,37 @@ function updateStageFilter() {
 // Create tournament
 async function createTournament(e) {
     e.preventDefault();
-    
-    // Auto-generate tournament ID
-    const tournamentId = stages.length > 0 
-        ? Math.max(...stages.map(s => s.tournament_id)) + 1 
-        : 1;
-    
-    // Get event name
-    const eventSelect = document.getElementById('eventName');
-    const eventName = eventSelect.value === '__new__' 
-        ? document.getElementById('newEventName').value.trim()
-        : eventSelect.value;
-    
-    if (!eventName) {
-        alert('❌ Bitte wählen Sie ein Event aus oder erstellen Sie ein neues!');
+
+    const eventName = document.getElementById('eventName').value;
+    const event = lanEvents.find(ev => ev.name === eventName);
+    if (!event) {
+        alert('❌ Bitte ein Event auswählen. Events werden unter „Teilnehmer“ angelegt.');
         return;
     }
-    
+    if (event.attendee_count < 2) {
+        alert(`❌ Das Event „${eventName}“ hat erst ${event.attendee_count} Teilnehmer — mindestens 2 nötig.`);
+        return;
+    }
+
     const name = document.getElementById('stageName').value;
     const type = document.getElementById('tournamentType').value;
-    const participantsText = document.getElementById('participants').value;
     const grandFinalDouble = document.getElementById('grandFinalDouble').checked;
-    
-    let seeding = participantsText.split('\n').filter(p => p.trim()).map(p => p.trim());
-    
-    if (seeding.length < 2) {
-        alert('Mindestens 2 Teilnehmer erforderlich!');
-        return;
-    }
 
-    // Shuffle participants randomly
-    seeding = shuffleArray(seeding);
-
-    // For elimination tournaments, fill with BYEs to next power of 2
-    if (type === 'single_elimination' || type === 'double_elimination') {
-        const originalCount = seeding.length;
-        const nextPowerOf2 = getNextPowerOfTwo(originalCount);
-        
-        if (nextPowerOf2 > originalCount) {
-            const byesNeeded = nextPowerOf2 - originalCount;
-            
-            // Add BYEs (null values) to reach power of 2
-            for (let i = 0; i < byesNeeded; i++) {
-                seeding.push(null);
-            }
-            
-            console.log(`Added ${byesNeeded} BYEs to reach ${nextPowerOf2} participants`);
-        }
-    }
-
+    // The server takes all attendees of the event, assigns the tournament ID, shuffles and adds BYEs
     const settings = {};
     if (type === 'double_elimination') {
-        // Set grand final type based on checkbox
         settings.grandFinal = grandFinalDouble ? 'double' : 'simple';
     }
 
     try {
-        const response = await fetch(`${API_URL}/stages`, {
+        await apiFetch('/stages', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ tournamentId, name, type, seeding, settings, eventName })
+            body: JSON.stringify({ name, type, settings, eventName })
         });
-
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Failed to create stage');
-        }
 
         alert('✅ Turnier erfolgreich erstellt!');
         document.getElementById('createTournamentForm').reset();
+        await loadEvents();
         await loadStages();
         await loadMatches();
         await loadParticipants();
@@ -400,269 +432,39 @@ async function createTournament(e) {
     }
 }
 
-// Get next power of 2
-function getNextPowerOfTwo(n) {
-    if (n <= 1) return 2;
-    let power = 1;
-    while (power < n) power *= 2;
-    return power;
-}
-// Shuffle array randomly (Fisher-Yates algorithm)
-function shuffleArray(array) {
-    const shuffled = [...array];
-    for (let i = shuffled.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-    }
-    return shuffled;
-}
+// Re-create a stage on the server with a new random draw (keeps settings, event and tournament).
+// Players are the event's current attendees, so newly registered attendees join.
+async function regenerateStage(stageId) {
+    const newStageData = await apiFetch(`/stages/${stageId}/regenerate`, { method: 'POST', body: '{}' });
 
-// Helper function to show winner selection from match list
-function showQuickWinnerSelectionById(matchId) {
-    const match = matches.find(m => m.id === matchId);
-    if (!match) return;
-    
-    // Convert match format to bracket format if needed
-    const bracketMatch = {
-        id: match.id,
-        opponent1: match.opponent1,
-        opponent2: match.opponent2
-    };
-    
-    showQuickWinnerSelection(bracketMatch);
-}
+    // Close bracket viewer if open
+    closeBracketViewer();
 
-// Delete stage
-async function deleteStage(stageId) {
-    if (!confirm('Möchten Sie diese Stage wirklich löschen?')) {
-        return;
-    }
+    await loadParticipants();
+    await loadStages();
+    await loadMatches();
 
-    try {
-        const response = await fetch(`${API_URL}/stages/${stageId}`, {
-            method: 'DELETE'
-        });
-
-        if (!response.ok) {
-            throw new Error('Failed to delete stage');
-        }
-
-        alert('✅ Stage erfolgreich gelöscht!');
-        await loadParticipants();
-        await loadStages();
-        await loadMatches();
-    } catch (error) {
-        alert('❌ Fehler beim Löschen: ' + error.message);
-        console.error('Error deleting stage:', error);
+    // Reopen bracket with new stage ID
+    if (newStageData && newStageData.id != null) {
+        viewBracket(newStageData.id);
     }
 }
 
 // Reset bracket
 async function resetBracket(stageId) {
-    if (!confirm('⚠️ Möchten Sie das Bracket wirklich neu erzeugen? Alle Ergebnisse gehen verloren!')) {
+    if (!confirm('⚠️ Bracket neu auslosen? Es spielen alle aktuellen Teilnehmer des Events mit, bisherige Ergebnisse gehen verloren!')) {
         return;
     }
 
     try {
-        // Get stage info
-        const stage = stages.find(s => s.id === stageId);
-        if (!stage) {
-            throw new Error('Stage not found');
-        }
-
-        // Get participants for this tournament BEFORE deleting
-        const tournamentParticipants = participants.filter(p => p.tournament_id === stage.tournament_id);
-        
-        // Create seeding array with participant names and shuffle
-        let seeding = shuffleArray(tournamentParticipants.map(p => p.name));
-        
-        // Add BYEs if needed for elimination tournaments
-        if (stage.type === 'single_elimination' || stage.type === 'double_elimination') {
-            const requiredSize = getNextPowerOfTwo(seeding.length);
-            while (seeding.length < requiredSize) {
-                seeding.push(null);
-            }
-        }
-
-        // Delete the stage (backend also deletes all participants)
-        const deleteResponse = await fetch(`${API_URL}/stages/${stageId}`, {
-            method: 'DELETE'
-        });
-        if (!deleteResponse.ok) {
-            throw new Error('Failed to delete stage during reset');
-        }
-
-        const settings = {};
-        if (stage.type === 'double_elimination') {
-            settings.grandFinal = 'double';
-        }
-
-        // Create new stage (this will create new participants)
-        const response = await fetch(`${API_URL}/stages`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                tournamentId: stage.tournament_id,
-                name: stage.name,
-                type: stage.type,
-                seeding,
-                settings,
-                eventName: stage.event_name
-            })
-        });
-
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Failed to reset bracket');
-        }
-
-        const newStageData = await response.json();
-
+        await regenerateStage(stageId);
         alert('✅ Bracket erfolgreich neu erzeugt!');
-        
-        // Close bracket viewer if open
-        closeBracketViewer();
-        
-        await loadParticipants();
-        await loadStages();
-        await loadMatches();
-        
-        // Reopen bracket with new stage ID
-        if (newStageData && newStageData.id) {
-            viewBracket(newStageData.id);
-        }
     } catch (error) {
         alert('❌ Fehler beim Neu-Erzeugen: ' + error.message);
         console.error('Error resetting bracket:', error);
     }
 }
 
-// Edit participants
-function editParticipants(stageId) {
-    const stage = stages.find(s => s.id === stageId);
-    
-    if (!stage) {
-        alert('❌ Kein Stage gefunden!');
-        return;
-    }
-    
-    const tournamentParticipants = participants.filter(p => p.tournament_id === stage.tournament_id);
-    const participantNames = tournamentParticipants.map(p => p.name).join('\n');
-    
-    const modal = document.getElementById('editParticipantsModal');
-    document.getElementById('editTournamentId').value = stage.tournament_id;
-    document.getElementById('editStageId').value = stage.id;
-    document.getElementById('editParticipantsText').value = participantNames;
-    modal.classList.add('show');
-}
-
-function closeEditParticipantsModal() {
-    document.getElementById('editParticipantsModal').classList.remove('show');
-}
-
-async function saveParticipants(e) {
-    e.preventDefault();
-    
-    const tournamentId = parseInt(document.getElementById('editTournamentId').value);
-    const stageId = parseInt(document.getElementById('editStageId').value);
-    const participantsText = document.getElementById('editParticipantsText').value;
-    
-    const newNames = participantsText
-        .split('\n')
-        .map(name => name.trim())
-        .filter(name => name.length > 0);
-    
-    if (newNames.length < 2) {
-        alert('❌ Mindestens 2 Teilnehmer erforderlich!');
-        return;
-    }
-
-    if (isNaN(stageId)) {
-        alert('❌ Kein Stage gefunden für dieses Turnier!');
-        console.error('Invalid stageId:', stageId, 'tournamentId:', tournamentId);
-        return;
-    }
-
-    try {
-        // Get stage info
-        const stage = stages.find(s => s.id === stageId);
-        if (!stage) {
-            throw new Error('Stage not found');
-        }
-
-        // Get existing participants for this tournament
-        const existingParticipants = participants.filter(p => p.tournament_id === tournamentId);
-        
-        // Delete all existing participants
-        for (const participant of existingParticipants) {
-            await fetch(`${API_URL}/participants/${participant.id}`, {
-                method: 'DELETE'
-            });
-        }
-
-        // Delete the stage
-        await fetch(`${API_URL}/stages/${stageId}`, {
-            method: 'DELETE'
-        });
-
-        // Prepare seeding
-        let seeding = shuffleArray([...newNames]);
-        
-        // Add BYEs if needed for elimination tournaments
-        if (stage.type === 'single_elimination' || stage.type === 'double_elimination') {
-            const requiredSize = getNextPowerOfTwo(seeding.length);
-            while (seeding.length < requiredSize) {
-                seeding.push(null);
-            }
-        }
-
-        const settings = {};
-        if (stage.type === 'double_elimination') {
-            settings.grandFinal = 'double';
-        }
-
-        // Create new stage with new participants
-        const response = await fetch(`${API_URL}/stages`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                tournamentId: stage.tournament_id,
-                name: stage.name,
-                type: stage.type,
-                seeding,
-                settings,
-                eventName: stage.event_name
-            })
-        });
-
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Failed to update participants');
-        }
-
-        const newStageData = await response.json();
-
-        alert('✅ Teilnehmer erfolgreich aktualisiert und Bracket neu erzeugt!');
-        closeEditParticipantsModal();
-        
-        // Close bracket viewer if open
-        closeBracketViewer();
-        
-        await loadParticipants();
-        await loadStages();
-        await loadMatches();
-        
-        // Reopen bracket with new stage ID
-        if (newStageData && newStageData.id) {
-            setTimeout(() => {
-                viewBracket(newStageData.id);
-            }, 500);
-        }
-    } catch (error) {
-        alert('❌ Fehler beim Speichern: ' + error.message);
-        console.error('Error saving participants:', error);
-    }
-}
 
 // View stage matches
 function viewStageMatches(stageId) {
@@ -691,7 +493,7 @@ async function viewBracket(stageId, preserveScroll = false) {
         const stage = data.stage?.[0];
         const eventNameElement = document.getElementById('bracketEventName');
         if (stage?.event_name) {
-            eventNameElement.textContent = `🎯 ${stage.event_name} - ${stage.name}`;
+            eventNameElement.textContent = `${stage.event_name} · ${stage.name}`;
             eventNameElement.style.display = 'block';
         } else {
             eventNameElement.textContent = stage?.name || '';
@@ -740,6 +542,65 @@ function closeBracketViewer() {
     document.getElementById('bracketViewerSection').style.display = 'none';
 }
 
+// Fetch placements incl. championship points from the server
+async function fetchStandings(stageId) {
+    const response = await fetch(`${API_URL}/standings/${stageId}`);
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.error || `HTTP ${response.status}`);
+    }
+    return response.json();
+}
+
+function formatWinRate(wins, losses) {
+    return wins + losses > 0 ? (wins / (wins + losses) * 100).toFixed(1) : 0;
+}
+
+// Show the rankings section with a title and a table; showTournaments adds the "Turniere" column
+function showRankings(title, rankings, showTournaments = false) {
+    const section = document.getElementById('rankingsSection');
+    section.style.display = 'block';
+    document.getElementById('rankingsEventName').textContent = title;
+
+    const container = document.getElementById('rankingsList');
+    if (rankings.length === 0) {
+        container.innerHTML = '<p class="empty-state">Keine Rangliste verfügbar</p>';
+    } else {
+        container.innerHTML = `
+            <div class="rankings-table${showTournaments ? ' with-tournaments' : ''}">
+                <div class="rankings-header">
+                    <div class="rank-cell">Platz</div>
+                    <div class="name-cell">Teilnehmer</div>
+                    <div class="stat-cell">Punkte</div>
+                    <div class="stat-cell">Siege</div>
+                    <div class="stat-cell">Niederlagen</div>
+                    <div class="stat-cell">Gespielt</div>
+                    <div class="stat-cell">Ausstehend</div>
+                    ${showTournaments ? '<div class="stat-cell">Turniere</div>' : ''}
+                    <div class="stat-cell">Siegrate</div>
+                </div>
+                ${rankings.map((r, index) => `
+                    <div class="rankings-row ${index < 3 ? 'top-' + (index + 1) : ''}">
+                        <div class="rank-cell">
+                            <span class="rank-badge ${index < 3 ? 'rank-' + (index + 1) : ''}">${index + 1}</span>
+                        </div>
+                        <div class="name-cell">${escapeHtml(r.name)}</div>
+                        <div class="stat-cell points">${r.points}</div>
+                        <div class="stat-cell wins">${r.wins}</div>
+                        <div class="stat-cell losses">${r.losses}</div>
+                        <div class="stat-cell">${r.wins + r.losses}</div>
+                        <div class="stat-cell">${r.pending}</div>
+                        ${showTournaments ? `<div class="stat-cell">${r.tournaments}</div>` : ''}
+                        <div class="stat-cell">${formatWinRate(r.wins, r.losses)}%</div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+
+    section.scrollIntoView({ behavior: 'smooth' });
+}
+
 // View rankings
 async function viewRankings(stageId) {
     try {
@@ -749,124 +610,17 @@ async function viewRankings(stageId) {
             return;
         }
 
-        // Try to fetch proper standings from backend
-        let rankings = [];
-        try {
-            const standingsResponse = await fetch(`${API_URL}/standings/${stageId}`);
-            const standings = await standingsResponse.json();
-            
-            // Convert standings to rankings format
-            rankings = standings.map((standing, index) => ({
-                name: standing.participant_name,
-                wins: standing.wins,
-                losses: standing.losses,
-                pending: 0,
-                played: standing.wins + standing.losses,
-                winRate: standing.wins + standing.losses > 0 
-                    ? (standing.wins / (standing.wins + standing.losses) * 100).toFixed(1) 
-                    : 0,
-                points: index < POINTS_SYSTEM.length ? POINTS_SYSTEM[index] : 1
-            }));
-        } catch (error) {
-            console.error('Error fetching standings, falling back to match-based calculation:', error);
-            
-            // Fallback to old calculation method
-            const stageMatches = matches.filter(m => m.stage_id === stageId);
-            const stageParticipants = participants.filter(p => p.tournament_id === stage.tournament_id);
-            
-            rankings = stageParticipants.map(participant => {
-                const participantMatches = stageMatches.filter(m => 
-                    m.opponent1?.id === participant.id || m.opponent2?.id === participant.id
-                );
-                
-                let wins = 0;
-                let losses = 0;
-                let pending = 0;
-                
-                participantMatches.forEach(match => {
-                    const isOpponent1 = match.opponent1?.id === participant.id;
-                    const result = isOpponent1 ? match.opponent1?.result : match.opponent2?.result;
-                    
-                    if (result === 'win') wins++;
-                    else if (result === 'loss') losses++;
-                    else if (match.opponent1?.id != null && match.opponent2?.id != null) pending++;
-                });
-                
-                return {
-                    name: participant.name,
-                    wins,
-                    losses,
-                    pending,
-                    played: wins + losses,
-                    winRate: wins + losses > 0 ? (wins / (wins + losses) * 100).toFixed(1) : 0
-                };
-            });
-            
-            rankings.sort((a, b) => {
-                if (b.wins !== a.wins) return b.wins - a.wins;
-                return parseFloat(b.winRate) - parseFloat(a.winRate);
-            });
-            
-            const pointsSystem = POINTS_SYSTEM;
-            rankings.forEach((ranking, index) => {
-                // Award points based on placement, with diminishing returns after top 16
-                if (index < pointsSystem.length) {
-                    ranking.points = pointsSystem[index];
-                } else {
-                    // Everyone beyond top 16 gets 1 point
-                    ranking.points = 1;
-                }
-            });
-        }
-        
-        // Show rankings section
-        const section = document.getElementById('rankingsSection');
-        section.style.display = 'block';
-        
-        // Set event name
-        const eventNameElement = document.getElementById('rankingsEventName');
-        if (stage.event_name) {
-            eventNameElement.textContent = `🎯 ${stage.event_name} - ${stage.name}`;
-        } else {
-            eventNameElement.textContent = stage.name;
-        }
-        
-        // Display rankings
-        const container = document.getElementById('rankingsList');
-        if (rankings.length === 0) {
-            container.innerHTML = '<p class="empty-state">Keine Rangliste verfügbar</p>';
-        } else {
-            container.innerHTML = `
-                <div class="rankings-table">
-                    <div class="rankings-header">
-                        <div class="rank-cell">Platz</div>
-                        <div class="name-cell">Teilnehmer</div>
-                        <div class="stat-cell">Punkte</div>
-                        <div class="stat-cell">Siege</div>
-                        <div class="stat-cell">Niederlagen</div>
-                        <div class="stat-cell">Gespielt</div>
-                        <div class="stat-cell">Ausstehend</div>
-                        <div class="stat-cell">Siegrate</div>
-                    </div>
-                    ${rankings.map((r, index) => `
-                        <div class="rankings-row ${index < 3 ? 'top-' + (index + 1) : ''}">
-                            <div class="rank-cell">
-                                ${index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : index + 1}
-                            </div>
-                            <div class="name-cell">${r.name}</div>
-                            <div class="stat-cell points">${r.points}</div>
-                            <div class="stat-cell wins">${r.wins}</div>
-                            <div class="stat-cell losses">${r.losses}</div>
-                            <div class="stat-cell">${r.played}</div>
-                            <div class="stat-cell">${r.pending}</div>
-                            <div class="stat-cell">${r.winRate}%</div>
-                        </div>
-                    `).join('')}
-                </div>
-            `;
-        }
-        
-        section.scrollIntoView({ behavior: 'smooth' });
+        const standings = await fetchStandings(stageId);
+        const rankings = standings.map(s => ({
+            name: s.participant_name,
+            wins: s.wins,
+            losses: s.losses,
+            pending: s.pending,
+            points: s.points
+        }));
+
+        const title = stage.event_name ? `${stage.event_name} · ${stage.name}` : stage.name;
+        showRankings(title, rankings);
     } catch (error) {
         alert('❌ Fehler beim Laden der Rangliste: ' + error.message);
         console.error('Error loading rankings:', error);
@@ -877,206 +631,54 @@ function closeRankings() {
     document.getElementById('rankingsSection').style.display = 'none';
 }
 
-// View overall event rankings
+// View overall event rankings: sum up the points of all tournaments of the event per participant name
 async function viewEventRankings(eventName) {
     try {
-        // Get all stages for this event
         const eventStages = stages.filter(s => s.event_name === eventName);
         if (eventStages.length === 0) {
             alert('❌ Keine Turniere für dieses Event gefunden!');
             return;
         }
 
-        const tournamentIds = [...new Set(eventStages.map(s => s.tournament_id))];
-        
-        // Get all matches for these stages
-        const eventMatches = matches.filter(m => 
-            eventStages.some(s => s.id === m.stage_id)
-        );
-        
-        // Get all participants for these tournaments
-        const eventParticipants = participants.filter(p => 
-            tournamentIds.includes(p.tournament_id)
-        );
-        
-        // Points system for placements
-        const pointsSystem = POINTS_SYSTEM;
-        
-        // Calculate overall rankings with points
+        const allStandings = await Promise.all(eventStages.map(stage => fetchStandings(stage.id)));
+
         const participantStats = new Map();
-        
-        eventParticipants.forEach(participant => {
-            if (!participantStats.has(participant.name)) {
-                participantStats.set(participant.name, {
-                    name: participant.name,
-                    wins: 0,
-                    losses: 0,
-                    pending: 0,
-                    tournaments: new Set(),
-                    points: 0
-                });
-            }
-        });
-        
-        // Process each tournament separately to calculate placements and award points
-        for (const stage of eventStages) {
-            try {
-                // Fetch correct placements from backend
-                const standingsResponse = await fetch(`${API_URL}/standings/${stage.id}`);
-                const standings = await standingsResponse.json();
-                
-                // Award points based on placement from backend
-                standings.forEach((standing) => {
-                    const stats = participantStats.get(standing.participant_name);
-                    if (stats) {
-                        const placement = standing.placement - 1; // Convert to 0-based index
-                        let points;
-                        if (placement < pointsSystem.length) {
-                            points = pointsSystem[placement];
-                        } else {
-                            points = 1; // Everyone beyond top 16 gets 1 point
-                        }
-                        stats.points += points;
-                        
-                        // Also update wins/losses from standings
-                        stats.wins += standing.wins;
-                        stats.losses += standing.losses;
-                        stats.tournaments.add(stage.tournament_id);
-                    }
-                });
-            } catch (error) {
-                console.error(`Error fetching standings for stage ${stage.id}:`, error);
-                // Fallback to old win-based calculation if standings endpoint fails
-                const tournamentMatches = eventMatches.filter(m => m.stage_id === stage.id);
-                const tournamentParticipants = eventParticipants.filter(p => p.tournament_id === stage.tournament_id);
-                
-                const tournamentRankings = [];
-                
-                for (const participant of tournamentParticipants) {
-                    if (!participant.name) continue;
-                    
-                    let tournamentWins = 0;
-                    let tournamentLosses = 0;
-                    let tournamentPending = 0;
-                    
-                    tournamentMatches.forEach(match => {
-                        const isOpponent1 = match.opponent1?.id === participant.id;
-                        const isOpponent2 = match.opponent2?.id === participant.id;
-                        
-                        if (!isOpponent1 && !isOpponent2) return;
-                        
-                        if (isOpponent1) {
-                            if (match.opponent1?.result === 'win') tournamentWins++;
-                            else if (match.opponent1?.result === 'loss') tournamentLosses++;
-                            else if (match.opponent1?.id != null && match.opponent2?.id != null) tournamentPending++;
-                        } else if (isOpponent2) {
-                            if (match.opponent2?.result === 'win') tournamentWins++;
-                            else if (match.opponent2?.result === 'loss') tournamentLosses++;
-                            else if (match.opponent1?.id != null && match.opponent2?.id != null) tournamentPending++;
-                        }
+        allStandings.forEach((standings, i) => {
+            standings.forEach(standing => {
+                if (!participantStats.has(standing.participant_name)) {
+                    participantStats.set(standing.participant_name, {
+                        name: standing.participant_name,
+                        wins: 0,
+                        losses: 0,
+                        pending: 0,
+                        points: 0,
+                        tournamentIds: new Set()
                     });
-                    
-                    const tournamentMatches_played = tournamentWins + tournamentLosses;
-                    const tournamentWinRate = tournamentMatches_played > 0 ? tournamentWins / tournamentMatches_played : 0;
-                    
-                    tournamentRankings.push({
-                        name: participant.name,
-                        wins: tournamentWins,
-                        winRate: tournamentWinRate,
-                        matchesPlayed: tournamentMatches_played + tournamentPending
-                    });
-                    
-                    const stats = participantStats.get(participant.name);
-                    stats.wins += tournamentWins;
-                    stats.losses += tournamentLosses;
-                    stats.pending += tournamentPending;
-                    stats.tournaments.add(stage.tournament_id);
                 }
-                
-                tournamentRankings.sort((a, b) => {
-                    if (b.wins !== a.wins) return b.wins - a.wins;
-                    if (b.winRate !== a.winRate) return b.winRate - a.winRate;
-                    return b.matchesPlayed - a.matchesPlayed;
-                });
-                
-                tournamentRankings.forEach((ranking, index) => {
-                    let points;
-                    if (index < pointsSystem.length) {
-                        points = pointsSystem[index];
-                    } else {
-                        points = 1; // Everyone beyond top 16 gets 1 point
-                    }
-                    const stats = participantStats.get(ranking.name);
-                    stats.points += points;
-                });
-            }
-        }
-        
+                const stats = participantStats.get(standing.participant_name);
+                stats.points += standing.points;
+                stats.wins += standing.wins;
+                stats.losses += standing.losses;
+                stats.pending += standing.pending;
+                stats.tournamentIds.add(eventStages[i].tournament_id);
+            });
+        });
+
         const rankings = Array.from(participantStats.values()).map(stats => ({
-            name: stats.name,
-            wins: stats.wins,
-            losses: stats.losses,
-            pending: stats.pending,
-            played: stats.wins + stats.losses,
-            tournaments: stats.tournaments.size,
-            points: stats.points,
-            winRate: stats.wins + stats.losses > 0 ? (stats.wins / (stats.wins + stats.losses) * 100).toFixed(1) : 0
+            ...stats,
+            tournaments: stats.tournamentIds.size
         }));
-        
+
         // Sort by points (desc), then wins (desc), then win rate (desc)
         rankings.sort((a, b) => {
             if (b.points !== a.points) return b.points - a.points;
             if (b.wins !== a.wins) return b.wins - a.wins;
-            if (parseFloat(b.winRate) !== parseFloat(a.winRate)) return parseFloat(b.winRate) - parseFloat(a.winRate);
+            const winRateDiff = parseFloat(formatWinRate(b.wins, b.losses)) - parseFloat(formatWinRate(a.wins, a.losses));
+            if (winRateDiff !== 0) return winRateDiff;
             return b.tournaments - a.tournaments;
         });
-        
-        // Show rankings section
-        const section = document.getElementById('rankingsSection');
-        section.style.display = 'block';
-        
-        // Set event name
-        const eventNameElement = document.getElementById('rankingsEventName');
-        eventNameElement.textContent = `🎯 ${eventName} - Gesamt-Rangliste`;
-        
-        // Display rankings
-        const container = document.getElementById('rankingsList');
-        if (rankings.length === 0) {
-            container.innerHTML = '<p class="empty-state">Keine Rangliste verfügbar</p>';
-        } else {
-            container.innerHTML = `
-                <div class="rankings-table">
-                    <div class="rankings-header">
-                        <div class="rank-cell">Platz</div>
-                        <div class="name-cell">Teilnehmer</div>
-                        <div class="stat-cell">Punkte</div>
-                        <div class="stat-cell">Siege</div>
-                        <div class="stat-cell">Niederlagen</div>
-                        <div class="stat-cell">Gespielt</div>
-                        <div class="stat-cell">Ausstehend</div>
-                        <div class="stat-cell">Turniere</div>
-                        <div class="stat-cell">Siegrate</div>
-                    </div>
-                    ${rankings.map((r, index) => `
-                        <div class="rankings-row ${index < 3 ? 'top-' + (index + 1) : ''}">
-                            <div class="rank-cell">
-                                ${index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : index + 1}
-                            </div>
-                            <div class="name-cell">${r.name}</div>
-                            <div class="stat-cell points">${r.points}</div>
-                            <div class="stat-cell wins">${r.wins}</div>
-                            <div class="stat-cell losses">${r.losses}</div>
-                            <div class="stat-cell">${r.played}</div>
-                            <div class="stat-cell">${r.pending}</div>
-                            <div class="stat-cell">${r.tournaments}</div>
-                            <div class="stat-cell">${r.winRate}%</div>
-                        </div>
-                    `).join('')}
-                </div>
-            `;
-        }
-        
-        section.scrollIntoView({ behavior: 'smooth' });
+
+        showRankings(`${eventName} · Gesamtwertung`, rankings, true);
     } catch (error) {
         alert('❌ Fehler beim Laden der Event-Rangliste: ' + error.message);
         console.error('Error loading event rankings:', error);
@@ -1180,7 +782,7 @@ function filterMatches() {
 
 // Helper functions
 function getParticipantName(participantId) {
-    if (!participantId) return 'TBD';
+    if (participantId == null) return 'TBD';
     const participant = participants.find(p => p.id === participantId);
     return participant ? participant.name : `Participant #${participantId}`;
 }
@@ -1189,7 +791,7 @@ function getMatchStatus(match) {
     if (match.opponent1?.result || match.opponent2?.result) {
         return 'Completed';
     }
-    if (!match.opponent1?.id || !match.opponent2?.id) {
+    if (match.opponent1?.id == null || match.opponent2?.id == null) {
         return 'Waiting';
     }
     return 'Pending';
@@ -1202,6 +804,46 @@ function formatType(type) {
         'round_robin': 'Round Robin'
     };
     return types[type] || type;
+}
+
+// Background of exported images/PDFs (matches --bg-color)
+const EXPORT_BACKGROUND = '#0b0f17';
+
+// Printers can't print borderless: everything in PDFs stays this far from the paper edge
+const PRINT_MARGIN_MM = 5;
+
+// Places a canvas inside the printable area of the PDF's pages, centered horizontally.
+// paginate: scale to the page width and continue on new pages if too tall;
+// otherwise shrink until it fits onto one page.
+function addCanvasToPdf(pdf, canvas, { paginate }) {
+    const pageW = pdf.internal.pageSize.getWidth();
+    const pageH = pdf.internal.pageSize.getHeight();
+    const maxW = pageW - 2 * PRINT_MARGIN_MM;
+    const maxH = pageH - 2 * PRINT_MARGIN_MM;
+    const mmPerPx = Math.min(maxW / canvas.width, paginate ? Infinity : maxH / canvas.height);
+    const width = canvas.width * mmPerPx;
+    const x = (pageW - width) / 2;
+
+    const sliceHeightPx = Math.floor(maxH / mmPerPx);
+    for (let top = 0, page = 0; top < canvas.height; top += sliceHeightPx, page++) {
+        const slice = document.createElement('canvas');
+        slice.width = canvas.width;
+        slice.height = Math.min(sliceHeightPx, canvas.height - top);
+        slice.getContext('2d').drawImage(canvas, 0, top, canvas.width, slice.height, 0, 0, canvas.width, slice.height);
+        if (page > 0) pdf.addPage();
+        pdf.addImage(slice.toDataURL('image/jpeg', 0.95), 'JPEG', x, PRINT_MARGIN_MM, width, slice.height * mmPerPx);
+    }
+}
+
+// Export buttons keep their icon; only the .btn-label text changes
+function getButtonLabel(button) {
+    return button.querySelector('.btn-label')?.textContent ?? button.textContent;
+}
+
+function setButtonLabel(button, text) {
+    const label = button.querySelector('.btn-label');
+    if (label) label.textContent = text;
+    else button.textContent = text;
 }
 
 // Export bracket as image
@@ -1218,8 +860,8 @@ async function exportBracketAsImage() {
     
     try {
         // Show loading indicator
-        const originalText = exportButton.textContent;
-        exportButton.textContent = '⏳ Exportiere...';
+        const originalText = getButtonLabel(exportButton);
+        setButtonLabel(exportButton, 'Exportiere…');
         exportButton.disabled = true;
         
         // Save original styles
@@ -1253,7 +895,7 @@ async function exportBracketAsImage() {
         
         // Create canvas from bracket with full dimensions plus padding
         const canvas = await html2canvas(bracketContainer, {
-            backgroundColor: '#0f172a',
+            backgroundColor: EXPORT_BACKGROUND,
             scale: 2,
             logging: false,
             allowTaint: true,
@@ -1285,7 +927,7 @@ async function exportBracketAsImage() {
             URL.revokeObjectURL(url);
             
             // Restore button
-            exportButton.textContent = originalText;
+            setButtonLabel(exportButton, originalText);
             exportButton.disabled = false;
         }, 'image/jpeg', 0.95);
         
@@ -1293,7 +935,7 @@ async function exportBracketAsImage() {
         alert('❌ Fehler beim Exportieren: ' + error.message);
         console.error('Export error:', error);
         // Restore button
-        exportButton.textContent = '📸 Als JPG exportieren';
+        setButtonLabel(exportButton, 'JPG');
         exportButton.disabled = false;
     }
 }
@@ -1311,13 +953,13 @@ async function exportRankingsAsImage() {
     
     try {
         // Show loading indicator
-        const originalText = exportButton.textContent;
-        exportButton.textContent = '⏳ Exportiere...';
+        const originalText = getButtonLabel(exportButton);
+        setButtonLabel(exportButton, 'Exportiere…');
         exportButton.disabled = true;
         
         // Create a wrapper with padding and title for better export
         const exportWrapper = document.createElement('div');
-        exportWrapper.style.cssText = 'background: #0f172a; padding: 2rem; border-radius: 8px;';
+        exportWrapper.style.cssText = `background: ${EXPORT_BACKGROUND}; padding: 2rem; border-radius: 8px;`;
         
         const title = document.createElement('h2');
         title.textContent = eventName;
@@ -1329,7 +971,7 @@ async function exportRankingsAsImage() {
         
         // Create canvas from rankings
         const canvas = await html2canvas(exportWrapper, {
-            backgroundColor: '#0f172a',
+            backgroundColor: EXPORT_BACKGROUND,
             scale: 2,
             logging: false,
             allowTaint: true,
@@ -1350,7 +992,7 @@ async function exportRankingsAsImage() {
             URL.revokeObjectURL(url);
             
             // Restore button
-            exportButton.textContent = originalText;
+            setButtonLabel(exportButton, originalText);
             exportButton.disabled = false;
         }, 'image/jpeg', 0.95);
         
@@ -1358,7 +1000,7 @@ async function exportRankingsAsImage() {
         alert('❌ Fehler beim Exportieren: ' + error.message);
         console.error('Export error:', error);
         // Restore button
-        exportButton.textContent = '📸 Als JPG exportieren';
+        setButtonLabel(exportButton, 'JPG');
         exportButton.disabled = false;
     }
 }
@@ -1377,8 +1019,8 @@ async function exportBracketAsPdf() {
     
     try {
         // Show loading indicator
-        const originalText = exportButton.textContent;
-        exportButton.textContent = '⏳ Exportiere...';
+        const originalText = getButtonLabel(exportButton);
+        setButtonLabel(exportButton, 'Exportiere…');
         exportButton.disabled = true;
         
         // Save original styles
@@ -1411,7 +1053,7 @@ async function exportBracketAsPdf() {
         
         // Create canvas from bracket
         const canvas = await html2canvas(bracketContainer, {
-            backgroundColor: '#0f172a',
+            backgroundColor: EXPORT_BACKGROUND,
             scale: 2,
             logging: false,
             allowTaint: true,
@@ -1432,49 +1074,24 @@ async function exportBracketAsPdf() {
         bracketContainer.style.padding = originalPadding;
         bracketSection.style.overflow = originalSectionOverflow;
         
-        // Convert canvas to image data
-        const imgData = canvas.toDataURL('image/jpeg', 0.95);
-        
-        // Calculate PDF dimensions (A4 landscape or custom size)
-        const imgWidth = canvas.width;
-        const imgHeight = canvas.height;
-        const ratio = imgWidth / imgHeight;
-        
-        // Use landscape orientation with appropriate size
-        let pdfWidth, pdfHeight;
-        if (ratio > 1.4) {
-            // Very wide bracket - use custom size
-            pdfWidth = Math.min(imgWidth / 2, 1200);
-            pdfHeight = pdfWidth / ratio;
-        } else {
-            // Standard A4 landscape
-            pdfWidth = 297;
-            pdfHeight = pdfWidth / ratio;
-        }
-        
-        // Create PDF
+        // A4 landscape, whole bracket fitted onto one page inside the printable area
         const { jsPDF } = window.jspdf;
-        const pdf = new jsPDF({
-            orientation: pdfWidth > pdfHeight ? 'landscape' : 'portrait',
-            unit: 'mm',
-            format: [pdfWidth, pdfHeight]
-        });
-        
-        pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
+        const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+        addCanvasToPdf(pdf, canvas, { paginate: false });
         
         // Download PDF
         const filename = `bracket-${eventName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-${Date.now()}.pdf`;
         pdf.save(filename);
         
         // Restore button
-        exportButton.textContent = originalText;
+        setButtonLabel(exportButton, originalText);
         exportButton.disabled = false;
         
     } catch (error) {
         alert('❌ Fehler beim Exportieren: ' + error.message);
         console.error('Export error:', error);
         // Restore button
-        exportButton.textContent = '📄 Als PDF exportieren';
+        setButtonLabel(exportButton, 'PDF');
         exportButton.disabled = false;
     }
 }
@@ -1492,13 +1109,13 @@ async function exportRankingsAsPdf() {
     
     try {
         // Show loading indicator
-        const originalText = exportButton.textContent;
-        exportButton.textContent = '⏳ Exportiere...';
+        const originalText = getButtonLabel(exportButton);
+        setButtonLabel(exportButton, 'Exportiere…');
         exportButton.disabled = true;
         
         // Create a wrapper with padding and title
         const exportWrapper = document.createElement('div');
-        exportWrapper.style.cssText = 'background: #0f172a; padding: 2rem; border-radius: 8px;';
+        exportWrapper.style.cssText = `background: ${EXPORT_BACKGROUND}; padding: 2rem; border-radius: 8px;`;
         
         const title = document.createElement('h2');
         title.textContent = eventName;
@@ -1510,7 +1127,7 @@ async function exportRankingsAsPdf() {
         
         // Create canvas from rankings
         const canvas = await html2canvas(exportWrapper, {
-            backgroundColor: '#0f172a',
+            backgroundColor: EXPORT_BACKGROUND,
             scale: 2,
             logging: false,
             allowTaint: true,
@@ -1520,57 +1137,31 @@ async function exportRankingsAsPdf() {
         // Remove temporary wrapper
         document.body.removeChild(exportWrapper);
         
-        // Convert canvas to image data
-        const imgData = canvas.toDataURL('image/jpeg', 0.95);
-        
-        // Calculate PDF dimensions (A4 portrait)
-        const imgWidth = canvas.width;
-        const imgHeight = canvas.height;
-        const ratio = imgWidth / imgHeight;
-        
-        const pdfWidth = 210; // A4 width in mm
-        const pdfHeight = pdfWidth / ratio;
-        
-        // Create PDF
+        // A4 portrait at full printable width; long rankings continue on further pages
         const { jsPDF } = window.jspdf;
-        const pdf = new jsPDF({
-            orientation: 'portrait',
-            unit: 'mm',
-            format: 'a4'
-        });
-        
-        // Add image to PDF, centered
-        const xOffset = 0;
-        const yOffset = 0;
-        pdf.addImage(imgData, 'JPEG', xOffset, yOffset, pdfWidth, pdfHeight);
+        const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+        addCanvasToPdf(pdf, canvas, { paginate: true });
         
         // Download PDF
         const filename = `rankings-${eventName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-${Date.now()}.pdf`;
         pdf.save(filename);
         
         // Restore button
-        exportButton.textContent = originalText;
+        setButtonLabel(exportButton, originalText);
         exportButton.disabled = false;
         
     } catch (error) {
         alert('❌ Fehler beim Exportieren: ' + error.message);
         console.error('Export error:', error);
         // Restore button
-        exportButton.textContent = '📄 Als PDF exportieren';
+        setButtonLabel(exportButton, 'PDF');
         exportButton.disabled = false;
     }
 }
 
-// Close modal on outside click
+// Close modals on backdrop click
 window.onclick = function(event) {
-    const matchModal = document.getElementById('matchModal');
-    const winnerModal = document.getElementById('winnerModal');
-    
-    if (event.target === matchModal) {
-        closeMatchModal();
-    }
-    
-    if (event.target === winnerModal) {
-        closeWinnerModal();
-    }
-}
+    if (!event.target.classList?.contains('modal')) return;
+    if (event.target.id === 'winnerModal') closeWinnerModal();
+    else event.target.classList.remove('show');
+};

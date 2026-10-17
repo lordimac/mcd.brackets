@@ -1,5 +1,5 @@
 # Build stage
-FROM node:18-alpine AS builder
+FROM node:24-alpine AS builder
 
 WORKDIR /app
 
@@ -16,7 +16,7 @@ COPY . .
 RUN npm run build
 
 # Production stage
-FROM node:18-alpine
+FROM node:24-alpine
 
 # Add labels for GitHub Container Registry
 LABEL org.opencontainers.image.source=https://github.com/lordimac/mcd.brackets
@@ -29,14 +29,14 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install only production dependencies
-RUN npm ci --only=production
+RUN npm ci --omit=dev
 
 # Copy built files from builder
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/public ./public
 
 # Create volume for database
-VOLUME ["/app"]
+VOLUME ["/app/data"]
 
 # Expose port
 EXPOSE 3000
