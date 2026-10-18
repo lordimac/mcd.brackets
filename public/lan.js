@@ -59,6 +59,7 @@ function renderEventSelect() {
     const event = currentEvent();
     document.getElementById('eventSettingsForm').style.display = event ? '' : 'none';
     document.getElementById('addAttendeeForm').style.display = event ? '' : 'none';
+    document.getElementById('deleteEventBtn').style.display = event ? '' : 'none';
     document.getElementById('exportActions').style.display = event ? '' : 'none';
 
     const sources = lanEvents.filter(e => e.id !== currentEventId && e.attendee_count > 0).reverse();

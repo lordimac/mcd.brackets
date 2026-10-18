@@ -553,6 +553,10 @@ textarea {
     gap: 0.5rem;
 }
 
+.form-actions-end {
+    justify-content: flex-end;
+}
+
 .inline-form {
     display: flex;
     gap: 0.5rem;

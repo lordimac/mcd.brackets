@@ -229,6 +229,9 @@
                         <button class="btn btn-ghost btn-sm admin-only" onclick="openNewEventModal()">
                             <svg class="icon"><use href="#i-plus"/></svg><span>Neu</span>
                         </button>
+                        <button class="btn btn-danger btn-sm admin-only" id="deleteEventBtn" onclick="deleteLanEvent()" title="Ausgewähltes Event mit allen Teilnehmern löschen">
+                            <svg class="icon"><use href="#i-trash"/></svg><span>Löschen</span>
+                        </button>
                     </div>
                     <button class="btn btn-secondary btn-sm admin-only" id="eventConfigToggle" onclick="toggleSection('eventConfigSection')">
                         <svg class="icon"><use href="#i-settings"/></svg><span>Konfiguration</span>
@@ -298,10 +301,7 @@
                             </fieldset>
                         </div>
 
-                        <div class="form-actions">
-                            <button type="button" class="btn btn-danger btn-sm" onclick="deleteLanEvent()" title="Event löschen">
-                                <svg class="icon"><use href="#i-trash"/></svg><span>Event löschen</span>
-                            </button>
+                        <div class="form-actions form-actions-end">
                             <button type="submit" class="btn btn-primary btn-sm">Speichern</button>
                         </div>
                     </form>
