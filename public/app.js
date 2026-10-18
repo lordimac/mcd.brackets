@@ -23,8 +23,56 @@ async function apiFetch(path, options = {}) {
     });
     if (response.status === 204) return null;
     const data = await response.json().catch(() => ({}));
+    if (response.status === 401 && path !== '/login') {
+        await loadAuth();
+        openLoginModal();
+    }
     if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
     return data;
+}
+
+/* Admin login (ADMIN_PASSWORD on the server): without it everything is editable */
+
+let isAdmin = true;
+
+async function loadAuth() {
+    let auth = { required: false, admin: true };
+    try {
+        auth = await (await fetch(`${API_URL}/auth`)).json();
+    } catch (error) {
+        console.error('Error loading auth state:', error);
+    }
+    isAdmin = auth.admin;
+    document.body.classList.toggle('read-only', !auth.admin);
+    document.getElementById('loginButton').style.display = auth.required && !auth.admin ? '' : 'none';
+    document.getElementById('logoutButton').style.display = auth.required && auth.admin ? '' : 'none';
+}
+
+function openLoginModal() {
+    document.getElementById('loginPassword').value = '';
+    document.getElementById('loginError').textContent = '';
+    openModal('loginModal');
+    document.getElementById('loginPassword').focus();
+}
+
+async function login(e) {
+    e.preventDefault();
+    try {
+        await apiFetch('/login', {
+            method: 'POST',
+            body: JSON.stringify({ password: document.getElementById('loginPassword').value })
+        });
+        closeModal('loginModal');
+        await loadAuth();
+    } catch (error) {
+        document.getElementById('loginError').textContent = error.message;
+        document.getElementById('loginPassword').select();
+    }
+}
+
+async function logout() {
+    await apiFetch('/logout', { method: 'POST', body: '{}' }).catch(() => null);
+    await loadAuth();
 }
 
 function openModal(id) {
@@ -70,6 +118,7 @@ async function importBackup(input) {
 document.addEventListener('DOMContentLoaded', async () => {
     setupEventListeners();
     restoreSections();
+    await loadAuth();
     showView();
     await loadEvents();
     await loadStages();
@@ -79,6 +128,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 function setupEventListeners() {
     document.getElementById('createTournamentForm').addEventListener('submit', createTournament);
+    document.getElementById('loginForm').addEventListener('submit', login);
     document.getElementById('eventName').addEventListener('change', updateEventPlayersHint);
     window.addEventListener('hashchange', showView);
 }
@@ -257,10 +307,10 @@ function displayStages() {
                 <button class="btn btn-ghost btn-icon" onclick="viewStageMatches(${stage.id})" title="Matches anzeigen" aria-label="Matches anzeigen">
                     ${icon('list')}
                 </button>
-                <button class="btn btn-ghost btn-icon" onclick="resetBracket(${stage.id})" title="Neu auslosen (mit allen aktuellen Teilnehmern)" aria-label="Neu auslosen">
+                <button class="btn btn-ghost btn-icon admin-only" onclick="resetBracket(${stage.id})" title="Neu auslosen (mit allen aktuellen Teilnehmern)" aria-label="Neu auslosen">
                     ${icon('shuffle')}
                 </button>
-                <button class="btn btn-danger btn-icon" onclick="deleteStage(${stage.id})" title="Turnier löschen" aria-label="Turnier löschen">
+                <button class="btn btn-danger btn-icon admin-only" onclick="deleteStage(${stage.id})" title="Turnier löschen" aria-label="Turnier löschen">
                     ${icon('trash')}
                 </button>
             </div>
@@ -366,7 +416,7 @@ function displayMatches() {
                     </div>
                 </div>
                 <div class="match-actions">
-                    <button class="btn btn-secondary btn-sm" onclick="showQuickWinnerSelectionById(${match.id})">
+                    <button class="btn btn-secondary btn-sm admin-only" onclick="showQuickWinnerSelectionById(${match.id})">
                         ${icon('trophy')}<span>Ergebnis eingeben</span>
                     </button>
                 </div>
@@ -523,7 +573,8 @@ async function viewBracket(stageId, preserveScroll = false) {
             clear: true,
             participantOriginPlacement: 'before',
             onMatchClick: (match) => {
-                // Show quick winner selection instead of full modal
+                // Entering results needs the admin login
+                if (!isAdmin) return;
                 showQuickWinnerSelection(match);
             }
         });

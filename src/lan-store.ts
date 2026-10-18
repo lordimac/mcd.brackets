@@ -1,7 +1,7 @@
 import type { Participant, Stage } from 'brackets-model';
 import { getAppStore, getStorage } from './db';
 import {
-  assertUniqueAttendee, AttendeeInput, DEFAULT_RANGES, describeAttendee, displayName, eventCapacity,
+  assertNotMemorial, assertUniqueAttendee, AttendeeInput, DEFAULT_RANGES, describeAttendee, displayName, eventCapacity,
   EventSettingsInput, nextFreeSlot, parseBulkLine, validateAttendee, validateEventSettings, ValidationError,
   type Attendee, type AttendeeView, type LanEvent,
 } from './lan';
@@ -66,7 +66,7 @@ export async function syncEventsFromStages(): Promise<void> {
   const names = new Set((await allStages()).map(s => s.event_name).filter((n): n is string => !!n));
   for (const name of names) {
     if (!known.has(name)) {
-      await getAppStore().insert('event', { name, domain: '', dns_server: '', netmask: '', gateway: '', logo: '', ranges: DEFAULT_RANGES });
+      await getAppStore().insert('event', { name, domain: '', dns_server: '', netmask: '', gateway: '', logo: '', memorial: [], ranges: DEFAULT_RANGES });
     }
   }
 }
@@ -81,6 +81,7 @@ export async function createEvent(input: EventSettingsInput): Promise<LanEvent> 
     netmask: input.netmask ?? latest?.netmask ?? '',
     gateway: input.gateway ?? latest?.gateway ?? '',
     logo: input.logo ?? latest?.logo ?? '',
+    memorial: input.memorial ?? latest?.memorial ?? [],
     ranges: input.ranges ?? latest?.ranges ?? DEFAULT_RANGES,
   });
   await assertUniqueEventName(settings.name);
@@ -94,6 +95,9 @@ export async function updateEvent(id: number, input: EventSettingsInput): Promis
   const slots = (await listAttendees(id)).map(a => a.slot);
   const settings = validateEventSettings({ ...event, ...input }, slots);
   await assertUniqueEventName(settings.name, id);
+  for (const attendee of await listAttendees(id)) {
+    assertNotMemorial(displayName({ clan: attendee.clan ?? '', nickname: attendee.nickname }), settings.memorial);
+  }
 
   if (settings.name !== event.name) {
     for (const stage of await allStages()) {
@@ -133,6 +137,7 @@ export async function addAttendee(eventId: number, input: AttendeeInput): Promis
   const attendee = validateAttendee(input);
   const others = await listAttendees(eventId);
   assertUniqueAttendee(attendee, others);
+  assertNotMemorial(displayName(attendee), event.memorial);
 
   const slot = nextFreeSlot(others.map(a => a.slot), eventCapacity(event));
   if (slot === null) throw new ValidationError(`Alle ${eventCapacity(event)} Plätze sind vergeben — IP-Bereiche vergrößern`);
@@ -150,6 +155,7 @@ export async function updateAttendee(id: number, input: AttendeeInput): Promise<
   const changes = validateAttendee(input);
   const others = (await listAttendees(event.id)).filter(a => a.id !== id);
   assertUniqueAttendee(changes, others);
+  assertNotMemorial(displayName(changes), event.memorial);
 
   const oldName = displayName({ clan: existing.clan ?? '', nickname: existing.nickname });
   if (displayName(changes) !== oldName) {
@@ -211,6 +217,7 @@ export async function importBulk(eventId: number, text: string, dryRun: boolean)
     try {
       const attendee = validateAttendee(parseBulkLine(line));
       assertUniqueAttendee(attendee, known);
+      assertNotMemorial(displayName(attendee), event.memorial);
       const slot = nextFreeSlot(known.map(a => a.slot), capacity);
       if (slot === null) throw new ValidationError(`Kein Platz frei (${capacity} Plätze)`);
 
@@ -237,10 +244,12 @@ async function renamePlayer(eventName: string, oldName: string, newName: string)
   }
 }
 
-// Players of a tournament: all attendees of its event as "Clan-Nickname" (in registration order)
-export async function playerNamesForEvent(eventName: string | undefined): Promise<string[] | null> {
+// Players of a tournament: all attendees of its event as "Clan-Nickname" (in registration order),
+// plus the event's memorial names, which take part as byes
+export async function playerNamesForEvent(eventName: string | undefined): Promise<{ players: string[]; memorial: string[] } | null> {
   if (!eventName) return null;
   const event = await findEventByName(eventName);
   if (!event) return null;
-  return (await listAttendees(event.id)).sort((a, b) => a.slot - b.slot).map(a => displayName({ clan: a.clan ?? '', nickname: a.nickname }));
+  const players = (await listAttendees(event.id)).sort((a, b) => a.slot - b.slot).map(a => displayName({ clan: a.clan ?? '', nickname: a.nickname }));
+  return { players, memorial: event.memorial ?? [] };
 }

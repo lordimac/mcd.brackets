@@ -30,6 +30,8 @@
         <symbol id="i-search" viewBox="0 0 24 24"><path d="M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM21 21l-4.3-4.3"/></symbol>
         <symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></symbol>
         <symbol id="i-copy" viewBox="0 0 24 24"><path d="M9 9h12v12H9zM5 15H3V3h12v2"/></symbol>
+        <symbol id="i-lock" viewBox="0 0 24 24"><path d="M5 11h14v10H5zM8 11V7a4 4 0 0 1 8 0v4"/></symbol>
+        <symbol id="i-logout" viewBox="0 0 24 24"><path d="M9 21H5V3h4M16 17l5-5-5-5M21 12H9"/></symbol>
         <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/></symbol>
     </svg>
 
@@ -48,13 +50,19 @@
             </nav>
             <div class="topbar-actions">
                 <span class="footer-hint" id="importStatus"></span>
-                <a href="/api/backup" class="btn btn-ghost btn-sm" download title="Datenbank als JSON herunterladen">
+                <a href="/api/backup" class="btn btn-ghost btn-sm admin-only" download title="Datenbank als JSON herunterladen">
                     <svg class="icon"><use href="#i-download"/></svg><span>Backup</span>
                 </a>
-                <button class="btn btn-ghost btn-sm" onclick="document.getElementById('importBackupInput').click()" title="Datenbank aus JSON wiederherstellen">
+                <button class="btn btn-ghost btn-sm admin-only" onclick="document.getElementById('importBackupInput').click()" title="Datenbank aus JSON wiederherstellen">
                     <svg class="icon"><use href="#i-upload"/></svg><span>Einlesen</span>
                 </button>
                 <input type="file" id="importBackupInput" accept=".json" style="display:none;" onchange="importBackup(this)">
+                <button class="btn btn-secondary btn-sm" id="loginButton" onclick="openLoginModal()" style="display: none;" title="Als Admin anmelden, um zu bearbeiten">
+                    <svg class="icon"><use href="#i-lock"/></svg><span>Anmelden</span>
+                </button>
+                <button class="btn btn-ghost btn-sm" id="logoutButton" onclick="logout()" style="display: none;" title="Admin-Sitzung beenden">
+                    <svg class="icon"><use href="#i-logout"/></svg><span>Abmelden</span>
+                </button>
             </div>
         </div>
     </header>
@@ -62,7 +70,7 @@
     <div class="container">
         <main class="layout view" id="view-tournaments">
             <!-- Create Tournament (collapsible) -->
-            <section class="card">
+            <section class="card admin-only">
                 <div class="section-header collapsible-header" onclick="toggleSection('createTournamentSection')">
                     <h2><svg class="icon icon-accent"><use href="#i-plus"/></svg>Neues Turnier</h2>
                     <span class="collapse-icon" id="createTournamentIcon"><svg class="icon"><use href="#i-chevron"/></svg></span>
@@ -217,17 +225,17 @@
                     <div class="event-picker">
                         <h2><svg class="icon icon-accent"><use href="#i-flag"/></svg>Event</h2>
                         <select id="lanEventSelect" onchange="selectLanEvent(this.value)" aria-label="Event auswählen"></select>
-                        <button class="btn btn-ghost btn-sm" onclick="openNewEventModal()">
+                        <button class="btn btn-ghost btn-sm admin-only" onclick="openNewEventModal()">
                             <svg class="icon"><use href="#i-plus"/></svg><span>Neu</span>
                         </button>
                     </div>
-                    <button class="btn btn-secondary btn-sm" id="eventConfigToggle" onclick="toggleSection('eventConfigSection')">
+                    <button class="btn btn-secondary btn-sm admin-only" id="eventConfigToggle" onclick="toggleSection('eventConfigSection')">
                         <svg class="icon"><use href="#i-settings"/></svg><span>Konfiguration</span>
                         <span class="collapse-icon" id="eventConfigIcon"><svg class="icon"><use href="#i-chevron"/></svg></span>
                     </button>
                 </div>
 
-                <div id="eventConfigSection" class="collapsible-content" style="display: none;">
+                <div id="eventConfigSection" class="collapsible-content admin-only" style="display: none;">
                     <form id="eventSettingsForm" style="display: none;">
                         <div class="config-grid">
                             <fieldset class="config-block">
@@ -279,6 +287,14 @@
                                 <div class="range-grid" id="rangeInputs"></div>
                                 <p class="field-hint is-warning" id="capacityHint"></p>
                             </fieldset>
+
+                            <fieldset class="config-block config-block-wide">
+                                <legend>In Gedenken</legend>
+                                <p class="field-hint">Ein Name pro Zeile. Diese Personen stehen in jedem Turnier des Events mit ihrem Namen im Bracket, ihre Matches gelten als Freilos. Sie bekommen keine IP-Adressen und erscheinen nicht in den Ranglisten.</p>
+                                <div class="form-group">
+                                    <textarea id="eventSettingMemorial" rows="3" spellcheck="false" aria-label="Namen in Gedenken"></textarea>
+                                </div>
+                            </fieldset>
                         </div>
 
                         <div class="form-actions">
@@ -319,14 +335,14 @@
                     </div>
                 </div>
 
-                <form id="addAttendeeForm" class="attendee-form">
+                <form id="addAttendeeForm" class="attendee-form admin-only">
                     <input type="text" id="newFirstName" placeholder="Vorname" autocomplete="off">
                     <input type="text" id="newLastName" placeholder="Nachname" autocomplete="off">
                     <input type="text" id="newClan" placeholder="Clan" autocomplete="off" spellcheck="false">
                     <input type="text" id="newNickname" placeholder="Nickname *" required autocomplete="off" spellcheck="false">
                     <button type="submit" class="btn btn-primary"><svg class="icon"><use href="#i-plus"/></svg><span>Hinzufügen</span></button>
                 </form>
-                <p class="bulk-link">
+                <p class="bulk-link admin-only">
                     <button type="button" class="btn btn-ghost btn-sm" onclick="openBulkImport()">
                         <svg class="icon"><use href="#i-list"/></svg><span>Mehrere auf einmal importieren…</span>
                     </button>
@@ -358,8 +374,29 @@
                         <tbody id="attendeeRows"></tbody>
                     </table>
                 </div>
+                <p class="memorial-note" id="memorialNote" style="display: none;"></p>
             </section>
         </main>
+    </div>
+
+    <!-- Login Modal -->
+    <div id="loginModal" class="modal">
+        <div class="modal-content login-modal">
+            <button type="button" class="close" onclick="closeModal('loginModal')" aria-label="Schließen"><svg class="icon"><use href="#i-x"/></svg></button>
+            <h2>Admin-Anmeldung</h2>
+            <p class="match-info-text">Zum Bearbeiten von Turnieren, Ergebnissen und Teilnehmern.</p>
+            <form id="loginForm">
+                <div class="form-group">
+                    <label for="loginPassword">Passwort</label>
+                    <input type="password" id="loginPassword" required autocomplete="current-password">
+                    <p class="field-hint is-warning" id="loginError"></p>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-ghost" onclick="closeModal('loginModal')">Abbrechen</button>
+                    <button type="submit" class="btn btn-primary"><svg class="icon"><use href="#i-lock"/></svg><span>Anmelden</span></button>
+                </div>
+            </form>
+        </div>
     </div>
 
     <!-- New Event Modal -->

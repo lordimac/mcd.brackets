@@ -2,7 +2,28 @@
 
 Ein vollständiges Turnierverwaltungssystem mit Event-basiertem Meisterschafts-Punktesystem, entwickelt mit [brackets-manager](https://www.npmjs.com/package/brackets-manager).
 
-**Version:** 0.15.0-beta
+**Version:** 0.16.0-beta
+
+---
+
+## Screenshots
+
+**Teilnehmer-Verwaltung** — Teilnehmer mit Clan, Nickname, drei IP-Adressen und DNS-Namen; sortier- und filterbar, Export als IP-Zettel (PDF), CSV, hosts oder BIND-Zone
+
+![Teilnehmer-Verwaltung](docs/screenshots/teilnehmer.png)
+
+**Bracket** — Double Elimination mit Click-to-Win; ein Eintrag „In Gedenken“ verliert sein Match automatisch per Freilos (F)
+
+![Bracket](docs/screenshots/bracket.png)
+
+<table>
+  <tr>
+    <td width="62%" valign="top"><b>Gesamtwertung eines Events</b><br><img src="docs/screenshots/rangliste.png" alt="Rangliste"></td>
+    <td width="38%" valign="top"><b>IP-Zettel (A4-PDF pro Teilnehmer)</b><br><img src="docs/screenshots/ip-zettel.png" alt="IP-Zettel"></td>
+  </tr>
+</table>
+
+<sub>Alle Namen in den Screenshots sind Demo-Daten.</sub>
 
 ---
 
@@ -65,6 +86,18 @@ Platzierungsbasierte Punkte:
 - **Match-Filter** — Nur offene Matches, TBD ausblenden
 - **Collapsible Sections** — Aufgeräumte Benutzeroberfläche
 
+### 🔒 Admin-Passwort
+- Mit der Umgebungsvariable `ADMIN_PASSWORD` dürfen nur angemeldete Admins Turniere, Ergebnisse, Teilnehmer und Event-Einstellungen ändern sowie Backups laden/einspielen
+- Ansehen (Brackets, Ranglisten, Teilnehmerliste, IP-Zettel, Exporte) bleibt ohne Anmeldung möglich; Bearbeiten-Elemente werden dann ausgeblendet
+- Anmeldung über „Anmelden“ oben rechts, gültig 7 Tage (signiertes HttpOnly-Cookie); ein neues Passwort beendet alle Sitzungen
+- Ohne `ADMIN_PASSWORD` darf jeder bearbeiten (wie bisher)
+- Einrichtung siehe [Admin-Passwort einrichten](#admin-passwort-einrichten)
+
+### 🕯️ In Gedenken
+- Pro Event eine Liste von Namen (Konfiguration → „In Gedenken“), z.B. für verstorbene Mitglieder
+- Sie stehen in jedem Turnier des Events mit ihrem Namen im Bracket; ihre Matches werden automatisch als Freilos entschieden
+- Keine IP-Adressen, keine Platzierung/Punkte in den Ranglisten
+
 ### 💾 Datenbank-Backup & Restore
 - **Backup herunterladen** — `db.json` als timestamped JSON-Datei exportieren
 - **Backup einlesen** — JSON-Backup validieren und wiederherstellen
@@ -77,16 +110,33 @@ Platzierungsbasierte Punkte:
 ### Docker (empfohlen)
 
 ```bash
+cp .env.example .env   # Admin-Passwort eintragen (siehe unten)
 docker compose up -d --build
 ```
 
 Öffne [http://localhost:3000](http://localhost:3000) im Browser.
 
+**Lokal bauen mit `npm run docker:rebuild`** (Image `mcd-brackets` + Container auf Port 3001, Daten in `./data`): Das Skript liest `.env`, sichert vor dem Neustart `data/db.json` und wartet, bis der Container healthy ist.
+
 **Mit vorgebautem Image von GitHub Container Registry:**
 ```bash
 docker pull ghcr.io/lordimac/mcd.brackets:latest
-docker run -d -p 3000:3000 -v $(pwd)/data:/app/data ghcr.io/lordimac/mcd.brackets:latest
+docker run -d -p 3000:3000 -v $(pwd)/data:/app/data -e ADMIN_PASSWORD='geheim' ghcr.io/lordimac/mcd.brackets:latest
 ```
+
+### Admin-Passwort einrichten
+
+Das Passwort steht in der Datei `.env` im Projektordner (von Git und vom Docker-Image ausgeschlossen, Vorlage: `.env.example`):
+
+```bash
+ADMIN_PASSWORD=mein-geheimes-passwort
+```
+
+- `docker compose` und `npm run docker:rebuild` lesen `.env` automatisch; nach einer Änderung den Container neu erstellen (`docker compose up -d` bzw. `npm run docker:rebuild`)
+- Ohne Compose: `docker run … -e ADMIN_PASSWORD='…'` (siehe oben)
+- Development: `ADMIN_PASSWORD='…' npm run server`
+- Leer oder nicht gesetzt = keine Anmeldung nötig, jeder darf bearbeiten. Der Server meldet das beim Start als Warnung
+- Ein neues Passwort meldet alle angemeldeten Browser ab
 
 ### NPM (Development)
 
@@ -112,6 +162,7 @@ Umgebungsvariablen:
 |------------|----------|--------------|
 | `PORT`     | `3000`   | HTTP-Port |
 | `DATA_DIR` | `./data` | Verzeichnis für `db.json` und Restore-Sicherungen |
+| `ADMIN_PASSWORD` | *(leer)* | Passwort zum Bearbeiten; leer = jeder darf bearbeiten. Für `docker compose` und `npm run docker:rebuild` in `.env` eintragen (`ADMIN_PASSWORD=…`, nicht im Git) |
 
 ---
 
@@ -139,14 +190,26 @@ Umgebungsvariablen:
 - **Event-Gesamt**: Kombinierte Rangliste über alle Turniere
 - **Top-3 Highlighting**: Gold / Silber / Bronze
 
+### Anmelden
+Ist ein Admin-Passwort gesetzt, sieht man ohne Anmeldung nur die Ansicht. „Anmelden“ oben rechts → Passwort eingeben → alle Bearbeiten-Funktionen erscheinen. „Abmelden“ beendet die Sitzung.
+
 ### Backup & Restore
-Im Footer der Seite:
+Im Footer der Seite (nur angemeldet):
 - **💾 Backup herunterladen** — Lädt die aktuelle `db.json` herunter
 - **📂 Backup einlesen** — Stellt eine gesicherte `db.json` wieder her
 
 ---
 
 ## REST API
+
+Ist `ADMIN_PASSWORD` gesetzt, sind alle Anfragen außer GET/HEAD (und `GET /api/backup`) nur mit Admin-Sitzung erlaubt, sonst `401`.
+
+### Anmeldung
+| Method | Endpoint | Beschreibung |
+|--------|----------|--------------|
+| GET    | `/api/auth` | `{ required, admin }` — ist ein Passwort gesetzt, ist der Browser angemeldet |
+| POST   | `/api/login` | Anmelden `{ password }` → setzt das Cookie `mcd_admin` (7 Tage) |
+| POST   | `/api/logout` | Abmelden (Cookie löschen) |
 
 ### Stages
 | Method | Endpoint | Beschreibung |
@@ -179,7 +242,7 @@ Im Footer der Seite:
 |--------|----------|--------------|
 | GET    | `/api/events` | Events inkl. Anzahl Teilnehmer, Plätze und Turniere |
 | POST   | `/api/events` | Event anlegen `{ name, domain?, dns_server?, netmask?, gateway?, ranges? }` (fehlende Werte vom letzten Event) |
-| PUT    | `/api/events/:id` | Event ändern; Umbenennen wirkt auch auf die Turniere |
+| PUT    | `/api/events/:id` | Event ändern (inkl. `logo`, `memorial: string[]`); Umbenennen wirkt auch auf die Turniere |
 | DELETE | `/api/events/:id` | Event mit Teilnehmern löschen (nur ohne Turniere) |
 | GET    | `/api/events/:id/attendees` | Teilnehmer inkl. `ips` und `dns_names` |
 | POST   | `/api/events/:id/attendees` | Teilnehmer anlegen `{ first_name, last_name, clan, nickname }` |
@@ -245,6 +308,7 @@ Sortierung nach Wins → Losses.
 mcd.brackets/
 ├── src/
 │   ├── server.ts       # Express Server + REST API
+│   ├── auth.ts         # Admin-Passwort, Sitzungs-Cookie
 │   ├── db.ts           # Storage, Restore, Schreib-Lock, Rollback
 │   ├── stages.ts       # Turniere anlegen, neu auslosen, löschen
 │   ├── lan.ts          # IP-Vergabe, DNS-Namen, Exporte (reine Logik)
@@ -262,6 +326,10 @@ mcd.brackets/
 │   └── lib/            # Lokale Kopien der Browser-Libs (npm run vendor)
 ├── data/
 │   └── db.json         # Turnierdaten (Docker Volume)
+├── docs/screenshots/   # Bilder für diese README
+├── scripts/
+│   └── docker-rebuild.sh  # Image + Container lokal neu bauen (npm run docker:rebuild)
+├── .env.example        # Vorlage für .env (ADMIN_PASSWORD)
 ├── docker-compose.yml
 ├── Dockerfile
 ├── package.json

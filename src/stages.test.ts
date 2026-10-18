@@ -37,3 +37,51 @@ test('stage with event keeps the settings brackets-manager stored and stays play
   assert.ok(matches.some(m => m.status >= Status.Completed));
   assert.ok(!matches.some(m => m.status === Status.Ready));
 });
+
+for (const type of ['single_elimination', 'double_elimination', 'round_robin'] as const) {
+  test(`memorial entries take part as byes (${type})`, async () => {
+    const { createStage }: typeof import('./stages') = require('./stages');
+    const { resolveMemorialMatches }: typeof import('./stages') = require('./stages');
+    const { getManager, getStorage }: typeof import('./db') = require('./db');
+    const { getStandings }: typeof import('./standings') = require('./standings');
+
+    const stage = await createStage({
+      tournamentId: 100 + ['single_elimination', 'double_elimination', 'round_robin'].indexOf(type),
+      name: 'Gedenkturnier',
+      type,
+      names: ['A', 'B', 'C', 'D', 'E'],
+      settings: type === 'double_elimination' ? { grandFinal: 'simple' } : {},
+      memorial: ['Opa Willi', 'Tante Erna'],
+    });
+    assert.deepEqual(stage.memorial_names, ['Opa Willi', 'Tante Erna']);
+
+    const players = (await getStorage().select('participant', { tournament_id: stage.tournament_id })) ?? [];
+    const memorialIds = new Set(players.filter(p => ['Opa Willi', 'Tante Erna'].includes(p.name)).map(p => p.id));
+    assert.equal(memorialIds.size, 2, 'memorial entries are named participants');
+
+    // Play everything; memorial matches must resolve themselves after every result
+    for (;;) {
+      const matches = (await getStorage().select('match', { stage_id: stage.id })) ?? [];
+      const ready = matches.find(m => m.status === Status.Ready);
+      if (!ready) break;
+      assert.ok(!memorialIds.has(ready.opponent1!.id!) && !memorialIds.has(ready.opponent2!.id!), 'memorial matches are never left open');
+      await getManager().update.match({ id: ready.id, opponent1: { result: 'win' }, opponent2: { result: 'loss' } });
+      await resolveMemorialMatches(stage.id);
+    }
+
+    // Memorial entries never win and are not ranked
+    const matches = (await getStorage().select('match', { stage_id: stage.id })) ?? [];
+    for (const m of matches) {
+      for (const side of [m.opponent1, m.opponent2]) {
+        if (side?.id != null && memorialIds.has(side.id) && side.result) {
+          const other = side === m.opponent1 ? m.opponent2 : m.opponent1;
+          if (other?.id != null && !memorialIds.has(other.id)) assert.notEqual(side.result, 'win');
+        }
+      }
+    }
+    const standings = await getStandings(getStorage(), getManager(), stage.id);
+    assert.ok(standings);
+    assert.equal(standings.length, 5);
+    assert.ok(standings.every(s => !['Opa Willi', 'Tante Erna'].includes(s.participant_name)));
+  });
+}

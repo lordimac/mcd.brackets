@@ -2,11 +2,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   assertUniqueAttendee, DEFAULT_RANGES, describeAttendee, eventCapacity, exportBindZone, exportCsv,
-  displayName, exportHosts, formatIPv4, isValidNetmask, nextFreeSlot, parseBulkLine, parseIPv4, splitClanNickname, toHostname, validateAttendee, validateEventSettings,
+  assertNotMemorial, displayName, exportHosts, normalizeMemorial, formatIPv4, isValidNetmask, nextFreeSlot, parseBulkLine, parseIPv4, splitClanNickname, toHostname, validateAttendee, validateEventSettings,
   ValidationError, type Attendee, type LanEvent,
 } from './lan';
 
-const event: LanEvent = { id: 1, name: 'mcd.lan 2026', domain: 'lan.example.org', dns_server: '192.168.120.1', netmask: '255.255.255.0', gateway: '192.168.120.1', logo: '', ranges: DEFAULT_RANGES };
+const event: LanEvent = { id: 1, name: 'mcd.lan 2026', domain: 'lan.example.org', dns_server: '192.168.120.1', netmask: '255.255.255.0', gateway: '192.168.120.1', logo: '', memorial: [], ranges: DEFAULT_RANGES };
 
 function attendee(nickname: string, slot: number, extra: Partial<Attendee> = {}): Attendee {
   return { id: slot, event_id: 1, first_name: 'Max', last_name: 'Muster', clan: '', nickname, hostname: toHostname(nickname), slot, ...extra };
@@ -153,4 +153,16 @@ test('logo is an optional PNG/JPEG data URL', () => {
   assert.throws(() => validateEventSettings({ name: 'x', logo: 'data:image/svg+xml;base64,PHN2Zz4=', ranges: DEFAULT_RANGES }), /PNG/);
   assert.throws(() => validateEventSettings({ name: 'x', logo: 'https://example.org/logo.png', ranges: DEFAULT_RANGES }), /PNG/);
   assert.throws(() => validateEventSettings({ name: 'x', logo: 'data:image/png;base64,' + 'A'.repeat(2_000_000), ranges: DEFAULT_RANGES }), /zu groß/);
+});
+
+test('memorial names: one per line, trimmed, unique, never equal to a player', () => {
+  assert.deepEqual(normalizeMemorial(' Anna \n\nBernd\nanna\n'), ['Anna', 'Bernd']);
+  assert.deepEqual(normalizeMemorial(['Carl', ' ']), ['Carl']);
+  assert.deepEqual(normalizeMemorial(undefined), []);
+  assert.throws(() => normalizeMemorial([1]), /Liste/);
+  assert.throws(() => normalizeMemorial('x'.repeat(61)), /zu lang/);
+  assert.deepEqual(validateEventSettings({ name: 'x', memorial: 'Anna', ranges: DEFAULT_RANGES }).memorial, ['Anna']);
+
+  assert.throws(() => assertNotMemorial('ANNA', ['Anna']), /In Gedenken/);
+  assert.doesNotThrow(() => assertNotMemorial('Anna2', ['Anna']));
 });

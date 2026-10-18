@@ -28,12 +28,12 @@ test('attendees get slots, play in tournaments and renames propagate', async () 
   await assert.rejects(store.addAttendee(event.id, { nickname: 'LORDIMAC' }), /schon vergeben/);
 
   // All attendees of the event are the players, as "Clan-Nickname"
-  assert.deepEqual(await store.playerNamesForEvent('mcd.lan 2026'), ['M4E-lordimac', 'Velvet']);
+  assert.deepEqual(await store.playerNamesForEvent('mcd.lan 2026'), { players: ['M4E-lordimac', 'Velvet'], memorial: [] });
   assert.equal(await store.playerNamesForEvent('unbekannt'), null);
 
   const stage = await stages.createStage({
     tournamentId: 1, name: 'UT2004', type: 'single_elimination',
-    names: (await store.playerNamesForEvent('mcd.lan 2026'))!, settings: {}, eventName: 'mcd.lan 2026',
+    names: (await store.playerNamesForEvent('mcd.lan 2026'))!.players, settings: {}, eventName: 'mcd.lan 2026',
   });
 
   // Changing nickname or clan renames the player in the event's tournaments
@@ -114,4 +114,16 @@ test('bulk import previews, then adds valid lines and reports the rest', async (
     ['M4E-lordimac', 'M4E', 'lordimac', 'Imhoff', 'Marc', 'lordimac.lan.example.org'],
     ['CML-velvet', 'CML', 'velvet', 'Berg', 'Julia', 'velvet.lan.example.org'],
   ]);
+});
+
+test('memorial names are kept apart from attendee names', async () => {
+  await db.ensureAppTables();
+  const event = await store.createEvent({ name: 'Gedenk-LAN', memorial: ['Opa Willi'] });
+  assert.deepEqual(event.memorial, ['Opa Willi']);
+  await assert.rejects(store.addAttendee(event.id, { nickname: 'opa willi' }), /In Gedenken/);
+  await store.addAttendee(event.id, { clan: 'M4E', nickname: 'lordimac' });
+  await assert.rejects(store.updateEvent(event.id, { memorial: ['M4E-lordimac'] }), /In Gedenken/);
+  assert.deepEqual(await store.playerNamesForEvent('Gedenk-LAN'), { players: ['M4E-lordimac'], memorial: ['Opa Willi'] });
+  // A new event takes the memorial list over
+  assert.deepEqual((await store.createEvent({ name: 'Gedenk-LAN 2' })).memorial, ['Opa Willi']);
 });

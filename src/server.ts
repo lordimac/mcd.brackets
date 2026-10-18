@@ -3,12 +3,13 @@ import cors from 'cors';
 import path from 'path';
 import fs from 'fs';
 import { APP_TABLES, dataDir, dbPath, ensureAppTables, getManager, getStorage, replaceDatabase, withLock, withRollback } from './db';
+import { authRequired, clearedSessionCookie, createSessionToken, isAdmin, passwordMatches, requireAdminForChanges, sessionCookie } from './auth';
 import { HttpError } from './http-error';
 import { ValidationError } from './lan';
 import { lanRouter } from './lan-routes';
 import { playerNamesForEvent, syncEventsFromStages } from './lan-store';
 import { isStageType, normalizeNames } from './seeding';
-import { createStage, deleteStage, findStage, pickSettings } from './stages';
+import { createStage, deleteStage, findStage, pickSettings, resolveMemorialMatches } from './stages';
 import { getStandings } from './standings';
 
 const app = express();
@@ -35,6 +36,31 @@ app.get(['/', '/index.html'], (_req: Request, res: Response) => {
 app.use(express.static(publicDir, { etag: true, lastModified: true, setHeaders: (res) => { res.setHeader('Cache-Control', 'no-cache'); } }));
 
 // API Routes
+
+// Admin login (ADMIN_PASSWORD): reads stay public, changes need the session cookie
+app.use('/api', requireAdminForChanges);
+
+app.get('/api/auth', (req: Request, res: Response) => {
+  res.json({ required: authRequired(), admin: isAdmin(req) });
+});
+
+app.post('/api/login', async (req: Request, res: Response) => {
+  if (!authRequired()) {
+    res.json({ required: false, admin: true });
+    return;
+  }
+  if (!passwordMatches(req.body?.password)) {
+    await new Promise(resolve => setTimeout(resolve, 800)); // slows down guessing
+    throw new HttpError(401, 'Falsches Passwort');
+  }
+  res.setHeader('Set-Cookie', sessionCookie(createSessionToken()));
+  res.json({ required: true, admin: true });
+});
+
+app.post('/api/logout', (_req: Request, res: Response) => {
+  res.setHeader('Set-Cookie', clearedSessionCookie);
+  res.json({ required: authRequired(), admin: !authRequired() });
+});
 
 // Events (LAN settings) and their attendees
 app.use('/api', lanRouter);
@@ -71,7 +97,8 @@ app.post('/api/stages', async (req: Request, res: Response) => {
   }
 
   const stage = await withLock(async () => {
-    const names = explicitNames ?? await playerNamesForEvent(eventName);
+    const fromEvent = explicitNames ? null : await playerNamesForEvent(eventName);
+    const names = explicitNames ?? fromEvent?.players;
     if (!names) {
       throw new HttpError(400, 'Ohne Teilnehmerliste muss ein vorhandenes Event angegeben werden');
     }
@@ -83,7 +110,8 @@ app.post('/api/stages', async (req: Request, res: Response) => {
       type,
       names,
       settings: pickSettings(settings),
-      eventName
+      eventName,
+      memorial: fromEvent?.memorial ?? []
     }));
     await syncEventsFromStages();
     return created;
@@ -103,12 +131,16 @@ app.post('/api/stages/:id/regenerate', async (req: Request<{ id: string }>, res:
 
   const stage = await withLock(() => withRollback(async () => {
     const stage = await findStage(parseInt(req.params.id));
-    const attendeeNames = await playerNamesForEvent(stage.event_name);
+    const fromEvent = await playerNamesForEvent(stage.event_name);
+    const useEvent = !newNames && !!fromEvent?.players.length;
+    // Fallback (tournaments without attendee list): previous players minus previous memorial entries
+    const previousMemorial = new Set(stage.memorial_names ?? []);
     const names = newNames
-      ?? (attendeeNames?.length ? attendeeNames : null)
+      ?? (useEvent ? fromEvent!.players : null)
       ?? ((await getStorage().select('participant', { tournament_id: stage.tournament_id })) ?? [])
         .map(p => p.name)
-        .filter(Boolean);
+        .filter(name => name && !previousMemorial.has(name));
+    const memorial = useEvent ? fromEvent!.memorial : [...previousMemorial];
 
     await deleteStage(stage);
     return createStage({
@@ -117,7 +149,8 @@ app.post('/api/stages/:id/regenerate', async (req: Request<{ id: string }>, res:
       type: stage.type,
       names,
       settings: pickSettings(stage.settings),
-      eventName: stage.event_name
+      eventName: stage.event_name,
+      memorial
     });
   }));
 
@@ -131,6 +164,8 @@ app.put('/api/matches/:id', async (req: Request<{ id: string }>, res: Response) 
 
   const updatedMatch = await withLock(async () => {
     await getManager().update.match({ id: matchId, opponent1, opponent2 });
+    const match = await getStorage().select('match', matchId);
+    if (match) await resolveMemorialMatches(match.stage_id); // next matches may be against a memorial entry
     return getStorage().select('match', matchId);
   });
   res.json(updatedMatch ?? {});
@@ -233,6 +268,9 @@ app.use(errorHandler);
 async function start(): Promise<void> {
   await ensureAppTables();
   await syncEventsFromStages();
+  if (!authRequired()) {
+    console.warn('⚠️  Kein ADMIN_PASSWORD gesetzt — alle Besucher dürfen Turniere und Teilnehmer bearbeiten.');
+  }
   app.listen(PORT, () => {
     console.log(`🚀 Server läuft auf http://localhost:${PORT}`);
     console.log(`📊 API verfügbar unter http://localhost:${PORT}/api`);

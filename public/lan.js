@@ -75,6 +75,7 @@ function fillEventSettings(event) {
     document.getElementById('eventSettingDns').value = event.dns_server;
     document.getElementById('eventSettingNetmask').value = event.netmask ?? '';
     document.getElementById('eventSettingGateway').value = event.gateway ?? '';
+    document.getElementById('eventSettingMemorial').value = (event.memorial ?? []).join('\n');
     document.getElementById('rangeInputs').innerHTML = event.ranges.map((range, i) => `
         <span class="range-label">${RANGE_LABELS[i]}</span>
         <input type="text" class="range-start" value="${escapeHtml(range.start)}" aria-label="${RANGE_LABELS[i]} Start" spellcheck="false">
@@ -130,6 +131,7 @@ async function saveEventSettings(e) {
                 dns_server: document.getElementById('eventSettingDns').value,
                 netmask: document.getElementById('eventSettingNetmask').value,
                 gateway: document.getElementById('eventSettingGateway').value,
+                memorial: document.getElementById('eventSettingMemorial').value,
                 ranges: readRanges()
             })
         });
@@ -196,6 +198,16 @@ async function importFromEvent() {
 }
 
 /* Attendees */
+
+// "In Gedenken" below the list (they play as byes in every tournament of the event)
+function renderMemorialNote(event) {
+    const note = document.getElementById('memorialNote');
+    const names = event?.memorial ?? [];
+    note.style.display = names.length ? '' : 'none';
+    note.innerHTML = names.length
+        ? `<strong>In Gedenken</strong> ${names.map(escapeHtml).join(' · ')} <span class="muted">— spielen in jedem Turnier als Freilos mit</span>`
+        : '';
+}
 
 // DNS name with line-break opportunities after the dots
 function dnsHtml(name) {
@@ -270,6 +282,7 @@ function renderAttendees() {
             .some(value => value.toLowerCase().includes(query)))
         .sort(compareAttendees);
 
+    renderMemorialNote(event);
     const filtered = rows.length !== attendees.length ? ` · ${rows.length} angezeigt` : '';
     summary.textContent = `${event.name} · ${attendees.length} Teilnehmer${filtered}`;
 
@@ -293,8 +306,8 @@ function renderAttendees() {
                 </td>`).join('')}
             <td class="col-actions">
                 <button class="btn btn-ghost btn-icon" onclick="exportSlip(${a.id})" title="IP-Zettel (PDF)" aria-label="IP-Zettel als PDF">${icon('file')}</button>
-                <button class="btn btn-ghost btn-icon" onclick="editAttendee(${a.id})" title="Bearbeiten" aria-label="Bearbeiten">${icon('edit')}</button>
-                <button class="btn btn-danger btn-icon" onclick="deleteAttendee(${a.id})" title="Löschen" aria-label="Löschen">${icon('trash')}</button>
+                <button class="btn btn-ghost btn-icon admin-only" onclick="editAttendee(${a.id})" title="Bearbeiten" aria-label="Bearbeiten">${icon('edit')}</button>
+                <button class="btn btn-danger btn-icon admin-only" onclick="deleteAttendee(${a.id})" title="Löschen" aria-label="Löschen">${icon('trash')}</button>
             </td>
         </tr>
     `).join('');

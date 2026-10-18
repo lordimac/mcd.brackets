@@ -28,11 +28,13 @@ export function normalizeNames(input: unknown): string[] | null {
   return input.map(name => name.trim()).filter(name => name.length > 0);
 }
 
-// Random seeding; elimination brackets are filled with BYEs (null) up to the next power of 2
-export function buildSeeding(names: readonly string[], type: StageType, random: () => number = Math.random): (string | null)[] {
-  const seeding: (string | null)[] = shuffle(names, random);
+// Random seeding; elimination brackets are filled with BYEs (null) up to the next power of 2.
+// Memorial entries (always byes) go after the players, like the BYEs, so the default seed
+// ordering pairs them with players in the first round wherever possible.
+export function buildSeeding(names: readonly string[], type: StageType, memorial: readonly string[] = [], random: () => number = Math.random): (string | null)[] {
+  const seeding: (string | null)[] = [...shuffle(names, random), ...shuffle(memorial, random)];
   if (type !== 'round_robin') {
-    const size = nextPowerOfTwo(names.length);
+    const size = nextPowerOfTwo(seeding.length);
     while (seeding.length < size) seeding.push(null);
   }
   return seeding;

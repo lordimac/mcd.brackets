@@ -5,9 +5,17 @@
 # container DNS is unreliable on some machines (npm ci then hangs forever).
 #
 # Env overrides: PORT (host port, default 3001), CONTAINER (default mcd-brackets)
+# ADMIN_PASSWORD is taken from the environment or from .env in the project root (not in git).
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
+
+if [ -f .env ]; then
+  set -a
+  # shellcheck disable=SC1091
+  . ./.env
+  set +a
+fi
 
 PORT="${PORT:-3001}"
 CONTAINER="${CONTAINER:-mcd-brackets}"
@@ -28,10 +36,19 @@ docker buildx build --builder "$BUILDER" --load \
 echo "▶ Recreating container '$CONTAINER' on port $PORT (data: $DATA_DIR)"
 mkdir -p "$DATA_DIR"
 docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
+ENV_ARGS=(-e NODE_ENV=production)
+if [ -n "${ADMIN_PASSWORD:-}" ]; then
+  export ADMIN_PASSWORD
+  ENV_ARGS+=(-e ADMIN_PASSWORD)  # value comes from the environment, not visible in the process list
+  echo "▶ Admin-Passwort aktiv (aus .env bzw. Umgebung)"
+else
+  echo "⚠️  Kein ADMIN_PASSWORD gesetzt — alle dürfen bearbeiten (in .env eintragen)"
+fi
+
 docker run -d --name "$CONTAINER" \
   -p "$PORT:3000" \
   -v "$DATA_DIR:/app/data" \
-  -e NODE_ENV=production \
+  "${ENV_ARGS[@]}" \
   --restart unless-stopped \
   mcd-brackets:latest >/dev/null
 

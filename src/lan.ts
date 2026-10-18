@@ -17,6 +17,7 @@ export interface LanEvent {
   netmask: string;     // optional, printed on the IP slips
   gateway: string;     // optional, printed on the IP slips
   logo: string;        // optional PNG/JPEG data URL, printed on the IP slips
+  memorial: string[];  // "In Gedenken": take part in every tournament by name, but always as a bye
   ranges: IpRange[];   // one range per RANGE_LABELS entry
 }
 
@@ -130,6 +131,7 @@ export interface EventSettingsInput {
   netmask?: unknown;
   gateway?: unknown;
   logo?: unknown;
+  memorial?: unknown;
   ranges?: unknown;
 }
 
@@ -185,7 +187,31 @@ export function validateEventSettings(input: EventSettingsInput, usedSlots: numb
     throw new ValidationError(`Die Bereiche bieten nur ${capacity} Plätze, vergeben ist aber bereits Platz ${highestSlot + 1}`);
   }
 
-  return { name, domain, dns_server: dnsServer, netmask, gateway, logo, ranges };
+  const memorial = normalizeMemorial(input.memorial);
+
+  return { name, domain, dns_server: dnsServer, netmask, gateway, logo, memorial, ranges };
+}
+
+// Memorial names: one per line (string) or array; trimmed, without duplicates
+export function normalizeMemorial(input: unknown): string[] {
+  const values = typeof input === 'string' ? input.split(/\r?\n/) : Array.isArray(input) ? input : [];
+  const names: string[] = [];
+  for (const value of values) {
+    if (typeof value !== 'string') throw new ValidationError('„In Gedenken“ muss eine Liste von Namen sein');
+    const name = value.trim();
+    if (!name) continue;
+    if (name.length > 60) throw new ValidationError(`Name zu lang: ${name}`);
+    if (!names.some(n => n.toLowerCase() === name.toLowerCase())) names.push(name);
+  }
+  if (names.length > 50) throw new ValidationError('Höchstens 50 Namen „In Gedenken“');
+  return names;
+}
+
+// A memorial name must not equal a player name, otherwise both would be mixed up in tournaments
+export function assertNotMemorial(playerName: string, memorial: string[] = []): void {
+  if (memorial.some(name => name.toLowerCase() === playerName.toLowerCase())) {
+    throw new ValidationError(`„${playerName}“ steht bereits auf der Liste „In Gedenken“`);
+  }
 }
 
 /* Attendees

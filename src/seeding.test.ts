@@ -37,3 +37,12 @@ test('isStageType', () => {
   assert.ok(isStageType('round_robin'));
   assert.ok(!isStageType('swiss'));
 });
+
+test('memorial entries follow the players, before the BYEs', () => {
+  const seeding = buildSeeding(['A', 'B', 'C'], 'single_elimination', ['M1', 'M2']);
+  assert.equal(seeding.length, 8);
+  assert.deepEqual([...seeding.slice(0, 3)].sort(), ['A', 'B', 'C']);
+  assert.deepEqual([...seeding.slice(3, 5)].sort(), ['M1', 'M2']);
+  assert.deepEqual(seeding.slice(5), [null, null, null]);
+  assert.equal(buildSeeding(['A', 'B'], 'round_robin', ['M']).length, 3);
+});

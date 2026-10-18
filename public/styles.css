@@ -330,6 +330,37 @@ body {
     margin-top: 0;
 }
 
+/* Read-only mode (ADMIN_PASSWORD set, not logged in): editing controls are hidden */
+body.read-only .admin-only {
+    display: none !important;
+}
+
+.config-block-wide {
+    grid-column: 1 / -1;
+}
+
+.config-block-wide .field-hint {
+    margin: 0 0 0.6rem;
+}
+
+.memorial-note {
+    margin-top: 1rem;
+    padding: 0.7rem 0.9rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+}
+
+.memorial-note strong {
+    color: var(--text-color);
+    margin-right: 0.4rem;
+}
+
+.modal-content.login-modal {
+    max-width: 420px;
+}
+
 .import-row {
     display: flex;
     justify-content: space-between;
@@ -444,6 +475,7 @@ body {
 }
 
 input[type="text"],
+input[type="password"],
 select,
 textarea {
     width: 100%;
@@ -468,12 +500,14 @@ select {
 }
 
 input[type="text"]:hover,
+input[type="password"]:hover,
 select:hover,
 textarea:hover {
     border-color: var(--border-strong);
 }
 
 input[type="text"]:focus,
+input[type="password"]:focus,
 select:focus,
 textarea:focus {
     outline: none;

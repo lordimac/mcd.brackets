@@ -37,12 +37,14 @@ export async function getStandings(storage: CrudInterface, manager: BracketsMana
   if (!stage) return null;
 
   const matches = (await storage.select('match', { stage_id: stageId })) ?? [];
+  // Memorial entries ("In Gedenken") are byes and don't appear in the standings
+  const memorial = new Set((stage as Stage & { memorial_names?: string[] }).memorial_names ?? []);
   const participants = ((await storage.select('participant', { tournament_id: stage.tournament_id })) ?? [])
-    .filter(p => p.name); // Skip BYE
+    .filter(p => p.name && !memorial.has(p.name)); // Skip BYE
 
   let ranked: RankedParticipant[];
   if (stage.type === 'round_robin') {
-    ranked = await rankRoundRobin(manager, stageId);
+    ranked = (await rankRoundRobin(manager, stageId)).filter(p => !memorial.has(p.name));
   } else {
     const groups = (await storage.select('group', { stage_id: stageId })) ?? [];
     const rounds = (await storage.select('round', { stage_id: stageId })) ?? [];
