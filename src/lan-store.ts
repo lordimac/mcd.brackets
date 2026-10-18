@@ -201,37 +201,61 @@ export interface BulkRow {
   attendee?: AttendeeView;
 }
 
+// Order for assigning addresses in the bulk import: last name, first name, nickname
+// (German collation, case-insensitive); lines without a last name come last
+const nameCollator = new Intl.Collator('de', { sensitivity: 'base', numeric: true });
+
+export function compareByLastName(a: Pick<Attendee, 'last_name' | 'first_name' | 'nickname'>, b: Pick<Attendee, 'last_name' | 'first_name' | 'nickname'>): number {
+  if (!a.last_name !== !b.last_name) return a.last_name ? -1 : 1;
+  return nameCollator.compare(a.last_name, b.last_name)
+    || nameCollator.compare(a.first_name, b.first_name)
+    || nameCollator.compare(a.nickname, b.nickname);
+}
+
 // Bulk import, one attendee per line ("Nachname, Vorname // Clan-Nickname"; empty lines are ignored).
-// Every line is checked against the existing attendees and the lines before it; valid lines are
-// added, invalid ones reported. With dryRun nothing is written (preview).
+// Every line is checked against the existing attendees and the lines before it (so for duplicates
+// the first line wins). The valid lines are then sorted by last name and get their addresses in
+// that order. Rows come back in that order, followed by the invalid lines.
+// With dryRun nothing is written (preview).
 export async function importBulk(eventId: number, text: string, dryRun: boolean): Promise<{ rows: BulkRow[]; added: number }> {
   const event = await getEvent(eventId);
   const capacity = eventCapacity(event);
   const known = await listAttendees(eventId);
-  const rows: BulkRow[] = [];
-  let added = 0;
+  const accepted: { line: number; text: string; attendee: ReturnType<typeof validateAttendee> }[] = [];
+  const rejected: BulkRow[] = [];
 
   for (const [index, raw] of text.split(/\r?\n/).entries()) {
     const line = raw.trim();
     if (!line) continue;
     try {
       const attendee = validateAttendee(parseBulkLine(line));
-      assertUniqueAttendee(attendee, known);
+      assertUniqueAttendee(attendee, [...known, ...accepted.map(a => ({ ...a.attendee, id: -1, event_id: eventId, slot: -1 }))]);
       assertNotMemorial(displayName(attendee), event.memorial);
-      const slot = nextFreeSlot(known.map(a => a.slot), capacity);
-      if (slot === null) throw new ValidationError(`Kein Platz frei (${capacity} Plätze)`);
-
-      const id = dryRun ? -1 : await getAppStore().insert('attendee', { ...attendee, event_id: eventId, slot });
-      const stored: Attendee = { ...attendee, id, event_id: eventId, slot };
-      known.push(stored);
-      if (!dryRun) added++;
-      rows.push({ line: index + 1, text: line, ok: true, attendee: describeAttendee(event, stored) });
+      accepted.push({ line: index + 1, text: line, attendee });
     } catch (error) {
       if (!(error instanceof ValidationError)) throw error;
-      rows.push({ line: index + 1, text: line, ok: false, error: error.message });
+      rejected.push({ line: index + 1, text: line, ok: false, error: error.message });
     }
   }
-  return { rows, added };
+
+  // Stable sort: equal names keep their input order
+  accepted.sort((a, b) => compareByLastName(a.attendee, b.attendee));
+
+  const rows: BulkRow[] = [];
+  let added = 0;
+  for (const { line, text: lineText, attendee } of accepted) {
+    const slot = nextFreeSlot(known.map(a => a.slot), capacity);
+    if (slot === null) {
+      rows.push({ line, text: lineText, ok: false, error: `Kein Platz frei (${capacity} Plätze)` });
+      continue;
+    }
+    const id = dryRun ? -1 : await getAppStore().insert('attendee', { ...attendee, event_id: eventId, slot });
+    const stored: Attendee = { ...attendee, id, event_id: eventId, slot };
+    known.push(stored);
+    if (!dryRun) added++;
+    rows.push({ line, text: lineText, ok: true, attendee: describeAttendee(event, stored) });
+  }
+  return { rows: [...rows, ...rejected], added };
 }
 
 async function renamePlayer(eventName: string, oldName: string, newName: string): Promise<void> {

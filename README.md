@@ -2,7 +2,7 @@
 
 Ein vollständiges Turnierverwaltungssystem mit Event-basiertem Meisterschafts-Punktesystem, entwickelt mit [brackets-manager](https://www.npmjs.com/package/brackets-manager).
 
-**Version:** 0.17.0-beta
+**Version:** 0.17.1-beta
 
 ---
 
@@ -184,7 +184,7 @@ Umgebungsvariablen:
 ### Teilnehmer verwalten (Reiter „Teilnehmer“, erster Reiter)
 1. Event anlegen („Neu“) — Domain und IP-Bereiche werden vom letzten Event übernommen
 2. Unter „Konfiguration“ (einklappbar) Domain, Logo, Netzwerk (Subnetzmaske, Router/Gateway, DNS — stehen auf den IP-Zetteln) und die drei IP-Bereiche einstellen
-3. Teilnehmer mit Vorname, Name und Nickname hinzufügen — einzeln oder per „Mehrere auf einmal importieren…“ (`Nachname, Vorname // Clan-Nickname`, eine Zeile pro Teilnehmer). IPs und DNS-Namen werden automatisch vergeben
+3. Teilnehmer mit Vorname, Name und Nickname hinzufügen — einzeln oder per „Mehrere auf einmal importieren…“ (`Nachname, Vorname // Clan-Nickname`, eine Zeile pro Teilnehmer). IPs und DNS-Namen werden automatisch vergeben, beim Import in der Reihenfolge der Nachnamen
 4. IP-Zettel als PDF drucken („IP-Zettel (PDF)“ für alle, Datei-Icon in der Zeile für einzelne) und bei Bedarf CSV, hosts-Datei oder BIND-Zone herunterladen
 5. Optional: DNS-Namen mit „OPNsense“ nach Unbound übertragen (siehe unten)
 

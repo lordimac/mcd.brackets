@@ -100,19 +100,36 @@ test('bulk import previews, then adds valid lines and reports the rest', async (
   const preview = await store.importBulk(event.id, text, true);
   assert.equal(preview.added, 0);
   assert.equal((await store.listAttendees(event.id)).length, 1, 'dry run writes nothing');
-  assert.deepEqual(preview.rows.map(r => [r.line, r.ok]), [[1, true], [3, false], [4, false], [5, false], [6, true], [7, false]]);
-  assert.match(preview.rows[1].error!, /Komma/);
-  assert.match(preview.rows[2].error!, /schon vergeben/);
-  assert.match(preview.rows[5].error!, /Kein Platz/);
+  // Valid lines sorted by last name (Berg before Imhoff before Voll), invalid lines after them
+  assert.deepEqual(preview.rows.map(r => [r.line, r.ok]), [[6, true], [1, true], [7, false], [3, false], [4, false], [5, false]]);
+  assert.match(preview.rows[2].error!, /Kein Platz/);
+  assert.match(preview.rows[3].error!, /Komma/);
+  assert.match(preview.rows[4].error!, /schon vergeben/, 'for duplicates the earlier line wins, not the earlier name');
   assert.deepEqual(preview.rows[0].attendee!.ips, ['10.1.0.2', '10.1.1.2', '10.1.2.2']);
+  assert.equal(preview.rows[0].attendee!.last_name, 'Berg');
 
   const result = await store.importBulk(event.id, text, false);
   assert.equal(result.added, 2);
   const views = await store.listAttendeeViews(event.id);
   assert.deepEqual(views.map(a => [a.display_name, a.clan, a.nickname, a.last_name, a.first_name, a.dns_names[0]]), [
     ['vorhanden', '', 'vorhanden', '', '', 'vorhanden.lan.example.org'],
-    ['M4E-lordimac', 'M4E', 'lordimac', 'Imhoff', 'Marc', 'lordimac.lan.example.org'],
     ['CML-velvet', 'CML', 'velvet', 'Berg', 'Julia', 'velvet.lan.example.org'],
+    ['M4E-lordimac', 'M4E', 'lordimac', 'Imhoff', 'Marc', 'lordimac.lan.example.org'],
+  ]);
+});
+
+test('bulk order: last name, first name, nickname; umlauts and case like in German, no last name last', () => {
+  const people = [
+    { last_name: '', first_name: '', nickname: 'Zorro' },
+    { last_name: 'meier', first_name: 'Anna', nickname: 'b' },
+    { last_name: 'Müller', first_name: 'Max', nickname: 'x' },
+    { last_name: 'Mueller', first_name: 'Ben', nickname: 'y' },
+    { last_name: '', first_name: '', nickname: 'Alpha' },
+    { last_name: 'Meier', first_name: 'Anna', nickname: 'a' },
+    { last_name: 'Becker', first_name: 'Tom', nickname: 't' },
+  ];
+  assert.deepEqual([...people].sort(store.compareByLastName).map(p => p.last_name + '/' + p.nickname), [
+    'Becker/t', 'Meier/a', 'meier/b', 'Mueller/y', 'Müller/x', '/Alpha', '/Zorro',
   ]);
 });
 
