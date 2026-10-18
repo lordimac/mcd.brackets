@@ -9,6 +9,7 @@ import { ValidationError } from './lan';
 import { lanRouter } from './lan-routes';
 import { opnsenseRouter } from './opnsense-routes';
 import { OpnsenseError } from './opnsense';
+import { getStats, startUpdateChecks, updateFor } from './info';
 import { playerNamesForEvent, syncEventsFromStages } from './lan-store';
 import { isStageType, normalizeNames } from './seeding';
 import { createStage, deleteStage, findStage, pickSettings, resolveMemorialMatches } from './stages';
@@ -21,7 +22,10 @@ const publicDir = path.join(__dirname, '../public');
 
 // Cache busting: every server start (i.e. every new image/container) gets its own build ID,
 // which is appended to the JS/CSS URLs in index.html, so browsers never keep stale assets.
-const version: string = JSON.parse(fs.readFileSync(path.join(__dirname, '../package.json'), 'utf-8')).version;
+const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, '../package.json'), 'utf-8'));
+const version: string = packageJson.version;
+// For the footer: "https://github.com/<owner>/<repo>" from the repository field
+const REPO_URL: string = String(packageJson.repository?.url ?? '').replace(/^git\+/, '').replace(/\.git$/, '');
 const BUILD_ID = `${version}-${Date.now().toString(36)}`;
 
 // Middleware
@@ -30,7 +34,9 @@ app.use(express.json({ limit: '10mb' }));
 
 app.get(['/', '/index.html'], (_req: Request, res: Response) => {
   const html = fs.readFileSync(path.join(publicDir, 'index.html'), 'utf-8')
-    .replace(/(src|href)="((?:lib\/)?[\w.-]+\.(?:js|css))"/g, `$1="$2?v=${BUILD_ID}"`);
+    .replace(/(src|href)="((?:lib\/)?[\w.-]+\.(?:js|css))"/g, `$1="$2?v=${BUILD_ID}"`)
+    .replaceAll('{{APP_VERSION}}', version)
+    .replaceAll('{{REPO_URL}}', REPO_URL);
   res.setHeader('Cache-Control', 'no-store');
   res.type('html').send(html);
 });
@@ -259,6 +265,11 @@ app.post('/api/restore', async (req: Request, res: Response) => {
   res.json({ ok: true, message: 'Datenbank wiederhergestellt. Bitte Seite neu laden.' });
 });
 
+// Footer: version, newer version on GitHub (if known) and short statistics
+app.get('/api/info', async (_req: Request, res: Response) => {
+  res.json({ version, repo_url: REPO_URL, update: updateFor(version), stats: await getStats() });
+});
+
 // JSON errors for all routes (Express 5 forwards rejected promises here)
 const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
   // OpnsenseError: the firewall failed or is unreachable → 502 with a readable message
@@ -275,6 +286,7 @@ async function start(): Promise<void> {
   if (!authRequired()) {
     console.warn('⚠️  Kein ADMIN_PASSWORD gesetzt — alle Besucher dürfen Turniere und Teilnehmer bearbeiten.');
   }
+  startUpdateChecks(REPO_URL);
   app.listen(PORT, () => {
     console.log(`🚀 Server läuft auf http://localhost:${PORT}`);
     console.log(`📊 API verfügbar unter http://localhost:${PORT}/api`);

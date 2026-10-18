@@ -17,7 +17,7 @@ npm run docker:rebuild # Image bauen + Container mcd-brackets neu erstellen (Por
 
 - **Nach jeder abgeschlossenen Änderung `npm run docker:rebuild` ausführen** (Wunsch des Users). Port 3000 ist durch einen anderen Container belegt. Das Skript baut über den buildx-Builder `mcd-dns` mit festen DNS-Servern (`scripts/buildkitd.toml`), weil die DNS-Auflösung in Docker Desktop hier nicht funktioniert und `docker build`/`docker compose build` bei `npm ci` hängen bleiben.
 
-- Umgebungsvariablen: `PORT` (3000), `DATA_DIR` (`./data`). Für manuelle Tests einen Server mit eigenem `DATA_DIR` und Port starten, nie gegen die echte `data/db.json` schreiben.
+- Umgebungsvariablen: `PORT` (3000), `DATA_DIR` (`./data`), `ADMIN_PASSWORD`, `UPDATE_CHECK` (`false` = kein Versionscheck). Für manuelle Tests einen Server mit eigenem `DATA_DIR` und Port starten, nie gegen die echte `data/db.json` schreiben.
 - Nach jedem Update von brackets-viewer/html2canvas/jspdf `npm run vendor` ausführen — der Browser lädt nur die Kopien in `public/lib/`.
 - TypeScript 7 hat keine JS-Compiler-API mehr → kein `ts-node`; Ausführung von TS-Dateien über `tsx`.
 - `package.json` erzwingt per `overrides` `uuid@^11.1.1` (Sicherheitsfix für brackets-manager).
@@ -47,6 +47,7 @@ npm run docker:rebuild # Image bauen + Container mcd-brackets neu erstellen (Por
 - Buttons mit Icon: veränderlichen Text in `<span class="btn-label">` legen und per `setButtonLabel()` ändern, nie `textContent` des Buttons setzen.
 - Layout: einspaltig. Oben einklappbare Karten („Neues Turnier“ bzw. Event-Leiste mit „Konfiguration“) über `toggleSection(id, open?)`; der Zustand wird in `localStorage` gemerkt (`COLLAPSIBLE_SECTIONS` in `app.js`).
 - Teilnehmerliste: getrennte Spalten Vorname/Nachname/Clan/Nickname, sortierbar über `th.sortable[data-sort]` (`attendeeSort`), Filter per Suche und Clan-Auswahl (`__all__` = alle, `''` = ohne Clan).
+- Footer: `server.ts` ersetzt in `index.html` die Platzhalter `{{APP_VERSION}}` (aus `package.json`) und `{{REPO_URL}}` (aus `repository.url`, ohne `.git`). Statistik und Update-Hinweis kommen aus `GET /api/info` (`src/info.ts`): `startUpdateChecks()` holt beim Start und alle 6 h die GitHub-Tags (Fehler/offline werden still ignoriert, letzter Stand bleibt), `compareVersions()` (Release > Pre-Release). Gespielte Matches = abgeschlossen, beide Seiten bekannt, kein Forfeit (`isPlayedMatch`). Das Frontend lädt die Infos per `refreshFooter()` (entprellt) nach `loadStages`/`loadMatches`/`loadAttendees`.
 - Cache-Busting: `server.ts` liefert `index.html` selbst aus (`no-store`) und hängt an alle JS/CSS-URLs `?v=<version>-<startzeit>` — neue Script-/CSS-Dateien in `index.html` werden automatisch erfasst, solange sie als `src="datei.js"` bzw. `href="datei.css"` (optional unter `lib/`) eingebunden sind.
 - Globaler State: `stages`, `matches`, `participants` (via `loadStages/loadMatches/loadParticipants`).
 - Zwei Ansichten per Hash: `#turniere` (Standard) und `#teilnehmer` (`showView()`). Teilnehmer-Verwaltung in `public/lan.js`, nutzt `apiFetch`, `escapeHtml`, `icon`, `openModal`/`closeModal` und `lanEvents` aus `app.js`.

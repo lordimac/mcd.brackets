@@ -2100,3 +2100,86 @@ textarea {
         flex-wrap: wrap;
     }
 }
+
+/* Footer: version and links
+   ========================================================================== */
+
+.site-footer {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 0.35rem 0.6rem;
+    margin-top: 2.5rem;
+    padding: 1.25rem 0 0.5rem;
+    border-top: 1px solid var(--border-color);
+    font-size: 0.8rem;
+    color: var(--text-faint);
+}
+
+.site-footer .footer-brand {
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.site-footer a {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    color: var(--text-secondary);
+    text-decoration: none;
+}
+
+.site-footer a:hover {
+    color: var(--primary-color);
+}
+
+.site-footer .icon {
+    width: 0.8rem;
+    height: 0.8rem;
+}
+
+@media (max-width: 520px) {
+    /* Wrapped lines would end with a dangling separator */
+    .site-footer .footer-sep {
+        display: none;
+    }
+
+    .site-footer {
+        gap: 0.35rem 1rem;
+    }
+}
+
+.site-footer {
+    flex-direction: column;
+}
+
+.footer-line {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 0.35rem 0.6rem;
+}
+
+.footer-stats strong {
+    color: var(--text-secondary);
+    font-weight: 600;
+}
+
+.footer-stats:empty {
+    display: none;
+}
+
+/* Hint on a newer version: the only accent in the footer */
+.site-footer a.footer-update {
+    padding: 0.1rem 0.55rem;
+    border-radius: 999px;
+    background: var(--primary-soft);
+    color: var(--primary-color);
+    font-weight: 600;
+}
+
+.site-footer a.footer-update[hidden] {
+    display: none;
+}

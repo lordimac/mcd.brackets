@@ -144,6 +144,41 @@ function showView() {
     if (view === 'attendees' && typeof showAttendeeView === 'function') showAttendeeView();
 }
 
+/* Footer: short statistics and the hint on a newer version (GET /api/info) */
+
+let footerTimer = null;
+
+// Debounced: several lists reload together after a change
+function refreshFooter() {
+    clearTimeout(footerTimer);
+    footerTimer = setTimeout(loadFooterInfo, 300);
+}
+
+async function loadFooterInfo() {
+    let info;
+    try {
+        info = await apiFetch('/info');
+    } catch {
+        return; // the footer just keeps its last state
+    }
+    const { stats, update } = info;
+    const count = (n, one, many) => `<span><strong>${n}</strong> ${n === 1 ? one : many}</span>`;
+    document.getElementById('footerStats').innerHTML = [
+        count(stats.events, 'Event', 'Events'),
+        count(stats.attendees, 'Teilnehmer', 'Teilnehmer'),
+        count(stats.tournaments, 'Turnier', 'Turniere'),
+        count(stats.matches_played, 'Match gespielt', 'Matches gespielt'),
+    ].join('<span class="footer-sep" aria-hidden="true">·</span>');
+
+    const link = document.getElementById('footerUpdate');
+    link.hidden = !update?.available;
+    if (update?.available) {
+        link.href = update.url;
+        link.textContent = `Neue Version ${update.latest} verfügbar`;
+        link.title = `Auf GitHub ansehen (geprüft ${new Date(update.checked_at).toLocaleString('de-DE')})`;
+    }
+}
+
 // Events with attendee counts (also used by the attendee view in lan.js)
 async function loadEvents() {
     try {
@@ -237,6 +272,7 @@ async function loadStages() {
         displayEvents();
         updateStageFilter();
         updateEventFilter();
+        refreshFooter();
     } catch (error) {
         console.error('Error loading stages:', error);
         document.getElementById('stagesList').innerHTML = 
@@ -250,6 +286,7 @@ async function loadMatches() {
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         matches = await response.json();
         displayMatches();
+        refreshFooter();
     } catch (error) {
         console.error('Error loading matches:', error);
         document.getElementById('matchesList').innerHTML = 

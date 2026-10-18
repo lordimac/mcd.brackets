@@ -2,7 +2,7 @@
 
 Ein vollständiges Turnierverwaltungssystem mit Event-basiertem Meisterschafts-Punktesystem, entwickelt mit [brackets-manager](https://www.npmjs.com/package/brackets-manager).
 
-**Version:** 0.17.1-beta
+**Version:** 0.18.0-beta
 
 ---
 
@@ -104,6 +104,11 @@ Platzierungsbasierte Punkte:
 - Sie stehen in jedem Turnier des Events mit ihrem Namen im Bracket; ihre Matches werden automatisch als Freilos entschieden
 - Keine IP-Adressen, keine Platzierung/Punkte in den Ranglisten
 
+### ℹ️ Footer
+- Aktuelle Version (Link zum Quellcode dieser Version), Links zu GitHub und „Fehler melden“
+- Kurze Statistik: Events, Teilnehmer, Turniere, gespielte Matches (ohne Freilose)
+- Hinweis „Neue Version … verfügbar“, wenn auf GitHub ein neuerer Versions-Tag existiert
+
 ### 💾 Datenbank-Backup & Restore
 - **Backup herunterladen** — `db.json` als timestamped JSON-Datei exportieren
 - **Backup einlesen** — JSON-Backup validieren und wiederherstellen
@@ -176,6 +181,7 @@ Umgebungsvariablen:
 | `PORT`     | `3000`   | HTTP-Port |
 | `DATA_DIR` | `./data` | Verzeichnis für `db.json` und Restore-Sicherungen |
 | `ADMIN_PASSWORD` | *(leer)* | Passwort zum Bearbeiten; leer = jeder darf bearbeiten. Für `docker compose` und `npm run docker:rebuild` in `.env` eintragen (`ADMIN_PASSWORD=…`, nicht im Git) |
+| `UPDATE_CHECK` | `true` | Prüft beim Start und alle 6 Stunden auf GitHub, ob es eine neuere Version gibt (Hinweis im Footer). Ohne Internet passiert einfach nichts; `false` schaltet den Check ab |
 
 ---
 
@@ -216,7 +222,7 @@ Die Zugangsdaten gelten für alle Events und liegen in der Datenbank (`db.json`,
 Ist ein Admin-Passwort gesetzt, sieht man ohne Anmeldung nur die Ansicht. „Anmelden“ oben rechts → Passwort eingeben → alle Bearbeiten-Funktionen erscheinen. „Abmelden“ beendet die Sitzung.
 
 ### Backup & Restore
-Im Footer der Seite (nur angemeldet):
+Oben rechts in der Kopfleiste (nur angemeldet):
 - **💾 Backup herunterladen** — Lädt die aktuelle `db.json` herunter
 - **📂 Backup einlesen** — Stellt eine gesicherte `db.json` wieder her
 
@@ -285,6 +291,11 @@ Alle Endpunkte nur mit Admin-Sitzung (auch GET). Fehler der Firewall kommen als 
 | POST   | `/api/events/:id/opnsense/preview` | Vorschau `{ mode: "sync" \| "remove" }` → `{ items, counts }` |
 | POST   | `/api/events/:id/opnsense/apply` | Ausführen (plant gegen den aktuellen Stand neu) → `{ created, updated, deleted, conflicts, errors, reconfigured }` |
 
+### Info
+| Method | Endpoint | Beschreibung |
+|--------|----------|--------------|
+| GET    | `/api/info` | `{ version, repo_url, update: { latest, url, checked_at, available } \| null, stats: { events, attendees, tournaments, matches_played } }` |
+
 ### Backup & Restore
 | Method | Endpoint | Beschreibung |
 |--------|----------|--------------|
@@ -349,6 +360,7 @@ mcd.brackets/
 │   ├── lan-routes.ts   # REST-Routen für Events & Teilnehmer
 │   ├── opnsense.ts     # Abgleich mit Unbound + OPNsense-API-Client
 │   ├── opnsense-routes.ts # REST-Routen für OPNsense
+│   ├── info.ts         # Footer: Versionscheck (GitHub-Tags) + Statistik
 │   ├── standings.ts    # Platzierungen + Punktesystem
 │   ├── seeding.ts      # Auslosung + BYEs
 │   └── *.test.ts       # Tests (npm test)

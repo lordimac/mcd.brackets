@@ -222,6 +222,7 @@ function updateEditDisplayPreview() {
 
 async function loadAttendees() {
     attendees = currentEventId != null ? await apiFetch(`/events/${currentEventId}/attendees`).catch(() => []) : [];
+    refreshFooter();
     renderClanFilter();
     renderAttendees();
 }
