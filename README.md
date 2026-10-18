@@ -109,16 +109,23 @@ Platzierungsbasierte Punkte:
 
 ### Docker (empfohlen)
 
+Die `docker-compose.yml` nutzt das fertige Image `ghcr.io/lordimac/mcd.brackets:latest`, das die GitHub Action bei jedem Push auf `main` baut. Es reichen `docker-compose.yml` und `.env`, der Quellcode wird nicht gebraucht:
+
 ```bash
-cp .env.example .env   # Admin-Passwort eintragen (siehe unten)
-docker compose up -d --build
+echo "ADMIN_PASSWORD=mein-passwort" > .env   # siehe „Admin-Passwort einrichten“
+docker compose up -d
 ```
 
 Öffne [http://localhost:3000](http://localhost:3000) im Browser.
 
-**Lokal bauen mit `npm run docker:rebuild`** (Image `mcd-brackets` + Container auf Port 3001, Daten in `./data`): Das Skript liest `.env`, sichert vor dem Neustart `data/db.json` und wartet, bis der Container healthy ist.
+**Update auf die neueste Version:**
+```bash
+docker compose pull && docker compose up -d
+```
 
-**Mit vorgebautem Image von GitHub Container Registry:**
+**Aus dem Quellcode bauen mit `npm run docker:rebuild`** (Image `mcd-brackets` + Container auf Port 3001, Daten in `./data`): Das Skript liest `.env`, sichert vor dem Neustart `data/db.json` und wartet, bis der Container healthy ist.
+
+**Ohne Compose:**
 ```bash
 docker pull ghcr.io/lordimac/mcd.brackets:latest
 docker run -d -p 3000:3000 -v $(pwd)/data:/app/data -e ADMIN_PASSWORD='geheim' ghcr.io/lordimac/mcd.brackets:latest

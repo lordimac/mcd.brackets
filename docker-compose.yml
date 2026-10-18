@@ -1,11 +1,10 @@
-version: '3.8'
-
 services:
   mcd-brackets:
-    # Use pre-built image from GitHub Container Registry
-    # image: ghcr.io/lordimac/mcd.brackets:latest
-    # Or build locally
-    build: .
+    # Official image, built by the GitHub Action on every push to main.
+    # Update: docker compose pull && docker compose up -d
+    # Pin a release instead of latest, e.g. ghcr.io/lordimac/mcd.brackets:0.16.0-beta (needs a v* tag)
+    # Local builds from source: npm run docker:rebuild
+    image: ghcr.io/lordimac/mcd.brackets:latest
     container_name: mcd-brackets
     ports:
       - "3000:3000"
