@@ -200,7 +200,8 @@ body {
 .container {
     max-width: 1440px;
     margin: 0 auto;
-    padding: 1.75rem 2rem 3rem;
+    /* Bottom: room for the fixed footer (--footer-height comes from app.js) */
+    padding: 1.75rem 2rem calc(var(--footer-height, 2.5rem) + 2rem);
 }
 
 .layout {
@@ -2101,20 +2102,36 @@ textarea {
     }
 }
 
-/* Footer: version and links
+/* Footer: fixed bar at the bottom of the window (like the topbar at the top).
+   The container reserves its height via --footer-height, set by app.js.
    ========================================================================== */
 
 .site-footer {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 100;
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
     align-items: center;
-    gap: 0.35rem 0.6rem;
-    margin-top: 2.5rem;
-    padding: 1.25rem 0 0.5rem;
+    gap: 0.3rem 1.75rem;
+    padding: 0.55rem 2rem;
+    background: rgba(11, 15, 23, 0.82);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
     border-top: 1px solid var(--border-color);
     font-size: 0.8rem;
     color: var(--text-faint);
+}
+
+.footer-line {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 0.3rem 0.6rem;
 }
 
 .site-footer .footer-brand {
@@ -2139,29 +2156,6 @@ textarea {
     height: 0.8rem;
 }
 
-@media (max-width: 520px) {
-    /* Wrapped lines would end with a dangling separator */
-    .site-footer .footer-sep {
-        display: none;
-    }
-
-    .site-footer {
-        gap: 0.35rem 1rem;
-    }
-}
-
-.site-footer {
-    flex-direction: column;
-}
-
-.footer-line {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    align-items: center;
-    gap: 0.35rem 0.6rem;
-}
-
 .footer-stats strong {
     color: var(--text-secondary);
     font-weight: 600;
@@ -2173,7 +2167,7 @@ textarea {
 
 /* Hint on a newer version: the only accent in the footer */
 .site-footer a.footer-update {
-    padding: 0.1rem 0.55rem;
+    padding: 0.05rem 0.55rem;
     border-radius: 999px;
     background: var(--primary-soft);
     color: var(--primary-color);
@@ -2182,4 +2176,25 @@ textarea {
 
 .site-footer a.footer-update[hidden] {
     display: none;
+}
+
+@media (max-width: 520px) {
+    .site-footer {
+        padding: 0.45rem 1rem;
+        gap: 0.2rem 1rem;
+    }
+
+    /* Wrapped lines would end with a dangling separator */
+    .site-footer .footer-sep {
+        display: none;
+    }
+
+    .footer-line {
+        gap: 0.2rem 0.8rem;
+    }
+
+    /* The name is in the topbar anyway; keeps the bar at two lines */
+    .site-footer .footer-brand {
+        display: none;
+    }
 }

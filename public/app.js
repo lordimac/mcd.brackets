@@ -148,6 +148,15 @@ function showView() {
 
 let footerTimer = null;
 
+// The footer is fixed at the bottom; reserve its (wrapping-dependent) height below the content
+document.addEventListener('DOMContentLoaded', () => {
+    const footer = document.querySelector('.site-footer');
+    if (!footer || typeof ResizeObserver === 'undefined') return;
+    new ResizeObserver(() => {
+        document.documentElement.style.setProperty('--footer-height', `${footer.offsetHeight}px`);
+    }).observe(footer);
+});
+
 // Debounced: several lists reload together after a change
 function refreshFooter() {
     clearTimeout(footerTimer);

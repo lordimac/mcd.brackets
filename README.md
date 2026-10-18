@@ -2,7 +2,7 @@
 
 Ein vollständiges Turnierverwaltungssystem mit Event-basiertem Meisterschafts-Punktesystem, entwickelt mit [brackets-manager](https://www.npmjs.com/package/brackets-manager).
 
-**Version:** 0.18.0-beta
+**Version:** 0.18.1-beta
 
 ---
 
@@ -105,6 +105,7 @@ Platzierungsbasierte Punkte:
 - Keine IP-Adressen, keine Platzierung/Punkte in den Ranglisten
 
 ### ℹ️ Footer
+- Feste Leiste am unteren Fensterrand, immer sichtbar
 - Aktuelle Version (Link zum Quellcode dieser Version), Links zu GitHub und „Fehler melden“
 - Kurze Statistik: Events, Teilnehmer, Turniere, gespielte Matches (ohne Freilose)
 - Hinweis „Neue Version … verfügbar“, wenn auf GitHub ein neuerer Versions-Tag existiert
