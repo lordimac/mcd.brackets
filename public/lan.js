@@ -38,7 +38,7 @@ async function showAttendeeView() {
         currentEventId = lanEvents.some(e => e.id === saved) ? saved : fallback ? fallback.id : null;
     }
     renderEventSelect();
-    await loadAttendees();
+    await Promise.all([loadAttendees(), loadOpnsenseSettings()]);
 }
 
 async function selectLanEvent(id) {

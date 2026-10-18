@@ -68,7 +68,7 @@ test('reads are public, changes and the backup need the session', () => {
     assert.equal(guard(request('POST', '/login')), undefined);
     assert.equal(guard(request('GET', '/auth')), undefined);
 
-    for (const [method, path] of [['POST', '/stages'], ['PUT', '/matches/3'], ['DELETE', '/attendees/1'], ['POST', '/restore'], ['GET', '/backup']]) {
+    for (const [method, path] of [['POST', '/stages'], ['PUT', '/matches/3'], ['DELETE', '/attendees/1'], ['POST', '/restore'], ['GET', '/backup'], ['GET', '/opnsense'], ['POST', '/events/1/opnsense/preview']]) {
       const error = guard(request(method, path));
       assert.ok(error instanceof HttpError && error.status === 401, `${method} ${path}`);
     }

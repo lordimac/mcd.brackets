@@ -4,6 +4,7 @@ import type { CrudInterface } from 'brackets-model';
 import path from 'path';
 import fs from 'fs';
 import type { Attendee, LanEvent } from './lan';
+import type { OpnsenseSettings } from './opnsense';
 
 export const dataDir = path.resolve(process.env.DATA_DIR ?? path.join(__dirname, '../data'));
 export const dbPath = path.join(dataDir, 'db.json');
@@ -22,9 +23,10 @@ export const getManager = () => manager;
 interface AppTables {
   event: LanEvent;
   attendee: Attendee;
+  opnsense: OpnsenseSettings; // at most one record: connection to the firewall
 }
 type AppTable = keyof AppTables;
-export const APP_TABLES: AppTable[] = ['event', 'attendee'];
+export const APP_TABLES: AppTable[] = ['event', 'attendee', 'opnsense'];
 
 export interface AppStore {
   select<T extends AppTable>(table: T): Promise<AppTables[T][] | null>;

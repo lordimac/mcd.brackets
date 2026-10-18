@@ -57,12 +57,13 @@ export function sessionCookie(token: string): string {
 
 export const clearedSessionCookie = `${SESSION_COOKIE}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0`;
 
-// Reads are public; every change (and the full backup) needs the admin session
+// Reads are public; every change, the full backup and the OPNsense settings need the admin session
 const PUBLIC_PATHS = new Set(['/auth', '/login', '/logout']);
+const isProtectedRead = (path: string) => path === '/backup' || path === '/opnsense' || path.startsWith('/opnsense/');
 
 export function requireAdminForChanges(req: Request, _res: Response, next: NextFunction): void {
   const isRead = req.method === 'GET' || req.method === 'HEAD';
-  if ((isRead && req.path !== '/backup') || PUBLIC_PATHS.has(req.path) || isAdmin(req)) {
+  if ((isRead && !isProtectedRead(req.path)) || PUBLIC_PATHS.has(req.path) || isAdmin(req)) {
     next();
     return;
   }

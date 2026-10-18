@@ -714,6 +714,16 @@ textarea {
     color: var(--danger-color);
 }
 
+/* Confirming a destructive action (e.g. deleting OPNsense entries) */
+.btn-danger-solid {
+    background: var(--danger-color);
+    color: #fff;
+}
+
+.btn-danger-solid:hover:not(:disabled) {
+    background: #dc2626;
+}
+
 .btn-sm {
     padding: 0.4rem 0.7rem;
     font-size: 0.85rem;
@@ -2045,4 +2055,48 @@ textarea {
 .brackets-viewer::-webkit-scrollbar-thumb:hover,
 .rankings-list::-webkit-scrollbar-thumb:hover {
     background: var(--primary-color);
+}
+
+/* OPNsense connection (Konfiguration) and transfer dialog */
+.opnsense-form {
+    margin-top: 1rem;
+}
+
+.opnsense-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr);
+    gap: 0 1rem;
+}
+
+.opnsense-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin: 0.6rem 0 0.5rem;
+}
+
+.opnsense-status:empty {
+    display: none;
+}
+
+.field-hint.is-ok {
+    color: var(--success-color);
+}
+
+.field-hint.is-error {
+    color: var(--danger-color);
+}
+
+.modal-actions .modal-action-left {
+    margin-right: auto;
+}
+
+@media (max-width: 760px) {
+    .opnsense-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .modal-actions {
+        flex-wrap: wrap;
+    }
 }

@@ -7,6 +7,8 @@ import { authRequired, clearedSessionCookie, createSessionToken, isAdmin, passwo
 import { HttpError } from './http-error';
 import { ValidationError } from './lan';
 import { lanRouter } from './lan-routes';
+import { opnsenseRouter } from './opnsense-routes';
+import { OpnsenseError } from './opnsense';
 import { playerNamesForEvent, syncEventsFromStages } from './lan-store';
 import { isStageType, normalizeNames } from './seeding';
 import { createStage, deleteStage, findStage, pickSettings, resolveMemorialMatches } from './stages';
@@ -64,6 +66,7 @@ app.post('/api/logout', (_req: Request, res: Response) => {
 
 // Events (LAN settings) and their attendees
 app.use('/api', lanRouter);
+app.use('/api', opnsenseRouter);
 
 // Get all tournaments (stages)
 app.get('/api/stages', async (_req: Request, res: Response) => {
@@ -258,7 +261,8 @@ app.post('/api/restore', async (req: Request, res: Response) => {
 
 // JSON errors for all routes (Express 5 forwards rejected promises here)
 const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
-  const status = error instanceof HttpError ? error.status : error instanceof ValidationError ? 400 : 500;
+  // OpnsenseError: the firewall failed or is unreachable → 502 with a readable message
+  const status = error instanceof HttpError ? error.status : error instanceof ValidationError ? 400 : error instanceof OpnsenseError ? 502 : 500;
   if (status === 500) console.error(error);
   res.status(status).json({ error: error.message || 'Internal server error' });
 };

@@ -305,6 +305,38 @@
                         </div>
                     </form>
 
+                    <form id="opnsenseForm" class="opnsense-form" autocomplete="off">
+                        <fieldset class="config-block">
+                            <legend>OPNsense <span class="label-hint">für alle Events — überträgt die DNS-Namen als Host Overrides nach Unbound</span></legend>
+                            <div class="opnsense-grid">
+                                <div class="form-group">
+                                    <label for="opnsenseUrl">Adresse</label>
+                                    <input type="text" id="opnsenseUrl" placeholder="https://192.168.120.1" spellcheck="false">
+                                </div>
+                                <div class="form-group">
+                                    <label for="opnsenseKey">API-Key</label>
+                                    <input type="text" id="opnsenseKey" spellcheck="false">
+                                </div>
+                                <div class="form-group">
+                                    <label for="opnsenseSecret">API-Secret</label>
+                                    <input type="password" id="opnsenseSecret" autocomplete="new-password" spellcheck="false">
+                                </div>
+                            </div>
+                            <label class="toggle">
+                                <input type="checkbox" id="opnsenseInsecure">
+                                <span>Zertifikat nicht prüfen <span class="label-hint">für das selbst signierte Standard-Zertifikat der OPNsense</span></span>
+                            </label>
+                            <p class="field-hint">API-Benutzer in OPNsense unter <em>System → Zugang → Benutzer</em> anlegen, Berechtigung <em>Services: Unbound</em> vergeben und dort einen API-Key erzeugen. Das Secret wird nicht wieder angezeigt.</p>
+                            <p class="field-hint opnsense-status" id="opnsenseStatus"></p>
+                            <div class="opnsense-actions">
+                                <button type="button" class="btn btn-secondary btn-sm" id="opnsenseTestBtn" onclick="testOpnsense()">
+                                    <svg class="icon"><use href="#i-network"/></svg><span class="btn-label">Verbindung testen</span>
+                                </button>
+                                <button type="submit" class="btn btn-primary btn-sm">Speichern</button>
+                            </div>
+                        </fieldset>
+                    </form>
+
                     <div class="import-row" id="importCard" style="display: none;">
                         <div>
                             <strong><svg class="icon icon-accent"><use href="#i-copy"/></svg>Teilnehmer übernehmen</strong>
@@ -332,6 +364,9 @@
                         <a class="btn btn-secondary btn-sm" id="exportCsv" download><svg class="icon"><use href="#i-download"/></svg><span>CSV</span></a>
                         <a class="btn btn-secondary btn-sm" id="exportHosts" download><svg class="icon"><use href="#i-download"/></svg><span>hosts</span></a>
                         <a class="btn btn-secondary btn-sm" id="exportZone" download><svg class="icon"><use href="#i-download"/></svg><span>BIND-Zone</span></a>
+                        <button class="btn btn-secondary btn-sm admin-only" id="opnsenseSyncBtn" onclick="openOpnsenseSync()" title="DNS-Namen als Host Overrides nach Unbound übertragen">
+                            <svg class="icon"><use href="#i-network"/></svg><span>OPNsense</span>
+                        </button>
                     </div>
                 </div>
 
@@ -436,6 +471,24 @@
         </div>
     </div>
 
+    <!-- OPNsense Sync Modal -->
+    <div id="opnsenseModal" class="modal">
+        <div class="modal-content bulk-modal">
+            <button type="button" class="close" onclick="closeModal('opnsenseModal')" aria-label="Schließen"><svg class="icon"><use href="#i-x"/></svg></button>
+            <h2 id="opnsenseModalTitle">Zu OPNsense übertragen</h2>
+            <p class="match-info-text" id="opnsenseModalIntro"></p>
+            <div id="opnsensePreview" class="bulk-preview"></div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-danger btn-sm modal-action-left" id="opnsenseModeBtn" onclick="toggleOpnsenseMode()"></button>
+                <button type="button" class="btn btn-ghost" onclick="closeModal('opnsenseModal')">Abbrechen</button>
+                <button type="button" class="btn btn-secondary" onclick="previewOpnsense()">
+                    <svg class="icon"><use href="#i-refresh"/></svg><span>Neu prüfen</span>
+                </button>
+                <button type="button" class="btn btn-primary" id="opnsenseApplyBtn" onclick="applyOpnsense()" disabled><span class="btn-label">Übertragen</span></button>
+            </div>
+        </div>
+    </div>
+
     <!-- Edit Attendee Modal -->
     <div id="attendeeModal" class="modal">
         <div class="modal-content">
@@ -499,6 +552,7 @@
     <script src="lib/jspdf.umd.min.js"></script>
     <script src="app.js"></script>
     <script src="lan.js"></script>
+    <script src="opnsense.js"></script>
     <script src="ip-slips.js"></script>
 </body>
 </html>

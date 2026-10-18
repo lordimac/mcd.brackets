@@ -2,7 +2,7 @@
 
 Ein vollständiges Turnierverwaltungssystem mit Event-basiertem Meisterschafts-Punktesystem, entwickelt mit [brackets-manager](https://www.npmjs.com/package/brackets-manager).
 
-**Version:** 0.16.0-beta
+**Version:** 0.17.0-beta
 
 ---
 
@@ -93,6 +93,12 @@ Platzierungsbasierte Punkte:
 - Ohne `ADMIN_PASSWORD` darf jeder bearbeiten (wie bisher)
 - Einrichtung siehe [Admin-Passwort einrichten](#admin-passwort-einrichten)
 
+### 🔥 OPNsense / Unbound
+- Überträgt die DNS-Namen eines Events per OPNsense-API als **Host Overrides** nach Unbound (getestet gegen die API von OPNsense 26.7)
+- Erst Vorschau (neu / geändert / gelöscht / Konflikt), dann „Übertragen“; danach wird Unbound automatisch neu geladen
+- Ändert und löscht nur eigene Einträge (Beschreibung beginnt mit `mcd-brackets #<Event>`), von Hand angelegte Einträge mit gleichem Namen werden als Konflikt angezeigt und nicht überschrieben
+- „Einträge entfernen…“ löscht nach der LAN alle Einträge des Events wieder
+
 ### 🕯️ In Gedenken
 - Pro Event eine Liste von Namen (Konfiguration → „In Gedenken“), z.B. für verstorbene Mitglieder
 - Sie stehen in jedem Turnier des Events mit ihrem Namen im Bracket; ihre Matches werden automatisch als Freilos entschieden
@@ -180,6 +186,15 @@ Umgebungsvariablen:
 2. Unter „Konfiguration“ (einklappbar) Domain, Logo, Netzwerk (Subnetzmaske, Router/Gateway, DNS — stehen auf den IP-Zetteln) und die drei IP-Bereiche einstellen
 3. Teilnehmer mit Vorname, Name und Nickname hinzufügen — einzeln oder per „Mehrere auf einmal importieren…“ (`Nachname, Vorname // Clan-Nickname`, eine Zeile pro Teilnehmer). IPs und DNS-Namen werden automatisch vergeben
 4. IP-Zettel als PDF drucken („IP-Zettel (PDF)“ für alle, Datei-Icon in der Zeile für einzelne) und bei Bedarf CSV, hosts-Datei oder BIND-Zone herunterladen
+5. Optional: DNS-Namen mit „OPNsense“ nach Unbound übertragen (siehe unten)
+
+### OPNsense anbinden
+1. In OPNsense unter **System → Zugang → Benutzer** einen eigenen Benutzer für die API anlegen und ihm die Berechtigung **„Services: Unbound“** geben (enthält Host Overrides und das Neuladen von Unbound)
+2. Beim Benutzer unter **API-Schlüssel** einen Schlüssel erzeugen — OPNsense lädt eine Datei mit `key` und `secret` herunter
+3. In MCD Brackets unter **Teilnehmer → Konfiguration → OPNsense** Adresse der Firewall (z.B. `https://192.168.120.1`), API-Key und Secret eintragen. Beim Standard-Zertifikat der OPNsense „Zertifikat nicht prüfen“ aktivieren. „Verbindung testen“, dann „Speichern“
+4. Beim Event muss eine **Domain** eingetragen sein. Der Button **„OPNsense“** über der Teilnehmerliste zeigt die Vorschau, „Übertragen“ schreibt die Einträge
+
+Die Zugangsdaten gelten für alle Events und liegen in der Datenbank (`db.json`, damit auch im Backup). Das Secret wird nach dem Speichern nie wieder an den Browser geschickt; die Einstellungen sind nur angemeldet sichtbar. Der Container muss die Firewall im Netz erreichen können.
 
 ### Turnier erstellen (Reiter „Turniere“)
 1. Event auswählen — alle Teilnehmer des Events spielen mit
@@ -259,6 +274,17 @@ Ist `ADMIN_PASSWORD` gesetzt, sind alle Anfragen außer GET/HEAD (und `GET /api/
 | DELETE | `/api/attendees/:id` | Teilnehmer löschen (IPs werden frei) |
 | GET    | `/api/events/:id/export/csv\|hosts\|zone` | Export als CSV, hosts-Datei oder BIND-Zone |
 
+### OPNsense
+Alle Endpunkte nur mit Admin-Sitzung (auch GET). Fehler der Firewall kommen als `502` mit lesbarer Meldung.
+
+| Method | Endpoint | Beschreibung |
+|--------|----------|--------------|
+| GET    | `/api/opnsense` | Verbindung `{ url, api_key, has_secret, insecure_tls, configured }` (ohne Secret) |
+| PUT    | `/api/opnsense` | Speichern `{ url, api_key, api_secret?, insecure_tls }` — leeres Secret behält das gespeicherte |
+| POST   | `/api/opnsense/test` | Verbindung mit den übergebenen (oder gespeicherten) Werten testen → `{ ok, host_count }` |
+| POST   | `/api/events/:id/opnsense/preview` | Vorschau `{ mode: "sync" \| "remove" }` → `{ items, counts }` |
+| POST   | `/api/events/:id/opnsense/apply` | Ausführen (plant gegen den aktuellen Stand neu) → `{ created, updated, deleted, conflicts, errors, reconfigured }` |
+
 ### Backup & Restore
 | Method | Endpoint | Beschreibung |
 |--------|----------|--------------|
@@ -321,6 +347,8 @@ mcd.brackets/
 │   ├── lan.ts          # IP-Vergabe, DNS-Namen, Exporte (reine Logik)
 │   ├── lan-store.ts    # Events & Teilnehmer in der Datenbank
 │   ├── lan-routes.ts   # REST-Routen für Events & Teilnehmer
+│   ├── opnsense.ts     # Abgleich mit Unbound + OPNsense-API-Client
+│   ├── opnsense-routes.ts # REST-Routen für OPNsense
 │   ├── standings.ts    # Platzierungen + Punktesystem
 │   ├── seeding.ts      # Auslosung + BYEs
 │   └── *.test.ts       # Tests (npm test)
@@ -329,6 +357,7 @@ mcd.brackets/
 │   ├── app.js          # Frontend-Logik (Turniere)
 │   ├── lan.js          # Frontend-Logik (Teilnehmer-Verwaltung)
 │   ├── ip-slips.js     # IP-Zettel als PDF (jsPDF)
+│   ├── opnsense.js     # OPNsense-Einstellungen + Übertragen-Dialog
 │   ├── styles.css      # Dark Theme Styling
 │   └── lib/            # Lokale Kopien der Browser-Libs (npm run vendor)
 ├── data/

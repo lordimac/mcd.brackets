@@ -64,6 +64,7 @@ async function login(e) {
         });
         closeModal('loginModal');
         await loadAuth();
+        await loadOpnsenseSettings();
     } catch (error) {
         document.getElementById('loginError').textContent = error.message;
         document.getElementById('loginPassword').select();
@@ -73,6 +74,7 @@ async function login(e) {
 async function logout() {
     await apiFetch('/logout', { method: 'POST', body: '{}' }).catch(() => null);
     await loadAuth();
+    clearOpnsenseSettings();
 }
 
 function openModal(id) {
