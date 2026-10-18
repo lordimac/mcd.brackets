@@ -1,6 +1,6 @@
 {
   "name": "mcd-brackets",
-  "version": "0.18.1-beta",
+  "version": "0.18.2-beta",
   "description": "Tournament bracket management system using brackets-manager",
   "main": "dist/server.js",
   "scripts": {

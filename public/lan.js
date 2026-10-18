@@ -205,7 +205,7 @@ function renderMemorialNote(event) {
     const names = event?.memorial ?? [];
     note.style.display = names.length ? '' : 'none';
     note.innerHTML = names.length
-        ? `<strong>In Gedenken</strong> ${names.map(escapeHtml).join(' · ')} <span class="muted">— spielen in jedem Turnier als Freilos mit</span>`
+        ? `<strong>Never forget</strong> ${names.map(escapeHtml).join(' · ')} <span class="muted">— immer dabei</span>`
         : '';
 }
 

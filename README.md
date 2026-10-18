@@ -2,7 +2,7 @@
 
 Ein vollständiges Turnierverwaltungssystem mit Event-basiertem Meisterschafts-Punktesystem, entwickelt mit [brackets-manager](https://www.npmjs.com/package/brackets-manager).
 
-**Version:** 0.18.1-beta
+**Version:** 0.18.2-beta
 
 ---
 
@@ -12,7 +12,7 @@ Ein vollständiges Turnierverwaltungssystem mit Event-basiertem Meisterschafts-P
 
 ![Teilnehmer-Verwaltung](docs/screenshots/teilnehmer.png)
 
-**Bracket** — Double Elimination mit Click-to-Win; ein Eintrag „In Gedenken“ verliert sein Match automatisch per Freilos (F)
+**Bracket** — Double Elimination mit Click-to-Win; ein Eintrag „In Gedenken“ verliert sein Match automatisch (F)
 
 ![Bracket](docs/screenshots/bracket.png)
 
@@ -101,7 +101,8 @@ Platzierungsbasierte Punkte:
 
 ### 🕯️ In Gedenken
 - Pro Event eine Liste von Namen (Konfiguration → „In Gedenken“), z.B. für verstorbene Mitglieder
-- Sie stehen in jedem Turnier des Events mit ihrem Namen im Bracket; ihre Matches werden automatisch als Freilos entschieden
+- Sie stehen in jedem Turnier des Events mit ihrem Namen im Bracket; sie verlieren ihre Matches automatisch, der Gegner kommt weiter
+- Unter der Teilnehmerliste stehen sie als „Never forget … — immer dabei“
 - Keine IP-Adressen, keine Platzierung/Punkte in den Ranglisten
 
 ### ℹ️ Footer
