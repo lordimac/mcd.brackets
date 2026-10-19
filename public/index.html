@@ -33,6 +33,7 @@
         <symbol id="i-lock" viewBox="0 0 24 24"><path d="M5 11h14v10H5zM8 11V7a4 4 0 0 1 8 0v4"/></symbol>
         <symbol id="i-logout" viewBox="0 0 24 24"><path d="M9 21H5V3h4M16 17l5-5-5-5M21 12H9"/></symbol>
         <symbol id="i-external" viewBox="0 0 24 24"><path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></symbol>
+        <symbol id="i-seat" viewBox="0 0 24 24"><path d="M19 9V6a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v3M3 16a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5a2 2 0 0 0-4 0v1.5a.5.5 0 0 1-.5.5h-9a.5.5 0 0 1-.5-.5V11a2 2 0 0 0-4 0zM5 18v2M19 18v2"/></symbol>
         <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/></symbol>
     </svg>
 
@@ -47,6 +48,7 @@
             </div>
             <nav class="tabs" aria-label="Bereiche">
                 <a href="#teilnehmer" class="tab" data-view="attendees"><svg class="icon"><use href="#i-users"/></svg><span>Teilnehmer</span></a>
+                <a href="#sitzplan" class="tab" data-view="seating"><svg class="icon"><use href="#i-seat"/></svg><span>Sitzplan</span></a>
                 <a href="#turniere" class="tab" data-view="tournaments"><svg class="icon"><use href="#i-trophy"/></svg><span>Turniere</span></a>
             </nav>
             <div class="topbar-actions">
@@ -414,6 +416,152 @@
             </section>
         </main>
 
+        <!-- Seating plan -->
+        <main class="layout view" id="view-seating" style="display: none;">
+            <section class="card">
+                <div class="section-header event-bar">
+                    <div class="event-picker">
+                        <h2><svg class="icon icon-accent"><use href="#i-flag"/></svg>Event</h2>
+                        <select id="seatEventSelect" onchange="selectSeatEvent(this.value)" aria-label="Event auswählen"></select>
+                    </div>
+                    <div class="room-tabs" id="roomTabs" role="tablist" aria-label="Räume"></div>
+                    <div class="section-actions admin-only">
+                        <button class="btn btn-ghost btn-sm" id="newRoomBtn" onclick="openRoomModal()">
+                            <svg class="icon"><use href="#i-plus"/></svg><span>Raum</span>
+                        </button>
+                        <button class="btn btn-ghost btn-sm" id="duplicateRoomBtn" onclick="openDuplicateRoomModal()" title="Raum mit Tischen, Türen und Nummern kopieren — ohne Belegung">
+                            <svg class="icon"><use href="#i-copy"/></svg><span>Duplizieren</span>
+                        </button>
+                        <button class="btn btn-secondary btn-sm" id="roomConfigToggle" onclick="toggleSection('roomConfigSection')">
+                            <svg class="icon"><use href="#i-settings"/></svg><span>Raum bearbeiten</span>
+                            <span class="collapse-icon" id="roomConfigIcon"><svg class="icon"><use href="#i-chevron"/></svg></span>
+                        </button>
+                    </div>
+                </div>
+
+                <div id="roomConfigSection" class="collapsible-content admin-only" style="display: none;">
+                    <form id="roomSettingsForm" class="room-config">
+                        <fieldset class="config-block">
+                            <legend>Raum <span class="label-hint">1 Feld ≈ ein Platz (ca. 80 cm)</span></legend>
+                            <div class="room-settings-grid">
+                                <div class="form-group">
+                                    <label for="roomName">Name</label>
+                                    <input type="text" id="roomName" required maxlength="60">
+                                </div>
+                                <div class="form-group">
+                                    <label for="roomWidth">Breite <span class="label-hint">Felder</span></label>
+                                    <input type="number" id="roomWidth" min="2" max="80" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="roomHeight">Tiefe <span class="label-hint">Felder</span></label>
+                                    <input type="number" id="roomHeight" min="2" max="80" required>
+                                </div>
+                            </div>
+                            <label class="toggle room-alternative-toggle">
+                                <input type="checkbox" id="roomAlternative">
+                                <span>Alternative <span class="label-hint">Entwurf zum finalen Plan — Teilnehmer dürfen hier zusätzlich einen Platz haben; nur angemeldet sichtbar</span></span>
+                            </label>
+                            <div class="form-actions">
+                                <button type="button" class="btn btn-danger btn-sm" onclick="deleteRoom()">
+                                    <svg class="icon"><use href="#i-trash"/></svg><span>Raum löschen</span>
+                                </button>
+                                <button type="submit" class="btn btn-primary btn-sm">Speichern</button>
+                            </div>
+                        </fieldset>
+                    </form>
+                </div>
+            </section>
+
+            <section class="card" id="seatPlanCard">
+                <div class="section-header">
+                    <div>
+                        <h2><svg class="icon icon-accent"><use href="#i-seat"/></svg><span id="seatRoomTitle">Sitzplan</span></h2>
+                        <p class="section-subtitle" id="seatSummary"></p>
+                    </div>
+                    <div class="section-actions" id="seatExportActions">
+                        <select id="seatPdfFormat" class="select-sm" aria-label="Papierformat">
+                            <option value="a4">A4</option>
+                            <option value="a3">A3</option>
+                        </select>
+                        <button class="btn btn-primary btn-sm" onclick="exportSeatPlanPdf()" title="Raumplan mit Namen und alphabetischer Liste zum Aushängen">
+                            <svg class="icon"><use href="#i-file"/></svg><span>Sitzplan (PDF)</span>
+                        </button>
+                        <button class="btn btn-secondary btn-sm" onclick="exportSeatSignsPdf()" title="Tischaufsteller zum Falten, zwei pro A4-Blatt">
+                            <svg class="icon"><use href="#i-file"/></svg><span>Platz-Schilder (PDF)</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="list-toolbar seat-toolbar">
+                    <div class="search-field">
+                        <svg class="icon"><use href="#i-search"/></svg>
+                        <input type="text" id="seatSearch" placeholder="Wer sitzt wo? Name, Clan, Nickname oder Platznummer…" oninput="renderSeating()" autocomplete="off">
+                    </div>
+                    <div class="zoom-control" role="group" aria-label="Zoom">
+                        <button type="button" class="btn btn-ghost btn-sm" onclick="zoomSeating(-1)" aria-label="Verkleinern">−</button>
+                        <button type="button" class="btn btn-ghost btn-sm zoom-fit" onclick="zoomSeating(0)" title="An Breite anpassen">Einpassen</button>
+                        <button type="button" class="btn btn-ghost btn-sm" onclick="zoomSeating(1)" aria-label="Vergrößern">+</button>
+                    </div>
+                    <div class="segmented admin-only" role="group" aria-label="Modus">
+                        <button type="button" data-mode="assign" onclick="setSeatMode('assign')">Plätze vergeben</button>
+                        <button type="button" data-mode="layout" onclick="setSeatMode('layout')">Raum gestalten</button>
+                    </div>
+                </div>
+
+                <div class="seat-tools admin-only" id="seatAssignTools">
+                    <span class="field-hint">Platz anklicken zum Vergeben — oder erst rechts einen Teilnehmer wählen, dann den Platz.</span>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="autofillRoom()" title="Alle ohne Platz auf die freien Plätze dieses Raums setzen, Clans zusammen">
+                        <svg class="icon"><use href="#i-shuffle"/></svg><span>Freie Plätze automatisch belegen</span>
+                    </button>
+                    <button type="button" class="btn btn-danger btn-sm" onclick="clearRoomSeats()" title="Alle Plätze dieses Raums wieder freigeben">
+                        <svg class="icon"><use href="#i-trash"/></svg><span>Alle Plätze freigeben</span>
+                    </button>
+                </div>
+
+                <div class="layout-tools admin-only" id="seatLayoutTools" style="display: none;">
+                    <div class="template-bar">
+                        <span class="tools-label">Baustein</span>
+                        <div class="segmented" role="group" aria-label="Baustein">
+                            <button type="button" data-template="row" onclick="setTemplate('row')">Tischreihe</button>
+                            <button type="button" data-template="double" onclick="setTemplate('double')">Doppelreihe</button>
+                            <button type="button" data-template="u" onclick="setTemplate('u')">U-Form</button>
+                            <button type="button" data-template="block" onclick="setTemplate('block')">Reihenblock</button>
+                            <button type="button" data-template="area" onclick="setTemplate('area')">Fläche</button>
+                            <button type="button" data-template="door" onclick="setTemplate('door')">Tür</button>
+                        </div>
+                        <div class="template-params" id="templateParams"></div>
+                        <button type="button" class="btn btn-primary btn-sm" onclick="addTemplate()">
+                            <svg class="icon"><use href="#i-plus"/></svg><span>Hinzufügen</span>
+                        </button>
+                        <p class="field-hint place-target" id="placeTarget"></p>
+                    </div>
+                    <div class="selection-bar" id="selectionBar"></div>
+                    <p class="field-hint layout-hint">Freie Stelle anklicken = Ziel für den nächsten Baustein (Türen: an die nächste Wand) · Gruppen ziehen zum Verschieben · Shift-Klick oder Rahmen ziehen für mehrere · Pfeiltasten verschieben, <kbd>R</kbd> dreht, <kbd>Entf</kbd> löscht. Plätze werden in der Reihenfolge der Gruppen nummeriert.</p>
+                </div>
+
+                <div class="seat-results" id="seatResults"></div>
+
+                <div class="seat-layout">
+                    <div class="seat-plan-column">
+                        <div class="seat-grid-wrap" id="seatGridWrap">
+                            <div class="room-canvas" id="roomCanvas"></div>
+                        </div>
+                        <div class="seat-legend" aria-label="Legende">
+                            <span><i class="legend-table"></i>Tisch mit Platznummer</span>
+                            <span><i class="legend-seat"></i>Stuhl</span>
+                            <span><i class="legend-taken"></i>vergeben</span>
+                            <span><i class="legend-door"></i>Tür</span>
+                            <span><i class="legend-area"></i>Fläche</span>
+                        </div>
+                    </div>
+                    <aside class="unseated admin-only" id="unseatedPanel">
+                        <h3>Ohne Platz <span class="info-badge" id="unseatedCount">0</span></h3>
+                        <div class="unseated-list" id="unseatedList"></div>
+                    </aside>
+                </div>
+            </section>
+        </main>
+
         <!-- Version and links; {{…}} is filled in by the server -->
         <footer class="site-footer">
             <div class="footer-line">
@@ -504,6 +652,83 @@
         </div>
     </div>
 
+    <!-- Tooltip for tables/chairs of the seating plan -->
+    <div class="seat-tooltip" id="seatTooltip" role="tooltip" hidden></div>
+
+    <!-- New Room Modal -->
+    <div id="roomModal" class="modal">
+        <div class="modal-content">
+            <button type="button" class="close" onclick="closeModal('roomModal')" aria-label="Schließen"><svg class="icon"><use href="#i-x"/></svg></button>
+            <h2>Neuer Raum</h2>
+            <form id="newRoomForm">
+                <div class="form-group">
+                    <label for="newRoomName">Name</label>
+                    <input type="text" id="newRoomName" required maxlength="60" placeholder="z.B. Halle">
+                </div>
+                <div class="room-settings-grid room-settings-grid-2">
+                    <div class="form-group">
+                        <label for="newRoomWidth">Breite <span class="label-hint">Felder</span></label>
+                        <input type="number" id="newRoomWidth" min="2" max="80" value="24" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="newRoomHeight">Tiefe <span class="label-hint">Felder</span></label>
+                        <input type="number" id="newRoomHeight" min="2" max="80" value="14" required>
+                    </div>
+                </div>
+                <p class="field-hint">1 Feld ≈ ein Platz (ca. 80 cm). Der Raum startet leer — unter „Raum gestalten“ Tischreihen, U-Formen und Flächen hinzufügen.</p>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-ghost" onclick="closeModal('roomModal')">Abbrechen</button>
+                    <button type="submit" class="btn btn-primary">Anlegen</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Duplicate Room Modal -->
+    <div id="duplicateRoomModal" class="modal">
+        <div class="modal-content">
+            <button type="button" class="close" onclick="closeModal('duplicateRoomModal')" aria-label="Schließen"><svg class="icon"><use href="#i-x"/></svg></button>
+            <h2>Raum duplizieren</h2>
+            <form id="duplicateRoomForm">
+                <div class="form-group">
+                    <label for="duplicateRoomName">Name der Kopie</label>
+                    <input type="text" id="duplicateRoomName" required maxlength="60">
+                </div>
+                <div class="form-group">
+                    <label for="duplicateRoomEvent">Ziel-Event</label>
+                    <select id="duplicateRoomEvent"></select>
+                </div>
+                <label class="toggle">
+                    <input type="checkbox" id="duplicateRoomAlternative">
+                    <span>Als Alternative kennzeichnen <span class="label-hint">Plätze dürfen dort zusätzlich zum finalen Plan vergeben werden</span></span>
+                </label>
+                <p class="field-hint">Kopiert Größe, Tischgruppen, Türen und Startnummern. Die Platzvergabe wird nicht kopiert.</p>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-ghost" onclick="closeModal('duplicateRoomModal')">Abbrechen</button>
+                    <button type="submit" class="btn btn-primary">Duplizieren</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Seat Assignment Modal -->
+    <div id="seatModal" class="modal">
+        <div class="modal-content seat-modal">
+            <button type="button" class="close" onclick="closeModal('seatModal')" aria-label="Schließen"><svg class="icon"><use href="#i-x"/></svg></button>
+            <h2 id="seatModalTitle">Platz</h2>
+            <p class="match-info-text" id="seatModalCurrent"></p>
+            <div class="search-field">
+                <svg class="icon"><use href="#i-search"/></svg>
+                <input type="text" id="seatModalSearch" placeholder="Teilnehmer suchen…" oninput="renderSeatModalList()" autocomplete="off">
+            </div>
+            <div class="seat-pick-list" id="seatModalList"></div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-danger btn-sm modal-action-left" id="seatFreeBtn" onclick="assignSeat(seatModalKey, null)">Platz freigeben</button>
+                <button type="button" class="btn btn-ghost" onclick="closeModal('seatModal')">Schließen</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Edit Attendee Modal -->
     <div id="attendeeModal" class="modal">
         <div class="modal-content">
@@ -568,6 +793,8 @@
     <script src="app.js"></script>
     <script src="lan.js"></script>
     <script src="opnsense.js"></script>
+    <script src="seating.js"></script>
+    <script src="seating-pdf.js"></script>
     <script src="ip-slips.js"></script>
 </body>
 </html>

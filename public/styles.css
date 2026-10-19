@@ -477,6 +477,7 @@ body.read-only .admin-only {
 
 input[type="text"],
 input[type="password"],
+input[type="number"],
 select,
 textarea {
     width: 100%;
@@ -502,6 +503,7 @@ select {
 
 input[type="text"]:hover,
 input[type="password"]:hover,
+input[type="number"]:hover,
 select:hover,
 textarea:hover {
     border-color: var(--border-strong);
@@ -509,6 +511,7 @@ textarea:hover {
 
 input[type="text"]:focus,
 input[type="password"]:focus,
+input[type="number"]:focus,
 select:focus,
 textarea:focus {
     outline: none;
@@ -2106,6 +2109,796 @@ textarea {
     }
 }
 
+/* Seating plan
+   ========================================================================== */
+
+#roomConfigToggle .collapse-icon {
+    color: inherit;
+}
+
+.room-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    flex: 1;
+    min-width: 0;
+}
+
+.room-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.35rem 0.8rem;
+    border: 1px solid var(--border-color);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--text-secondary);
+    font: inherit;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.room-tab:hover {
+    color: var(--text-color);
+    border-color: var(--border-strong);
+}
+
+.room-tab.active {
+    background: var(--primary-soft);
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+}
+
+/* Alternative (draft) rooms: dashed tab with a small flag */
+.room-tab.is-alternative {
+    border-style: dashed;
+}
+
+.room-tab-flag {
+    padding: 0 0.35rem;
+    border-radius: 999px;
+    background: var(--surface-3);
+    color: var(--text-secondary);
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+}
+
+.room-alternative-toggle {
+    margin-bottom: 0.8rem;
+}
+
+.room-tab-count {
+    font-size: 0.75rem;
+    font-weight: 500;
+    opacity: 0.8;
+}
+
+.room-config {
+    margin-top: 1.25rem;
+}
+
+.room-settings-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr);
+    gap: 0 1rem;
+}
+
+.room-settings-grid-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+/* Segmented control (mode / building block) */
+.segmented {
+    display: inline-flex;
+    flex-wrap: wrap;
+    padding: 3px;
+    gap: 2px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+    flex-shrink: 0;
+}
+
+/* Long controls (building blocks) wrap instead of overflowing on small screens */
+.template-bar .segmented {
+    flex-shrink: 1;
+    max-width: 100%;
+}
+
+.segmented button {
+    padding: 0.35rem 0.75rem;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text-secondary);
+    font: inherit;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.segmented button:hover {
+    color: var(--text-color);
+}
+
+.segmented button.active {
+    background: var(--surface-3);
+    color: var(--text-color);
+}
+
+.zoom-control {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.15rem;
+    flex-shrink: 0;
+}
+
+.zoom-control .btn {
+    min-width: 2rem;
+    justify-content: center;
+}
+
+.seat-tools {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 1rem;
+    margin-bottom: 1rem;
+}
+
+.seat-tools .field-hint {
+    margin: 0;
+}
+
+/* Room editor toolbars */
+.layout-tools {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    margin-bottom: 1rem;
+}
+
+.template-bar,
+.selection-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.5rem 0.75rem;
+    padding: 0.6rem 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    background: var(--surface-2);
+}
+
+.selection-bar {
+    align-items: center;
+    min-height: 3.1rem;
+}
+
+.selection-bar .field-hint {
+    margin: 0;
+}
+
+.tools-label {
+    align-self: center;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+}
+
+.template-params {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.param {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.param input,
+.param select {
+    width: 7.5rem;
+    padding: 0.35rem 0.5rem;
+    font-size: 0.85rem;
+}
+
+.param input[type="number"] {
+    width: 5rem;
+}
+
+.selection-name {
+    display: flex;
+    flex-direction: column;
+    font-size: 0.9rem;
+    margin-right: 0.25rem;
+}
+
+.selection-name .muted {
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.selection-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    margin-left: auto;
+}
+
+.layout-hint {
+    margin: 0;
+}
+
+.layout-hint kbd {
+    padding: 0 0.3rem;
+    border: 1px solid var(--border-strong);
+    border-radius: 3px;
+    font-size: 0.72rem;
+    font-family: inherit;
+}
+
+/* Search results */
+.seat-results {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-bottom: 1rem;
+}
+
+.seat-results:empty {
+    display: none;
+}
+
+.seat-result {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.45rem;
+    padding: 0.4rem 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+    color: var(--text-color);
+    font: inherit;
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+
+.seat-result:hover {
+    border-color: var(--primary-color);
+}
+
+.seat-result.is-unseated {
+    cursor: default;
+    opacity: 0.75;
+}
+
+.seat-result-place {
+    color: var(--primary-color);
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.seat-result.is-unseated .seat-result-place {
+    color: var(--text-faint);
+    font-weight: 500;
+}
+
+/* Room canvas: groups and cells are positioned in units of --u */
+.seat-layout {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+}
+
+.seat-plan-column {
+    flex: 1;
+    min-width: 0;
+}
+
+.seat-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem 1.1rem;
+    margin-top: 0.5rem;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+.seat-legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.seat-legend i {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+}
+
+.legend-table { border: 1px solid #46557a; background: #253049; }
+.legend-seat { width: 14px; height: 14px; background: linear-gradient(#56648a, #56648a) 50% 100% / 12px 3px no-repeat, linear-gradient(#3a4767, #3a4767) 50% 1px / 10px 8px no-repeat; }
+.legend-taken { border: 1px solid var(--primary-color); background: #2b2f45; }
+.legend-door { border-left: 3px solid #d6dce8; border-top: 1px dashed var(--text-faint); border-radius: 0 !important; }
+.legend-area { border: 1px dashed var(--border-strong); background: repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.08) 0 3px, transparent 3px 6px); }
+
+.seat-grid-wrap {
+    overflow: auto;
+    max-height: 72vh;
+    padding: 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    background: var(--bg-color);
+}
+
+.room-canvas {
+    --u: 56px;
+    position: relative;
+    margin: 0 auto;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+/* The room itself; the canvas around it is one cell of margin for doors opening outwards */
+.room-floor {
+    position: absolute;
+    outline: 3px solid #4a5675;
+    background: rgba(255, 255, 255, 0.015);
+}
+
+.room-doors {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+    pointer-events: none;
+}
+
+.room-door .door-gap {
+    stroke: var(--bg-color);
+    stroke-width: 7px;
+    vector-effect: non-scaling-stroke;
+}
+
+.room-door .door-leaf {
+    stroke: #d6dce8;
+    stroke-width: 3.5px;
+    stroke-linecap: round;
+    vector-effect: non-scaling-stroke;
+}
+
+.room-door .door-arc {
+    fill: none;
+    stroke: var(--text-secondary);
+    stroke-width: 1.5px;
+    stroke-dasharray: 4 3;
+    vector-effect: non-scaling-stroke;
+}
+
+.room-door .door-hit {
+    fill: transparent;
+}
+
+.is-layout .room-door .door-hit {
+    pointer-events: all;
+    cursor: grab;
+}
+
+.room-door.is-selected .door-leaf,
+.room-door.is-selected .door-arc {
+    stroke: var(--primary-color);
+}
+
+.is-layout .room-door.is-selected .door-hit {
+    fill: var(--primary-soft);
+}
+
+.room-canvas > .empty-state {
+    margin: 0;
+}
+
+.canvas-empty {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 1rem;
+    text-align: center;
+    color: var(--text-faint);
+    font-size: 0.9rem;
+}
+
+.room-group {
+    position: absolute;
+}
+
+.room-group .cell {
+    position: absolute;
+    width: var(--u);
+    height: var(--u);
+}
+
+/* Seating area next to the numbered tables: chairs seen from above */
+.cell-table .chairs {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+}
+
+.chair-seat {
+    fill: #3a4767;
+}
+
+.chair-back {
+    fill: #56648a;
+}
+
+.group-area {
+    display: grid;
+    place-items: center;
+    border: 1px dashed var(--border-strong);
+    border-radius: 4px;
+    background: repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.02) 0 8px, transparent 8px 16px);
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    overflow: hidden;
+}
+
+.group-area span {
+    padding: 0 0.4rem;
+    text-align: center;
+}
+
+.cell-seat {
+    padding: 3px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+}
+
+/* Numbered tables (one per attendee): a solid table top */
+.cell-seat::before {
+    content: '';
+    position: absolute;
+    inset: 2px;
+    border-radius: 3px;
+    border: 1px solid #46557a;
+    background: #253049;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.cell-seat.is-taken::before {
+    border: 1px solid var(--primary-color);
+    background: #2b2f45;
+}
+
+.seat-no {
+    position: absolute;
+    top: 6px;
+    left: 7px;
+    font-size: 0.6rem;
+    font-weight: 700;
+    color: var(--text-faint);
+    line-height: 1;
+}
+
+.cell-seat.is-free .seat-no {
+    position: relative;
+    top: 0;
+    left: 0;
+    font-size: 0.8rem;
+}
+
+/* Only the nickname on the table: up to two lines, cut with "…" at the end if it still doesn't fit */
+.seat-name {
+    position: relative;
+    padding: 0 5px;
+    max-width: 100%;
+    font-size: clamp(0.5rem, calc(var(--u) * 0.2), 0.85rem);
+    font-weight: 700;
+    line-height: 1.15;
+    text-align: center;
+    color: var(--text-color);
+    overflow: hidden;
+    overflow-wrap: anywhere;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+}
+
+/* Tooltip above a table or chair */
+.seat-tooltip {
+    position: fixed;
+    z-index: 900;
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    max-width: 260px;
+    padding: 0.5rem 0.7rem;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    background: #1b2335;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+    font-size: 0.8rem;
+    pointer-events: none;
+}
+
+.seat-tooltip[hidden] {
+    display: none;
+}
+
+.seat-tooltip .tip-place {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--primary-color);
+}
+
+.seat-tooltip .tip-name {
+    font-size: 0.95rem;
+}
+
+.seat-tooltip .tip-sub {
+    color: var(--text-secondary);
+}
+
+.cell-table .chair {
+    pointer-events: all;
+}
+
+.cell-seat.is-dimmed {
+    opacity: 0.3;
+}
+
+.cell-seat.is-match::before {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px var(--primary-soft);
+}
+
+.cell-seat.is-match .seat-no {
+    color: var(--primary-color);
+}
+
+@keyframes seat-flash {
+    0%, 100% { box-shadow: 0 0 0 2px var(--primary-soft); }
+    50% { box-shadow: 0 0 0 6px rgba(240, 130, 40, 0.45); }
+}
+
+.cell-seat.is-flash::before {
+    border-color: var(--primary-color);
+    animation: seat-flash 0.6s ease-in-out 3;
+}
+
+.cell-overlap {
+    position: absolute;
+    width: var(--u);
+    height: var(--u);
+    background: rgba(239, 68, 68, 0.35);
+    outline: 2px solid var(--danger-color);
+    outline-offset: -2px;
+    pointer-events: none;
+}
+
+/* Admin, assign mode: seats are clickable; with a picked attendee free seats invite the click */
+body:not(.read-only) #seatPlanCard:not(.is-layout) .cell-seat {
+    cursor: pointer;
+}
+
+body:not(.read-only) #seatPlanCard:not(.is-layout) .cell-seat:hover::before {
+    border-color: var(--primary-color);
+}
+
+.room-canvas.is-picking .cell-seat.is-free::before {
+    border-color: var(--primary-color);
+    background: var(--primary-soft);
+}
+
+/* Layout mode: grid lines, groups can be selected and dragged */
+.is-layout .room-canvas {
+    touch-action: none;
+}
+
+.is-layout .room-floor {
+    background-image:
+        linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+    background-size: var(--u) var(--u);
+}
+
+.is-layout .room-group {
+    cursor: grab;
+}
+
+.is-layout .room-group:hover {
+    outline: 1px solid var(--border-strong);
+}
+
+.is-layout .room-group.is-selected {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 1px;
+    z-index: 2;
+}
+
+/* The same seat number twice */
+.cell-seat.is-duplicate::before {
+    border: 2px solid var(--danger-color) !important;
+}
+
+.cell-seat.is-duplicate .seat-no {
+    color: var(--danger-color) !important;
+}
+
+/* Where the next building block goes (click on the empty canvas) */
+.place-marker {
+    position: absolute;
+    width: var(--u);
+    height: var(--u);
+    border: 2px dashed var(--primary-color);
+    border-radius: 4px;
+    background: var(--primary-soft);
+    pointer-events: none;
+}
+
+.place-target {
+    flex-basis: 100%;
+    margin: 0;
+}
+
+.link-button {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--primary-color);
+    font: inherit;
+    cursor: pointer;
+    text-decoration: underline;
+}
+
+.select-band {
+    position: absolute;
+    border: 1px solid var(--primary-color);
+    background: var(--primary-soft);
+    pointer-events: none;
+    z-index: 5;
+}
+
+/* Attendees without a seat (admin, assign mode) */
+.unseated {
+    width: 240px;
+    flex-shrink: 0;
+    max-height: 72vh;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    background: var(--surface-2);
+    overflow: hidden;
+}
+
+.unseated h3 {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 0;
+    padding: 0.7rem 0.85rem;
+    font-size: 0.85rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.unseated-list {
+    overflow-y: auto;
+    padding: 0.4rem;
+}
+
+.unseated-list .field-hint {
+    padding: 0.4rem;
+    margin: 0;
+}
+
+.unseated-item {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    width: 100%;
+    padding: 0.45rem 0.6rem;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-color);
+    font: inherit;
+    font-size: 0.85rem;
+    text-align: left;
+    cursor: pointer;
+}
+
+.unseated-item .muted {
+    font-size: 0.75rem;
+}
+
+.unseated-item:hover {
+    background: var(--surface-3);
+}
+
+.unseated-item.active {
+    border-color: var(--primary-color);
+    background: var(--primary-soft);
+}
+
+.seat-modal .search-field {
+    margin: 0.75rem 0 0.5rem;
+}
+
+.seat-pick-list {
+    max-height: 320px;
+    overflow-y: auto;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: 0.3rem;
+}
+
+@media (max-width: 900px) {
+    .seat-layout {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .seat-grid-wrap {
+        width: 100%;
+    }
+
+    .unseated {
+        width: 100%;
+        max-height: 260px;
+    }
+
+    .selection-actions {
+        margin-left: 0;
+    }
+
+    /* Room tabs get their own line below the event picker */
+    #view-seating .event-bar .room-tabs {
+        flex-basis: 100%;
+        order: 2;
+    }
+
+    #view-seating .event-bar .section-actions {
+        order: 3;
+    }
+}
+
+@media (max-width: 640px) {
+    .seat-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .room-settings-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
 /* Footer: fixed bar at the bottom of the window (like the topbar at the top).
    The container reserves its height via --footer-height, set by app.js.
    ========================================================================== */
@@ -2201,4 +2994,16 @@ textarea {
     .site-footer .footer-brand {
         display: none;
     }
+}
+
+/* Designing the room: the tables show their number, centred and scaled with the zoom */
+.is-layout .cell-seat .seat-no {
+    position: relative;
+    top: 0;
+    left: 0;
+    font-size: clamp(0.55rem, calc(var(--u) * 0.22), 0.9rem);
+}
+
+.is-layout .cell-seat.is-taken .seat-no {
+    color: var(--primary-color);
 }

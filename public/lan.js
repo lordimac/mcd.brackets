@@ -28,6 +28,13 @@ function currentEvent() {
 // Called by showView() in app.js whenever the attendee tab opens
 async function showAttendeeView() {
     await loadEvents();
+    ensureCurrentEvent();
+    renderEventSelect();
+    await Promise.all([loadAttendees(), loadOpnsenseSettings()]);
+}
+
+// Keeps the selected event (shared with the seating plan); falls back to the stored or newest one
+function ensureCurrentEvent() {
     if (!lanEvents.some(e => e.id === currentEventId)) {
         let saved = null;
         try {
@@ -37,8 +44,6 @@ async function showAttendeeView() {
         const fallback = lanEvents[lanEvents.length - 1];
         currentEventId = lanEvents.some(e => e.id === saved) ? saved : fallback ? fallback.id : null;
     }
-    renderEventSelect();
-    await Promise.all([loadAttendees(), loadOpnsenseSettings()]);
 }
 
 async function selectLanEvent(id) {

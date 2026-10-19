@@ -8,6 +8,8 @@ import { HttpError } from './http-error';
 import { ValidationError } from './lan';
 import { lanRouter } from './lan-routes';
 import { opnsenseRouter } from './opnsense-routes';
+import { seatingRouter } from './seating-routes';
+import { migrateRooms } from './seating-store';
 import { OpnsenseError } from './opnsense';
 import { getStats, startUpdateChecks, updateFor } from './info';
 import { playerNamesForEvent, syncEventsFromStages } from './lan-store';
@@ -73,6 +75,7 @@ app.post('/api/logout', (_req: Request, res: Response) => {
 // Events (LAN settings) and their attendees
 app.use('/api', lanRouter);
 app.use('/api', opnsenseRouter);
+app.use('/api', seatingRouter);
 
 // Get all tournaments (stages)
 app.get('/api/stages', async (_req: Request, res: Response) => {
@@ -261,6 +264,7 @@ app.post('/api/restore', async (req: Request, res: Response) => {
     }
     await replaceDatabase(parsed);
     await syncEventsFromStages();
+    await migrateRooms();
   });
   res.json({ ok: true, message: 'Datenbank wiederhergestellt. Bitte Seite neu laden.' });
 });
@@ -283,6 +287,8 @@ app.use(errorHandler);
 async function start(): Promise<void> {
   await ensureAppTables();
   await syncEventsFromStages();
+  const migrated = await migrateRooms();
+  if (migrated > 0) console.log(`🪑 ${migrated} Sitzplan-Raum/Räume ins neue Format übernommen`);
   if (!authRequired()) {
     console.warn('⚠️  Kein ADMIN_PASSWORD gesetzt — alle Besucher dürfen Turniere und Teilnehmer bearbeiten.');
   }

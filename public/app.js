@@ -65,6 +65,7 @@ async function login(e) {
         closeModal('loginModal');
         await loadAuth();
         await loadOpnsenseSettings();
+        if (typeof renderSeating === 'function') renderSeating();
     } catch (error) {
         document.getElementById('loginError').textContent = error.message;
         document.getElementById('loginPassword').select();
@@ -75,6 +76,7 @@ async function logout() {
     await apiFetch('/logout', { method: 'POST', body: '{}' }).catch(() => null);
     await loadAuth();
     clearOpnsenseSettings();
+    if (typeof renderSeating === 'function') renderSeating();
 }
 
 function openModal(id) {
@@ -135,13 +137,17 @@ function setupEventListeners() {
     window.addEventListener('hashchange', showView);
 }
 
-// Views: #turniere (default) and #teilnehmer
+// Views: #turniere (default), #teilnehmer and #sitzplan
+const VIEWS = { '#teilnehmer': 'attendees', '#sitzplan': 'seating' };
+
 function showView() {
-    const view = location.hash === '#teilnehmer' ? 'attendees' : 'tournaments';
+    const view = VIEWS[location.hash] ?? 'tournaments';
     document.getElementById('view-tournaments').style.display = view === 'tournaments' ? '' : 'none';
     document.getElementById('view-attendees').style.display = view === 'attendees' ? '' : 'none';
+    document.getElementById('view-seating').style.display = view === 'seating' ? '' : 'none';
     document.querySelectorAll('.tab').forEach(tab => tab.classList.toggle('active', tab.dataset.view === view));
     if (view === 'attendees' && typeof showAttendeeView === 'function') showAttendeeView();
+    if (view === 'seating' && typeof showSeatingView === 'function') showSeatingView();
 }
 
 /* Footer: short statistics and the hint on a newer version (GET /api/info) */
@@ -200,7 +206,7 @@ async function loadEvents() {
 }
 
 // Collapsible cards; the open/closed state is remembered per browser
-const COLLAPSIBLE_SECTIONS = ['createTournamentSection', 'eventConfigSection'];
+const COLLAPSIBLE_SECTIONS = ['createTournamentSection', 'eventConfigSection', 'roomConfigSection'];
 
 function toggleSection(sectionId, open) {
     const section = document.getElementById(sectionId);

@@ -86,6 +86,12 @@ export async function createEvent(input: EventSettingsInput): Promise<LanEvent> 
   });
   await assertUniqueEventName(settings.name);
   const id = await getAppStore().insert('event', settings);
+  // The rooms of the last event are usually the same: copy their layouts, without seat assignments
+  if (latest) {
+    for (const room of (await getAppStore().select('room', { event_id: latest.id })) ?? []) {
+      await getAppStore().insert('room', { event_id: id, name: room.name, width: room.width, height: room.height, groups: room.groups.map(g => ({ ...g })), doors: (room.doors ?? []).map(d => ({ ...d })), seats: {} });
+    }
+  }
   return getEvent(id);
 }
 
@@ -119,6 +125,7 @@ export async function deleteEvent(id: number): Promise<void> {
     throw new HttpError(409, `Das Event hat noch ${tournaments} Turnier${tournaments === 1 ? '' : 'e'} — diese zuerst löschen`);
   }
   await getAppStore().delete('attendee', { event_id: id });
+  await getAppStore().delete('room', { event_id: id });
   await getAppStore().delete('event', { id });
 }
 
@@ -171,6 +178,11 @@ export async function deleteAttendee(id: number): Promise<void> {
   const existing = await getAppStore().select('attendee', id);
   if (!existing) throw new HttpError(404, 'Teilnehmer nicht gefunden');
   await getAppStore().delete('attendee', { id });
+  // Free their seat in the seating plan
+  for (const room of (await getAppStore().select('room', { event_id: existing.event_id })) ?? []) {
+    const seats = Object.fromEntries(Object.entries(room.seats).filter(([, attendeeId]) => attendeeId !== id));
+    if (Object.keys(seats).length !== Object.keys(room.seats).length) await getAppStore().update('room', room.id, { ...room, seats });
+  }
 }
 
 // Copies attendees (names, nickname) of another event; nicknames already present are skipped

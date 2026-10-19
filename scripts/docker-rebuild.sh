@@ -35,6 +35,13 @@ docker buildx build --builder "$BUILDER" --load \
 
 echo "▶ Recreating container '$CONTAINER' on port $PORT (data: $DATA_DIR)"
 mkdir -p "$DATA_DIR"
+# Safety copy of the database before the new version starts (it may migrate data); keep the last 10
+if [ -f "$DATA_DIR/db.json" ]; then
+  BACKUP="$DATA_DIR/db-before-rebuild-$(date +%Y%m%d-%H%M%S).json"
+  cp "$DATA_DIR/db.json" "$BACKUP"
+  echo "▶ Datenbank gesichert: $(basename "$BACKUP")"
+  ls -1t "$DATA_DIR"/db-before-rebuild-*.json 2>/dev/null | tail -n +11 | while read -r old; do rm -f "$old"; done
+fi
 docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
 ENV_ARGS=(-e NODE_ENV=production)
 if [ -n "${ADMIN_PASSWORD:-}" ]; then

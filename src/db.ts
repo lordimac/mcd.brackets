@@ -5,6 +5,7 @@ import path from 'path';
 import fs from 'fs';
 import type { Attendee, LanEvent } from './lan';
 import type { OpnsenseSettings } from './opnsense';
+import type { Room } from './seating';
 
 export const dataDir = path.resolve(process.env.DATA_DIR ?? path.join(__dirname, '../data'));
 export const dbPath = path.join(dataDir, 'db.json');
@@ -24,9 +25,10 @@ interface AppTables {
   event: LanEvent;
   attendee: Attendee;
   opnsense: OpnsenseSettings; // at most one record: connection to the firewall
+  room: Room;                 // seating plan rooms of an event
 }
 type AppTable = keyof AppTables;
-export const APP_TABLES: AppTable[] = ['event', 'attendee', 'opnsense'];
+export const APP_TABLES: AppTable[] = ['event', 'attendee', 'opnsense', 'room'];
 
 export interface AppStore {
   select<T extends AppTable>(table: T): Promise<AppTables[T][] | null>;

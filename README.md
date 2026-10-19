@@ -2,7 +2,7 @@
 
 Ein vollständiges Turnierverwaltungssystem mit Event-basiertem Meisterschafts-Punktesystem, entwickelt mit [brackets-manager](https://www.npmjs.com/package/brackets-manager).
 
-**Version:** 0.18.2-beta
+**Version:** 0.19.0-beta
 
 ---
 
@@ -11,6 +11,10 @@ Ein vollständiges Turnierverwaltungssystem mit Event-basiertem Meisterschafts-P
 **Teilnehmer-Verwaltung** — Teilnehmer mit Clan, Nickname, drei IP-Adressen und DNS-Namen; sortier- und filterbar, Export als IP-Zettel (PDF), CSV, hosts oder BIND-Zone
 
 ![Teilnehmer-Verwaltung](docs/screenshots/teilnehmer.png)
+
+**Sitzplan** — Räume frei aus Tischreihen, U-Formen und Flächen zusammenstellen, Plätze per Klick vergeben; die Suche zeigt, wer wo sitzt
+
+![Sitzplan](docs/screenshots/sitzplan.png)
 
 **Bracket** — Double Elimination mit Click-to-Win; ein Eintrag „In Gedenken“ verliert sein Match automatisch (F)
 
@@ -93,6 +97,24 @@ Platzierungsbasierte Punkte:
 - Ohne `ADMIN_PASSWORD` darf jeder bearbeiten (wie bisher)
 - Einrichtung siehe [Admin-Passwort einrichten](#admin-passwort-einrichten)
 
+### 🪑 Sitzplan
+- Reiter „Sitzplan“: pro Event beliebig viele Räume (z.B. Halle, Nebenraum), jeweils eine freie Fläche (Breite × Tiefe in Feldern, 1 Feld ≈ ein Platz)
+- **Baukasten:** Tischreihe (Plätze beidseitig, einseitig oder keine), Doppelreihe (Tische Rücken an Rücken), U-Form (Plätze innen), Reihenblock (mehrere Doppelreihen), beschriftete Flächen (Bühne, Orga, Eingang …) und **Türen** in der Wand — mit Breite, Anschlag und Öffnungsrichtung nach innen oder außen (der Rand um den Raum ist nur für nach außen öffnende Türen da; der Schwenkbereich nach innen bleibt frei, Tische darin werden rot markiert)
+- Gruppen frei **verschieben** (ziehen oder Pfeiltasten), in 90°-Schritten **drehen**, duplizieren, löschen; mehrere per Shift-Klick oder Rahmen markieren und gemeinsam bewegen/drehen — so entstehen U-Formen, Tische nur in der Raummitte oder beliebige Kombinationen. Überlappungen werden rot markiert
+- **Platznummern frei gestaltbar:**
+  - automatisch 1, 2, 3 … in der Reihenfolge der Gruppen („Nr. ↑/↓“, „Nach Position nummerieren“), innerhalb einer Reihe der Reihe nach, rückwärts, rundherum oder rundherum rückwärts („Nummern ⇄“)
+  - **eigener Bereich pro Reihe** über „Start-Nr.“ (z.B. 101, M1 oder A-01) — die Reihe zählt in ihrer Richtung davon aus hoch (Ziffer am Ende)
+  - automatische Nummern überspringen die Startbereiche, doppelte Nummern werden rot markiert und oben genannt
+  - Belegungen hängen am Platz und bleiben beim Verschieben, Drehen und Umnummerieren erhalten
+- Darstellung: auf den Tischen steht nur der Nickname (bis zu zwei Zeilen, sonst am Ende mit „…“ gekürzt); Platznummer, Clan-Nickname und Name zeigt ein Tooltip über Tisch oder Stuhl (auf dem Handy per Tippen). Im Modus „Raum gestalten“ zeigen die Tische ihre Nummer. Nummerierte Felder sind die Tische (ein Tisch = ein Platz, belegt orange umrandet), daneben stehen Stühle (von oben gesehen), die zum jeweiligen Tisch zeigen — bei Tischen Rücken an Rücken zwei Stühle pro Feld; Legende unter dem Plan
+- Admins vergeben Plätze per Klick auf den Platz oder erst Teilnehmer aus „Ohne Platz“ wählen, dann Platz anklicken. „Freie Plätze automatisch belegen“ setzt alle ohne Platz, Clans zusammen
+- Jeder kann suchen, wer wo sitzt (Name, Clan, Nickname oder Platznummer) — Treffer werden im Plan hervorgehoben, ein Klick springt zum Platz. Der Plan passt sich automatisch an die Fensterbreite an (Zoom mit −/+)
+- PDF: **Sitzplan** (A4/A3, Raumplan mit Namen + alphabetische Liste „Wer sitzt wo?“) und **Platz-Schilder** (Tischaufsteller zum Falten, zwei pro A4-Blatt, von beiden Seiten lesbar)
+- **Alternativen:** Räume lassen sich als Alternative (Entwurf) kennzeichnen — beim Duplizieren oder unter „Raum bearbeiten“. Dort darf jeder Teilnehmer zusätzlich zu seinem Platz im finalen Plan sitzen (innerhalb der Alternative einmal); „Ohne Platz“ und „automatisch belegen“ beziehen sich nur auf diesen Raum. Nimmt man das Häkchen weg, wird die Alternative final und ihre Teilnehmer werden aus den anderen finalen Räumen freigegeben. Alternativen sind nur angemeldet sichtbar
+- **Alle Plätze freigeben** leert die Belegung eines Raums (mit Rückfrage)
+- Räume **duplizieren** („Duplizieren“ neben „+ Raum“): Kopie mit Tischgruppen, Türen und Startnummern — ins selbe oder ein anderes Event, ohne Belegung
+- Ein neues Event übernimmt die Räume des letzten Events (ohne Belegung)
+
 ### 🔥 OPNsense / Unbound
 - Überträgt die DNS-Namen eines Events per OPNsense-API als **Host Overrides** nach Unbound (getestet gegen die API von OPNsense 26.7)
 - Erst Vorschau (neu / geändert / gelöscht / Konflikt), dann „Übertragen“; danach wird Unbound automatisch neu geladen
@@ -136,7 +158,7 @@ docker compose up -d
 docker compose pull && docker compose up -d
 ```
 
-**Aus dem Quellcode bauen mit `npm run docker:rebuild`** (Image `mcd-brackets` + Container auf Port 3001, Daten in `./data`): Das Skript liest `.env`, sichert vor dem Neustart `data/db.json` und wartet, bis der Container healthy ist.
+**Aus dem Quellcode bauen mit `npm run docker:rebuild`** (Image `mcd-brackets` + Container auf Port 3001, Daten in `./data`): Das Skript liest `.env`, sichert vor dem Neustart `data/db.json` als `data/db-before-rebuild-<zeit>.json` (die letzten 10 bleiben) und wartet, bis der Container healthy ist.
 
 **Ohne Compose:**
 ```bash
@@ -195,6 +217,13 @@ Umgebungsvariablen:
 3. Teilnehmer mit Vorname, Name und Nickname hinzufügen — einzeln oder per „Mehrere auf einmal importieren…“ (`Nachname, Vorname // Clan-Nickname`, eine Zeile pro Teilnehmer). IPs und DNS-Namen werden automatisch vergeben, beim Import in der Reihenfolge der Nachnamen
 4. IP-Zettel als PDF drucken („IP-Zettel (PDF)“ für alle, Datei-Icon in der Zeile für einzelne) und bei Bedarf CSV, hosts-Datei oder BIND-Zone herunterladen
 5. Optional: DNS-Namen mit „OPNsense“ nach Unbound übertragen (siehe unten)
+
+### Sitzplan (Reiter „Sitzplan“)
+1. Event wählen, mit „+ Raum“ einen Raum anlegen (Breite und Tiefe in Feldern, unter „Raum bearbeiten“ änderbar)
+2. „Raum gestalten“: Baustein wählen (Tischreihe, Doppelreihe, U-Form, Reihenblock, Fläche), Größe einstellen, „Hinzufügen“ — vorher auf eine freie Stelle im Raum klicken, dann landet er dort (oder an der nächsten freien Stelle), sonst am ersten freien Platz. Freie Flächen innerhalb einer U-Form zählen mit
+3. Gruppen an die richtige Stelle ziehen, mit „Drehen“ (<kbd>R</kbd>) ausrichten, mit „Duplizieren“ vervielfachen; Türen per Baustein „Tür“ an die nächste Wand setzen und entlang der Wand verschieben
+4. „Plätze vergeben“: Plätze anklicken und Teilnehmer wählen — oder „Freie Plätze automatisch belegen“
+5. „Sitzplan (PDF)“ zum Aushängen, „Platz-Schilder (PDF)“ für die Tische
 
 ### OPNsense anbinden
 1. In OPNsense unter **System → Zugang → Benutzer** einen eigenen Benutzer für die API anlegen und ihm die Berechtigung **„Services: Unbound“** geben (enthält Host Overrides und das Neuladen von Unbound)
@@ -282,6 +311,22 @@ Ist `ADMIN_PASSWORD` gesetzt, sind alle Anfragen außer GET/HEAD (und `GET /api/
 | DELETE | `/api/attendees/:id` | Teilnehmer löschen (IPs werden frei) |
 | GET    | `/api/events/:id/export/csv\|hosts\|zone` | Export als CSV, hosts-Datei oder BIND-Zone |
 
+### Sitzplan
+Lesen ist öffentlich, Ändern nur mit Admin-Sitzung. Ein Raum hat `width` × `height` Felder und `groups`: Tischreihen `{ id, type: "row", x, y, rotation: 0|90|180|270, length, sides: "both"|"one"|"none", numbering?: "forward"|"backward"|"around"|"around-back", start_label?: string }` und Flächen `{ id, type: "area", x, y, width, height, label }`; dazu `doors`: `{ id, side: "top"|"right"|"bottom"|"left", offset, width, swing: "in"|"out", hinge: "start"|"end" }`. Platz-Schlüssel `"<gruppe>.<b|f><index>"` (z.B. `g3.f2`). Antworten enthalten zusätzlich `layout` mit den Zellen jeder Gruppe, allen Plätzen (`key`, `number` = Reihenfolge, `label` = angezeigte Platznummer, `x`, `y`), Überlappungen und doppelten Nummern (`duplicates`).
+
+| Method | Endpoint | Beschreibung |
+|--------|----------|--------------|
+| GET    | `/api/events/:id/rooms` | Räume inkl. `layout`, `alternative` und `seats: { "<platz>": attendeeId }` — Alternativen nur mit Admin-Sitzung |
+| POST   | `/api/events/:id/rooms` | Raum anlegen `{ name, width?, height? }` (Standard 24 × 14) |
+| PUT    | `/api/rooms/:id` | Name, Größe, Gruppen, Türen und/oder Alternative-Kennzeichen `{ name?, width?, height?, groups?, doors?, alternative? }` (`alternative: false` macht den Raum final und gibt seine Teilnehmer in anderen finalen Räumen frei); Gruppen müssen im Raum, Türen in ihrer Wand liegen; Plätze entfernter Gruppen werden frei |
+| POST   | `/api/rooms/:id/templates` | Baustein einfügen `{ template: "row"\|"double"\|"u"\|"block"\|"area"\|"door", params, at?: { x, y } }` (Tür: an die Wand nächst `at`) — an `at` bzw. der nächsten freien Stelle, sonst am ersten freien Platz |
+| POST   | `/api/rooms/:id/sort` | Gruppen nach Position sortieren (nummeriert die Plätze neu) |
+| POST   | `/api/rooms/:id/duplicate` | Raum kopieren `{ name?, event_id?, alternative? }` — Layout, Türen, Startnummern; ohne Belegung. Ohne Name: „<Name> (Kopie)“ bzw. der Originalname, wenn er im Ziel-Event frei ist |
+| DELETE | `/api/rooms/:id` | Raum löschen |
+| PUT    | `/api/rooms/:id/seats/:key` | Platz vergeben `{ attendee_id }` oder freigeben `{ attendee_id: null }`; ein Teilnehmer hat höchstens einen Platz je Event → alle Räume |
+| POST   | `/api/rooms/:id/clear` | Alle Plätze des Raums freigeben |
+| POST   | `/api/rooms/:id/autofill` | Alle ohne Platz auf freie Plätze dieses Raums setzen → `{ rooms, seated, remaining }` |
+
 ### OPNsense
 Alle Endpunkte nur mit Admin-Sitzung (auch GET). Fehler der Firewall kommen als `502` mit lesbarer Meldung.
 
@@ -363,6 +408,9 @@ mcd.brackets/
 │   ├── opnsense.ts     # Abgleich mit Unbound + OPNsense-API-Client
 │   ├── opnsense-routes.ts # REST-Routen für OPNsense
 │   ├── info.ts         # Footer: Versionscheck (GitHub-Tags) + Statistik
+│   ├── seating.ts      # Sitzplan: Tischgruppen, Geometrie, Bausteine, Nummerierung (reine Logik)
+│   ├── seating-store.ts # Räume & Platzvergabe in der Datenbank
+│   ├── seating-routes.ts # REST-Routen für den Sitzplan
 │   ├── standings.ts    # Platzierungen + Punktesystem
 │   ├── seeding.ts      # Auslosung + BYEs
 │   └── *.test.ts       # Tests (npm test)
@@ -372,6 +420,8 @@ mcd.brackets/
 │   ├── lan.js          # Frontend-Logik (Teilnehmer-Verwaltung)
 │   ├── ip-slips.js     # IP-Zettel als PDF (jsPDF)
 │   ├── opnsense.js     # OPNsense-Einstellungen + Übertragen-Dialog
+│   ├── seating.js      # Sitzplan-Ansicht (Raum-Editor, Vergabe, Suche)
+│   ├── seating-pdf.js  # Sitzplan und Platz-Schilder als PDF
 │   ├── styles.css      # Dark Theme Styling
 │   └── lib/            # Lokale Kopien der Browser-Libs (npm run vendor)
 ├── data/
