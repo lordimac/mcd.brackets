@@ -106,6 +106,7 @@ async function selectSeatEvent(id) {
     currentEventId = Number(id);
     try { localStorage.setItem('mcd.attendeeEvent', String(currentEventId)); } catch { /* storage unavailable */ }
     currentRoomId = null;
+    updateBrandLogo();
     await loadSeating();
 }
 
@@ -1136,6 +1137,7 @@ async function duplicateRoom(e) {
             currentEventId = eventId;
             try { localStorage.setItem('mcd.attendeeEvent', String(eventId)); } catch { /* storage unavailable */ }
             renderSeatEventSelect();
+            updateBrandLogo();
         }
         currentRoomId = copy.id;
         await loadSeating();

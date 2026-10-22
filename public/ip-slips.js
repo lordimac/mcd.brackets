@@ -5,8 +5,8 @@
 const SLIP = {
     width: 210,
     margin: 18,
-    accent: [240, 130, 40],
-    accentSoft: [254, 243, 232],
+    accent: [255, 69, 0],
+    accentSoft: [255, 236, 229],
     text: [20, 24, 33],
     muted: [107, 114, 128],
     faint: [156, 163, 175],
@@ -42,12 +42,21 @@ function fitFontSize(doc, text, maxWidth, start, min) {
     return size;
 }
 
-// Logo (portrait) fitted into its frame: as large as possible, centered horizontally, top-aligned
-function drawLogo(doc, dataUrl, x, y, w, h) {
+// Logo box in mm following the image's aspect ratio: portrait stays portrait, landscape
+// landscape. Roughly constant area (like the former 34 x 48 portrait frame), capped at
+// 48 mm height and 64 mm width so the name keeps enough room.
+const LOGO_AREA = 34 * 48, LOGO_MAX_W = 64, LOGO_MAX_H = 48;
+
+function logoBox(doc, dataUrl) {
     const { width, height } = doc.getImageProperties(dataUrl);
-    const scale = Math.min(w / width, h / height);
-    const drawW = width * scale, drawH = height * scale;
-    doc.addImage(dataUrl, x + (w - drawW) / 2, y, drawW, drawH);
+    const ratio = width / height || 1;
+    let h = Math.min(LOGO_MAX_H, Math.sqrt(LOGO_AREA / ratio));
+    let w = h * ratio;
+    if (w > LOGO_MAX_W) {
+        w = LOGO_MAX_W;
+        h = w / ratio;
+    }
+    return { w, h };
 }
 
 function addSlipPage(doc, event, attendee, createdAt) {
@@ -69,16 +78,16 @@ function addSlipPage(doc, event, attendee, createdAt) {
     doc.setLineWidth(0.3);
     doc.line(margin, 24, right, 24);
 
-    // Portrait logo frame top right (only when the event has a logo)
-    const logo = { w: 34, h: 48, gap: 8 };
-    if (event.logo) {
-        drawLogo(doc, event.logo, right - logo.w, 30, logo.w, logo.h);
+    // Logo top right in its own aspect ratio (only when the event has a logo)
+    const logo = event.logo ? { ...logoBox(doc, event.logo), gap: 8 } : null;
+    if (logo) {
+        doc.addImage(event.logo, right - logo.w, 30, logo.w, logo.h);
     }
 
     // Name: "Clan-" in accent color, nickname in text color
     slipLabel(doc, 'IP-Zettel', margin, 38, SLIP.accent, 9);
     doc.setFont('helvetica', 'bold');
-    const nameWidth = contentWidth - (event.logo ? logo.w + logo.gap : 0);
+    const nameWidth = contentWidth - (logo ? logo.w + logo.gap : 0);
     const size = fitFontSize(doc, attendee.display_name, nameWidth, 30, 14);
     doc.setFontSize(size);
     let x = margin;
@@ -100,7 +109,8 @@ function addSlipPage(doc, event, attendee, createdAt) {
     }
 
     // Address cards
-    let y = event.logo ? 86 : 72;
+    // Below the logo (a portrait logo ends at 78 mm), at least at 72 mm
+    let y = logo ? Math.max(72, 30 + logo.h + 8) : 72;
     slipLabel(doc, 'Deine Adressen', margin, y);
     y += 5;
     const cardH = 30;
@@ -131,13 +141,12 @@ function addSlipPage(doc, event, attendee, createdAt) {
         y += cardH + 4;
     });
 
-    // Network settings: mask, gateway and DNS always (empty ones get a line to fill in by hand),
-    // the domain only when configured
+    // Network settings: mask, gateway and DNS (empty ones get a line to fill in by hand).
+    // The domain is only part of the DNS names above, it is not entered anywhere.
     const settings = [
         ['Subnetzmaske', event.netmask],
         ['Router/Gateway', event.gateway],
         ['DNS', event.dns_server],
-        ...(event.domain ? [['Domain', event.domain]] : []),
     ];
 
     y += 4;

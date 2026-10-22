@@ -2,13 +2,13 @@
 
 Ein vollständiges Turnierverwaltungssystem mit Event-basiertem Meisterschafts-Punktesystem, entwickelt mit [brackets-manager](https://www.npmjs.com/package/brackets-manager).
 
-**Version:** 0.19.0-beta
+**Version:** 0.20.0-beta
 
 ---
 
 ## Screenshots
 
-**Teilnehmer-Verwaltung** — Teilnehmer mit Clan, Nickname, drei IP-Adressen und DNS-Namen; sortier- und filterbar, Export als IP-Zettel (PDF), CSV, hosts oder BIND-Zone
+**Teilnehmer-Verwaltung** — Teilnehmer mit Clan, Nickname, drei IP-Adressen und DNS-Namen; sortier- und filterbar, Export als IP-Zettel (PDF), CSV, hosts oder BIND-Zone; Kurzanleitung „feste IP-Adresse“ für Windows und macOS als PDF
 
 ![Teilnehmer-Verwaltung](docs/screenshots/teilnehmer.png)
 
@@ -52,7 +52,8 @@ Ein vollständiges Turnierverwaltungssystem mit Event-basiertem Meisterschafts-P
 - **Bulk-Import** — Liste im Format `Nachname, Vorname // Clan-Nickname` einfügen (Clan endet am ersten Bindestrich), mit Vorschau (IPs und Fehler pro Zeile) vor dem Import
 - **3 IP-Adressen pro Teilnehmer** — aus drei einstellbaren Bereichen (Haupt-PC, Zweiter PC, Dritter PC) mit gleichem Versatz, z.B. `.100` / `.150` / `.200`; freie Plätze werden wiederverwendet
 - **DNS-Namen** — `nickname`, `nickname2`, `nickname3` (ohne Clan) unter der einstellbaren Domain (Umlaute und Sonderzeichen werden DNS-tauglich umgewandelt)
-- **IP-Zettel (PDF)** — ein DIN-A4-Blatt pro Teilnehmer mit Logo (Hochformat, oben rechts), Clan-Nickname, Name, den 3 IPs samt DNS-Namen und den Netzwerk-Einstellungen; einzeln (Icon in der Liste) oder für alle als ein PDF. Alle PDFs halten einen Druckrand von mind. 5 mm ein
+- **IP-Zettel (PDF)** — ein DIN-A4-Blatt pro Teilnehmer mit Logo (oben rechts, Hoch- oder Querformat je nach Bild), Clan-Nickname, Name, den 3 IPs samt DNS-Namen und den Netzwerk-Einstellungen; einzeln (Icon in der Liste) oder für alle als ein PDF. Alle PDFs halten einen Druckrand von mind. 5 mm ein
+- **Anleitung (PDF)** — je eine Seite für Windows (10/11) und macOS (ab 13): feste IP-Adresse einstellen, mit Subnetzmaske, Gateway und DNS des Events in nachgezeichneten Dialogen, Test per ping und Rückstellung nach der LAN
 - **Exporte** — CSV (Excel), hosts-Datei (dnsmasq/Pi-hole), BIND-Zone
 - **Automatische Spieler** — Turniere nehmen alle Teilnehmer ihres Events (per Nickname); „Neu auslosen“ übernimmt neu hinzugekommene
 

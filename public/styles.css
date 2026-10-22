@@ -11,46 +11,86 @@
 }
 
 :root {
-    /* Brand */
-    --primary-color: #f08228;
-    --primary-hover: #ff9440;
-    --primary-soft: rgba(240, 130, 40, 0.14);
-    --secondary-color: #28a0f0;
-    --secondary-soft: rgba(40, 160, 240, 0.14);
+    /* Brand: mcd.lan logo orange, main accent and colour of main actions */
+    --primary-color: #ff4500;
+    --primary-hover: #ff6326;
+    --primary-soft: rgba(255, 69, 0, 0.16);
+    --on-primary: #ffffff;
+    --secondary-color: #1fc2e8;
+    --secondary-soft: rgba(31, 194, 232, 0.15);
+
+    /* Additional colours: areas, tournament modes, clans */
+    --pink: #ff4f8b;
+    --pink-soft: rgba(255, 79, 139, 0.15);
+    --lime: #9ee233;
+    --lime-soft: rgba(158, 226, 51, 0.15);
+    --violet: #a787ff;
+    --violet-soft: rgba(167, 135, 255, 0.15);
+    --yellow: #ffd23f;
+
+    /* Colour of the current area (body[data-view], set in showView) */
+    --view-color: var(--primary-color);
 
     /* Status */
-    --success-color: #22c55e;
-    --success-soft: rgba(34, 197, 94, 0.14);
-    --danger-color: #ef4444;
-    --danger-soft: rgba(239, 68, 68, 0.14);
-    --warning-color: #f5c542;
-    --warning-soft: rgba(245, 197, 66, 0.14);
-    --gold: #f5c542;
-    --silver: #c3cad6;
-    --bronze: #d08a4f;
+    --success-color: #3ddc76;
+    --success-soft: rgba(61, 220, 118, 0.15);
+    --danger-color: #ff5a4f;
+    --danger-soft: rgba(255, 90, 79, 0.15);
+    --warning-color: #ffd23f;
+    --warning-soft: rgba(255, 210, 63, 0.15);
+    --gold: #ffd23f;
+    --silver: #c9ced8;
+    --bronze: #d9894a;
 
-    /* Surfaces */
-    --bg-color: #0b0f17;
-    --surface: #121826;
-    --surface-2: #182032;
-    --surface-3: #1f2940;
-    --border-color: #232c3f;
-    --border-strong: #313c55;
+    /* Surfaces: neutral charcoal instead of navy */
+    --bg-color: #141519;
+    --surface: #1c1e24;
+    --surface-2: #23262e;
+    --surface-3: #2d313b;
+    --border-color: #2e323c;
+    --border-strong: #414653;
 
     /* Text */
-    --text-color: #e8ecf3;
-    --text-secondary: #8b95a8;
-    --text-faint: #5d6679;
+    --text-color: #eeeff2;
+    --text-secondary: #a0a5b1;
+    --text-faint: #6c717d;
 
-    /* Shape */
-    --radius-sm: 6px;
-    --radius: 10px;
-    --radius-lg: 14px;
-    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.25);
-    --shadow-lg: 0 24px 64px rgba(0, 0, 0, 0.55);
-    --focus-ring: 0 0 0 3px rgba(240, 130, 40, 0.35);
+    /* Shape: small radii, hard shadows */
+    --radius-sm: 3px;
+    --radius: 4px;
+    --radius-lg: 6px;
+    --shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
+    --shadow-lg: 0 6px 0 rgba(0, 0, 0, 0.4), 0 20px 50px rgba(0, 0, 0, 0.5);
+    --focus-ring: 0 0 0 3px rgba(255, 69, 0, 0.45);
 
     --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    --font-display: 'Chakra Petch', var(--font);
+}
+
+body[data-view="attendees"] { --view-color: var(--secondary-color); }
+body[data-view="seating"] { --view-color: var(--lime); }
+body[data-view="tournaments"] { --view-color: var(--primary-color); }
+
+/* Display font for headings, navigation, buttons and badges (public/lib/fonts) */
+@font-face {
+    font-family: 'Chakra Petch';
+    font-weight: 500;
+    font-display: swap;
+    src: url("lib/fonts/chakra-petch-latin-500-normal.woff2") format("woff2");
+}
+
+@font-face {
+    font-family: 'Chakra Petch';
+    font-weight: 600;
+    font-display: swap;
+    src: url("lib/fonts/chakra-petch-latin-600-normal.woff2") format("woff2");
+}
+
+@font-face {
+    font-family: 'Chakra Petch';
+    font-weight: 700;
+    font-display: swap;
+    src: url("lib/fonts/chakra-petch-latin-700-normal.woff2") format("woff2");
 }
 
 html {
@@ -60,8 +100,7 @@ html {
 body {
     font-family: var(--font);
     background:
-        radial-gradient(1200px 600px at 85% -10%, rgba(40, 160, 240, 0.08), transparent 60%),
-        radial-gradient(900px 500px at -10% 0%, rgba(240, 130, 40, 0.07), transparent 60%),
+        radial-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1.5px) 0 0 / 24px 24px,
         var(--bg-color);
     background-attachment: fixed;
     color: var(--text-color);
@@ -72,7 +111,7 @@ body {
 }
 
 ::selection {
-    background: rgba(240, 130, 40, 0.35);
+    background: rgba(255, 69, 0, 0.45);
 }
 
 /* Icons
@@ -91,7 +130,7 @@ body {
 }
 
 .icon-accent {
-    color: var(--primary-color);
+    color: var(--view-color);
 }
 
 /* Top bar
@@ -101,10 +140,24 @@ body {
     position: sticky;
     top: 0;
     z-index: 100;
-    background: rgba(11, 15, 23, 0.82);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border-bottom: 1px solid var(--border-color);
+    background: #0f1013;
+}
+
+/* Colour bar under the topbar (and above the footer) */
+.topbar::after,
+.site-footer::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg,
+        var(--primary-color) 0 25%, var(--pink) 25% 50%,
+        var(--secondary-color) 50% 75%, var(--lime) 75% 100%);
+}
+
+.topbar::after {
+    bottom: -3px;
 }
 
 .topbar-inner {
@@ -129,16 +182,43 @@ body {
     border-radius: var(--radius);
     display: grid;
     place-items: center;
-    background: linear-gradient(135deg, var(--primary-color), #e0601a);
-    color: #fff;
-    box-shadow: 0 4px 14px rgba(240, 130, 40, 0.35);
+    background: var(--primary-color);
+    color: var(--on-primary);
+    box-shadow: 3px 3px 0 var(--pink);
     font-size: 1.2rem;
 }
 
+.brand-mark img {
+    display: none;
+}
+
+/* Event logo instead of the generic icon: shown as is, in its own aspect ratio */
+.brand-mark.has-logo {
+    width: auto;
+    height: 46px;
+    background: none;
+    box-shadow: none;
+    border-radius: 0;
+}
+
+.brand-mark.has-logo .icon {
+    display: none;
+}
+
+.brand-mark.has-logo img {
+    display: block;
+    height: 46px;
+    width: auto;
+    max-width: 140px;
+    object-fit: contain;
+}
+
 .brand h1 {
-    font-size: 1.15rem;
+    font-family: var(--font-display);
+    font-size: 1.3rem;
     font-weight: 700;
-    letter-spacing: -0.01em;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
     line-height: 1.2;
 }
 
@@ -150,37 +230,51 @@ body {
 .tabs {
     display: flex;
     gap: 0.25rem;
-    padding: 0.25rem;
-    background: var(--surface);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius);
+    align-self: stretch;
+    margin: -0.85rem 0;
 }
 
 .tab {
     display: inline-flex;
     align-items: center;
     gap: 0.45rem;
-    padding: 0.4rem 0.9rem;
-    border-radius: var(--radius-sm);
+    padding: 0 0.9rem;
+    border-bottom: 3px solid transparent;
     color: var(--text-secondary);
     text-decoration: none;
-    font-size: 0.9rem;
+    font-family: var(--font-display);
+    font-size: 1rem;
     font-weight: 600;
-    transition: background 0.15s, color 0.15s;
+    letter-spacing: 0.02em;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.tab[data-view="attendees"] { --tab-color: var(--secondary-color); }
+.tab[data-view="seating"] { --tab-color: var(--lime); }
+.tab[data-view="tournaments"] { --tab-color: var(--primary-color); }
+
+.tab .icon {
+    color: var(--tab-color);
 }
 
 .tab:hover {
     color: var(--text-color);
-    background: var(--surface-2);
+    background: rgba(255, 255, 255, 0.04);
 }
 
+/* The active tab merges into the colour bar below the topbar */
 .tab.active {
-    color: #fff;
-    background: var(--surface-3);
+    color: #111;
+    background: var(--tab-color);
+    border-bottom-color: var(--tab-color);
 }
 
 .tab.active .icon {
-    color: var(--primary-color);
+    color: inherit;
+}
+
+.tab.active[data-view="tournaments"] {
+    color: var(--on-primary);
 }
 
 .topbar-actions {
@@ -278,9 +372,10 @@ body {
 .config-block legend {
     padding: 0 0.4rem;
     margin-left: -0.4rem;
-    font-size: 0.8rem;
-    font-weight: 700;
-    color: var(--text-color);
+    font-family: var(--font-display);
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--view-color);
 }
 
 .config-block .range-grid {
@@ -293,10 +388,10 @@ body {
     align-items: flex-start;
 }
 
-/* Portrait frame on white, like on the printed slip */
+/* White frame in the logo's own aspect ratio (portrait, square or landscape), like on the slip */
 .logo-preview {
-    width: 68px;
-    height: 96px;
+    width: auto;
+    height: auto;
     flex-shrink: 0;
     border-radius: var(--radius-sm);
     background: #fff;
@@ -307,12 +402,14 @@ body {
 }
 
 .logo-preview img {
-    max-width: 100%;
-    max-height: 100%;
-    object-fit: contain;
+    display: block;
+    max-width: 140px;
+    max-height: 96px;
 }
 
 .logo-preview.is-empty {
+    width: 80px;
+    height: 80px;
     background: transparent;
     border: 1px dashed var(--border-strong);
     color: var(--text-faint);
@@ -390,15 +487,17 @@ body.read-only .admin-only {
 .card {
     background: var(--surface);
     border: 1px solid var(--border-color);
+    border-top: 3px solid var(--view-color);
     border-radius: var(--radius-lg);
     padding: 1.5rem;
     box-shadow: var(--shadow);
 }
 
 .card h2 {
-    font-size: 1.05rem;
-    font-weight: 650;
-    letter-spacing: -0.01em;
+    font-family: var(--font-display);
+    font-size: 1.2rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
     display: flex;
     align-items: center;
     gap: 0.6rem;
@@ -432,7 +531,7 @@ body.read-only .admin-only {
 }
 
 .collapsible-header:hover h2 {
-    color: #fff;
+    color: var(--view-color);
 }
 
 .collapse-icon {
@@ -461,15 +560,11 @@ body.read-only .admin-only {
     display: block;
     margin-bottom: 0.4rem;
     color: var(--text-secondary);
-    font-size: 0.8rem;
+    font-size: 0.85rem;
     font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
 }
 
 .label-hint {
-    text-transform: none;
-    letter-spacing: 0;
     font-weight: 400;
     color: var(--text-faint);
     margin-left: 0.25rem;
@@ -659,8 +754,10 @@ textarea {
     border: 1px solid transparent;
     border-radius: var(--radius-sm);
     font: inherit;
-    font-size: 0.9rem;
-    font-weight: 550;
+    font-family: var(--font-display);
+    font-size: 0.92rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
     line-height: 1.2;
     cursor: pointer;
     text-decoration: none;
@@ -684,7 +781,8 @@ textarea {
 
 .btn-primary {
     background: var(--primary-color);
-    color: #fff;
+    color: var(--on-primary);
+    box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.25);
 }
 
 .btn-primary:hover {
@@ -729,7 +827,7 @@ textarea {
 }
 
 .btn-danger-solid:hover:not(:disabled) {
-    background: #dc2626;
+    background: #e8463c;
 }
 
 .btn-sm {
@@ -793,8 +891,13 @@ textarea {
     padding: 0.85rem 1rem;
 }
 
+.event-item {
+    border-left: 3px solid var(--pink);
+}
+
 .event-item h3 {
-    font-size: 0.95rem;
+    font-family: var(--font-display);
+    font-size: 1.05rem;
     font-weight: 600;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -823,15 +926,15 @@ textarea {
     content: "";
     position: absolute;
     left: 0;
+    right: 0;
     top: 0;
-    bottom: 0;
-    width: 3px;
+    height: 4px;
     background: var(--type-color, var(--primary-color));
 }
 
 .stage-item.type-double_elimination { --type-color: var(--primary-color); }
 .stage-item.type-single_elimination { --type-color: var(--secondary-color); }
-.stage-item.type-round_robin { --type-color: #a78bfa; }
+.stage-item.type-round_robin { --type-color: var(--violet); }
 
 .stage-head {
     display: flex;
@@ -841,9 +944,10 @@ textarea {
 }
 
 .stage-item h3 {
-    font-size: 1.05rem;
-    font-weight: 650;
-    letter-spacing: -0.01em;
+    font-family: var(--font-display);
+    font-size: 1.25rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
     overflow-wrap: anywhere;
 }
 
@@ -869,26 +973,21 @@ textarea {
     display: inline-flex;
     align-items: center;
     gap: 0.3rem;
-    padding: 0.15rem 0.55rem;
-    border-radius: 999px;
-    font-size: 0.75rem;
+    padding: 0.1rem 0.5rem;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-display);
+    font-size: 0.8rem;
     font-weight: 600;
     white-space: nowrap;
 }
 
 .badge-type {
-    background: var(--primary-soft);
-    color: var(--primary-color);
+    background: var(--type-color, var(--primary-color));
+    color: #111;
 }
 
-.type-single_elimination .badge-type {
-    background: var(--secondary-soft);
-    color: var(--secondary-color);
-}
-
-.type-round_robin .badge-type {
-    background: rgba(167, 139, 250, 0.14);
-    color: #a78bfa;
+.type-double_elimination .badge-type {
+    color: var(--on-primary);
 }
 
 .badge-id {
@@ -935,11 +1034,10 @@ textarea {
 }
 
 .match-item h3 {
-    font-size: 0.8rem;
+    font-family: var(--font-display);
+    font-size: 0.95rem;
     font-weight: 600;
     color: var(--text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
 }
 
 .match-item .match-info {
@@ -974,9 +1072,10 @@ textarea {
 }
 
 .vs {
-    font-size: 0.75rem;
+    font-family: var(--font-display);
+    font-size: 0.8rem;
     font-weight: 700;
-    color: var(--text-faint);
+    color: var(--pink);
     letter-spacing: 0.05em;
 }
 
@@ -1058,11 +1157,10 @@ textarea {
 
 .attendee-table th {
     text-align: left;
-    font-size: 0.72rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--text-faint);
+    font-family: var(--font-display);
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-secondary);
     background: var(--surface-2);
     padding: 0.6rem 0.75rem;
     border-bottom: 1px solid var(--border-color);
@@ -1098,7 +1196,7 @@ textarea {
 
 .attendee-table th.sort-asc,
 .attendee-table th.sort-desc {
-    color: var(--primary-color);
+    color: var(--view-color);
 }
 
 .attendee-table th.sort-asc::after {
@@ -1154,6 +1252,25 @@ textarea {
     font-weight: 600;
     white-space: nowrap;
 }
+
+/* Clan tag: colour derived from the clan name (clanTag in lan.js) */
+.clan-tag {
+    display: inline-block;
+    padding: 0.05rem 0.45rem;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-display);
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: var(--clan-color);
+    background: var(--clan-soft);
+}
+
+.clan-c0 { --clan-color: var(--primary-color); --clan-soft: var(--primary-soft); }
+.clan-c1 { --clan-color: var(--pink); --clan-soft: var(--pink-soft); }
+.clan-c2 { --clan-color: var(--secondary-color); --clan-soft: var(--secondary-soft); }
+.clan-c3 { --clan-color: var(--lime); --clan-soft: var(--lime-soft); }
+.clan-c4 { --clan-color: var(--violet); --clan-soft: var(--violet-soft); }
+.clan-c5 { --clan-color: var(--yellow); --clan-soft: var(--warning-soft); }
 
 .attendee-table .col-name {
     color: var(--text-secondary);
@@ -1312,11 +1429,10 @@ textarea {
 }
 
 .rankings-header {
-    color: var(--text-faint);
-    font-size: 0.72rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
+    color: var(--text-secondary);
+    font-family: var(--font-display);
+    font-size: 0.85rem;
+    font-weight: 600;
     padding-top: 0;
     padding-bottom: 0.4rem;
     border-bottom: 1px solid var(--border-color);
@@ -1335,18 +1451,21 @@ textarea {
 }
 
 .rankings-row.top-1 {
-    background: linear-gradient(90deg, rgba(245, 197, 66, 0.12), rgba(245, 197, 66, 0) 55%), var(--surface-2);
-    border-color: rgba(245, 197, 66, 0.35);
+    background: rgba(255, 210, 63, 0.1);
+    border-color: rgba(255, 210, 63, 0.35);
+    border-left: 4px solid var(--gold);
 }
 
 .rankings-row.top-2 {
-    background: linear-gradient(90deg, rgba(195, 202, 214, 0.1), rgba(195, 202, 214, 0) 55%), var(--surface-2);
-    border-color: rgba(195, 202, 214, 0.3);
+    background: rgba(201, 206, 216, 0.08);
+    border-color: rgba(201, 206, 216, 0.3);
+    border-left: 4px solid var(--silver);
 }
 
 .rankings-row.top-3 {
-    background: linear-gradient(90deg, rgba(208, 138, 79, 0.12), rgba(208, 138, 79, 0) 55%), var(--surface-2);
-    border-color: rgba(208, 138, 79, 0.35);
+    background: rgba(217, 137, 74, 0.1);
+    border-color: rgba(217, 137, 74, 0.35);
+    border-left: 4px solid var(--bronze);
 }
 
 .rank-cell {
@@ -1357,11 +1476,12 @@ textarea {
 .rank-badge {
     width: 30px;
     height: 30px;
-    border-radius: 50%;
+    border-radius: var(--radius-sm);
     display: grid;
     place-items: center;
+    font-family: var(--font-display);
     font-weight: 700;
-    font-size: 0.85rem;
+    font-size: 1rem;
     color: var(--text-secondary);
     background: var(--surface-3);
 }
@@ -1388,8 +1508,9 @@ textarea {
 
 .stat-cell.points {
     color: var(--primary-color);
+    font-family: var(--font-display);
     font-weight: 700;
-    font-size: 1.05em;
+    font-size: 1.15em;
 }
 
 .stat-cell.wins {
@@ -1408,9 +1529,7 @@ textarea {
     position: fixed;
     z-index: 1000;
     inset: 0;
-    background: rgba(5, 8, 13, 0.72);
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
+    background: rgba(8, 9, 11, 0.78);
     animation: fadeIn 0.15s;
     padding: 1rem;
 }
@@ -1431,12 +1550,15 @@ textarea {
     max-height: calc(100vh - 2rem);
     overflow-y: auto;
     border: 1px solid var(--border-strong);
+    border-top: 3px solid var(--view-color);
     box-shadow: var(--shadow-lg);
     animation: slideUp 0.2s ease-out;
 }
 
 .modal-content h2 {
-    font-size: 1.2rem;
+    font-family: var(--font-display);
+    font-size: 1.35rem;
+    font-weight: 600;
     margin-bottom: 0.5rem;
     padding-right: 2rem;
 }
@@ -1546,8 +1668,9 @@ textarea {
 }
 
 .winner-name {
-    font-size: 1.15rem;
-    font-weight: 650;
+    font-family: var(--font-display);
+    font-size: 1.3rem;
+    font-weight: 700;
     text-align: center;
     overflow-wrap: anywhere;
 }
@@ -1563,9 +1686,10 @@ textarea {
 
 .vs-large {
     align-self: center;
-    font-size: 0.9rem;
-    font-weight: 800;
-    color: var(--text-faint);
+    font-family: var(--font-display);
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--pink);
     letter-spacing: 0.08em;
 }
 
@@ -1610,14 +1734,19 @@ textarea {
         row-gap: 0.6rem;
     }
 
+    /* Full width, flush with the colour bar */
     .tabs {
         order: 3;
-        width: 100%;
+        width: calc(100% + 2rem);
+        margin: 0 -1rem -0.85rem;
+        gap: 0;
     }
 
     .tab {
         flex: 1;
         justify-content: center;
+        padding: 0.55rem 0.5rem;
+        font-size: 0.95rem;
     }
 
     .attendee-form {
@@ -1692,7 +1821,7 @@ textarea {
     --match-vertical-padding: 8px;
     --connector-border-width: 2px;
     --match-border-width: 1px;
-    --match-border-radius: 8px;
+    --match-border-radius: 4px;
     --participant-image-size: 1em;
 
     font-family: var(--font);
@@ -1731,6 +1860,7 @@ textarea {
 }
 
 .brackets-viewer h1 {
+    font-family: var(--font-display);
     font-size: 1.8em;
     margin-top: 8px;
     margin-bottom: 20px;
@@ -1739,10 +1869,10 @@ textarea {
 }
 
 .brackets-viewer h2 {
-    font-size: 1.25em;
+    font-family: var(--font-display);
+    font-size: 1.4em;
     color: var(--primary-color);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.02em;
     margin-top: 12px;
 }
 
@@ -1892,7 +2022,7 @@ textarea {
 
 .brackets-viewer .opponents:hover {
     border-color: var(--border-hover-color);
-    box-shadow: 0 0 0 3px rgba(240, 130, 40, 0.18);
+    box-shadow: 0 0 0 3px rgba(255, 69, 0, 0.2);
 }
 
 .brackets-viewer .opponents.popover-selected {
@@ -2130,11 +2260,12 @@ textarea {
     gap: 0.4rem;
     padding: 0.35rem 0.8rem;
     border: 1px solid var(--border-color);
-    border-radius: 999px;
+    border-radius: var(--radius-sm);
     background: transparent;
     color: var(--text-secondary);
     font: inherit;
-    font-size: 0.85rem;
+    font-family: var(--font-display);
+    font-size: 0.92rem;
     font-weight: 600;
     cursor: pointer;
 }
@@ -2145,9 +2276,9 @@ textarea {
 }
 
 .room-tab.active {
-    background: var(--primary-soft);
-    border-color: var(--primary-color);
-    color: var(--primary-color);
+    background: var(--view-color);
+    border-color: var(--view-color);
+    color: #111;
 }
 
 /* Alternative (draft) rooms: dashed tab with a small flag */
@@ -2226,8 +2357,8 @@ textarea {
 }
 
 .segmented button.active {
-    background: var(--surface-3);
-    color: var(--text-color);
+    background: var(--view-color);
+    color: #111;
 }
 
 .zoom-control {
@@ -2429,10 +2560,10 @@ textarea {
     border-radius: 3px;
 }
 
-.legend-table { border: 1px solid #46557a; background: #253049; }
-.legend-seat { width: 14px; height: 14px; background: linear-gradient(#56648a, #56648a) 50% 100% / 12px 3px no-repeat, linear-gradient(#3a4767, #3a4767) 50% 1px / 10px 8px no-repeat; }
-.legend-taken { border: 1px solid var(--primary-color); background: #2b2f45; }
-.legend-door { border-left: 3px solid #d6dce8; border-top: 1px dashed var(--text-faint); border-radius: 0 !important; }
+.legend-table { border: 1px solid #4b505d; background: #2a2d35; }
+.legend-seat { width: 14px; height: 14px; background: linear-gradient(#5d6370, #5d6370) 50% 100% / 12px 3px no-repeat, linear-gradient(#3e434f, #3e434f) 50% 1px / 10px 8px no-repeat; }
+.legend-taken { border: 1px solid var(--primary-color); background: #33302b; }
+.legend-door { border-left: 3px solid #e2e4e9; border-top: 1px dashed var(--text-faint); border-radius: 0 !important; }
 .legend-area { border: 1px dashed var(--border-strong); background: repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.08) 0 3px, transparent 3px 6px); }
 
 .seat-grid-wrap {
@@ -2455,7 +2586,7 @@ textarea {
 /* The room itself; the canvas around it is one cell of margin for doors opening outwards */
 .room-floor {
     position: absolute;
-    outline: 3px solid #4a5675;
+    outline: 3px solid #4b505d;
     background: rgba(255, 255, 255, 0.015);
 }
 
@@ -2475,7 +2606,7 @@ textarea {
 }
 
 .room-door .door-leaf {
-    stroke: #d6dce8;
+    stroke: #e2e4e9;
     stroke-width: 3.5px;
     stroke-linecap: round;
     vector-effect: non-scaling-stroke;
@@ -2541,11 +2672,11 @@ textarea {
 }
 
 .chair-seat {
-    fill: #3a4767;
+    fill: #3e434f;
 }
 
 .chair-back {
-    fill: #56648a;
+    fill: #5d6370;
 }
 
 .group-area {
@@ -2582,14 +2713,14 @@ textarea {
     position: absolute;
     inset: 2px;
     border-radius: 3px;
-    border: 1px solid #46557a;
-    background: #253049;
+    border: 1px solid #4b505d;
+    background: #2a2d35;
     transition: border-color 0.15s, box-shadow 0.15s;
 }
 
 .cell-seat.is-taken::before {
     border: 1px solid var(--primary-color);
-    background: #2b2f45;
+    background: #33302b;
 }
 
 .seat-no {
@@ -2638,7 +2769,7 @@ textarea {
     padding: 0.5rem 0.7rem;
     border: 1px solid var(--border-strong);
     border-radius: var(--radius-sm);
-    background: #1b2335;
+    background: #202228;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
     font-size: 0.8rem;
     pointer-events: none;
@@ -2683,7 +2814,7 @@ textarea {
 
 @keyframes seat-flash {
     0%, 100% { box-shadow: 0 0 0 2px var(--primary-soft); }
-    50% { box-shadow: 0 0 0 6px rgba(240, 130, 40, 0.45); }
+    50% { box-shadow: 0 0 0 6px rgba(255, 69, 0, 0.45); }
 }
 
 .cell-seat.is-flash::before {
@@ -2915,10 +3046,7 @@ body:not(.read-only) #seatPlanCard:not(.is-layout) .cell-seat:hover::before {
     align-items: center;
     gap: 0.3rem 1.75rem;
     padding: 0.55rem 2rem;
-    background: rgba(11, 15, 23, 0.82);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border-top: 1px solid var(--border-color);
+    background: #0f1013;
     font-size: 0.8rem;
     color: var(--text-faint);
 }
@@ -2963,9 +3091,13 @@ body:not(.read-only) #seatPlanCard:not(.is-layout) .cell-seat:hover::before {
 }
 
 /* Hint on a newer version: the only accent in the footer */
+.site-footer::before {
+    top: -3px;
+}
+
 .site-footer a.footer-update {
     padding: 0.05rem 0.55rem;
-    border-radius: 999px;
+    border-radius: var(--radius-sm);
     background: var(--primary-soft);
     color: var(--primary-color);
     font-weight: 600;

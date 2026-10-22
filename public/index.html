@@ -40,7 +40,7 @@
     <header class="topbar">
         <div class="topbar-inner">
             <div class="brand">
-                <span class="brand-mark"><svg class="icon"><use href="#i-bracket"/></svg></span>
+                <span class="brand-mark"><svg class="icon"><use href="#i-bracket"/></svg><img alt=""></span>
                 <div>
                     <h1>MCD Brackets</h1>
                     <p>Turniere, Brackets &amp; Meisterschaftswertung</p>
@@ -255,7 +255,7 @@
                                     <input type="text" id="eventSettingDomain" placeholder="lan.example.org" autocomplete="off" spellcheck="false">
                                 </div>
                                 <div class="form-group">
-                                    <label>Logo <span class="label-hint">für die IP-Zettel, Hochformat</span></label>
+                                    <label>Logo <span class="label-hint">für die IP-Zettel, Hoch- oder Querformat</span></label>
                                     <div class="logo-field">
                                         <div class="logo-preview" id="logoPreview"></div>
                                         <div class="logo-actions">
@@ -363,6 +363,9 @@
                     <div class="section-actions" id="exportActions">
                         <button class="btn btn-primary btn-sm" id="exportSlipsBtn" onclick="exportAllSlips()" title="Ein A4-Blatt pro Teilnehmer">
                             <svg class="icon"><use href="#i-file"/></svg><span class="btn-label">IP-Zettel (PDF)</span>
+                        </button>
+                        <button class="btn btn-secondary btn-sm" onclick="exportIpGuide()" title="Kurze Anleitung: feste IP-Adresse unter Windows und macOS, mit den Netzwerk-Einstellungen des Events">
+                            <svg class="icon"><use href="#i-file"/></svg><span>Anleitung (PDF)</span>
                         </button>
                         <a class="btn btn-secondary btn-sm" id="exportCsv" download><svg class="icon"><use href="#i-download"/></svg><span>CSV</span></a>
                         <a class="btn btn-secondary btn-sm" id="exportHosts" download><svg class="icon"><use href="#i-download"/></svg><span>hosts</span></a>
@@ -796,5 +799,6 @@
     <script src="seating.js"></script>
     <script src="seating-pdf.js"></script>
     <script src="ip-slips.js"></script>
+    <script src="ip-guide.js"></script>
 </body>
 </html>

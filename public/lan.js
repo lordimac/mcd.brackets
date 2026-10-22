@@ -54,6 +54,7 @@ async function selectLanEvent(id) {
 }
 
 function renderEventSelect() {
+    updateBrandLogo();
     const select = document.getElementById('lanEventSelect');
     const events = [...lanEvents].reverse();
     select.innerHTML = events.length
@@ -215,6 +216,18 @@ function renderMemorialNote(event) {
         : '';
 }
 
+// Colour per clan: clans of the event in alphabetical order cycle through
+// the 6 colour classes .clan-c0 … .clan-c5 (styles.css), so up to 6 clans never share one
+function clanColorIndex(clan) {
+    const clans = [...new Set(attendees.map(a => a.clan).filter(Boolean))]
+        .sort((a, b) => a.localeCompare(b, 'de', { sensitivity: 'base' }));
+    return Math.max(clans.indexOf(clan), 0) % 6;
+}
+
+function clanTag(clan) {
+    return clan ? `<span class="clan-tag clan-c${clanColorIndex(clan)}">${escapeHtml(clan)}</span>` : '<span class="muted">–</span>';
+}
+
 // DNS name with line-break opportunities after the dots
 function dnsHtml(name) {
     return escapeHtml(name).replace(/\./g, '.<wbr>');
@@ -304,7 +317,7 @@ function renderAttendees() {
             <td class="col-slot">${a.slot + 1}</td>
             <td class="col-name">${cell(a.first_name)}</td>
             <td class="col-name">${cell(a.last_name)}</td>
-            <td class="col-clan">${cell(a.clan)}</td>
+            <td class="col-clan">${clanTag(a.clan)}</td>
             <td class="col-nick">${escapeHtml(a.nickname)}</td>
             ${a.ips.map((ip, i) => `
                 <td class="col-ip">
@@ -428,7 +441,7 @@ async function previewBulkImport() {
                                 <td class="col-slot">${r.line}</td>
                                 <td class="col-name">${escapeHtml(r.attendee.first_name) || '<span class="muted">–</span>'}</td>
                                 <td class="col-name">${escapeHtml(r.attendee.last_name) || '<span class="muted">–</span>'}</td>
-                                <td class="col-clan">${escapeHtml(r.attendee.clan) || '<span class="muted">–</span>'}</td>
+                                <td class="col-clan">${clanTag(r.attendee.clan)}</td>
                                 <td class="col-nick">${escapeHtml(r.attendee.nickname)}</td>
                                 <td class="col-ip"><span class="ip">${r.attendee.ips[0]}</span><span class="dns">${dnsHtml(r.attendee.dns_names[0])}</span></td>
                                 <td class="status-ok">OK</td>

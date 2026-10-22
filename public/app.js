@@ -145,6 +145,7 @@ function showView() {
     document.getElementById('view-tournaments').style.display = view === 'tournaments' ? '' : 'none';
     document.getElementById('view-attendees').style.display = view === 'attendees' ? '' : 'none';
     document.getElementById('view-seating').style.display = view === 'seating' ? '' : 'none';
+    document.body.dataset.view = view;
     document.querySelectorAll('.tab').forEach(tab => tab.classList.toggle('active', tab.dataset.view === view));
     if (view === 'attendees' && typeof showAttendeeView === 'function') showAttendeeView();
     if (view === 'seating' && typeof showSeatingView === 'function') showSeatingView();
@@ -203,6 +204,22 @@ async function loadEvents() {
         lanEvents = [];
     }
     updateEventDropdown();
+    updateBrandLogo();
+}
+
+// Topbar: logo of the selected event (as on the IP slips), generic icon without one
+function updateBrandLogo() {
+    if (typeof ensureCurrentEvent === 'function') ensureCurrentEvent();
+    const event = typeof currentEvent === 'function' ? currentEvent() : null;
+    const mark = document.querySelector('.brand-mark');
+    const img = mark.querySelector('img');
+    mark.classList.toggle('has-logo', Boolean(event?.logo));
+    if (event?.logo) {
+        img.src = event.logo;
+        img.alt = event.name;
+    } else {
+        img.removeAttribute('src');
+    }
 }
 
 // Collapsible cards; the open/closed state is remembered per browser
@@ -912,7 +929,7 @@ function formatType(type) {
 }
 
 // Background of exported images/PDFs (matches --bg-color)
-const EXPORT_BACKGROUND = '#0b0f17';
+const EXPORT_BACKGROUND = '#141519';
 
 // Printers can't print borderless: everything in PDFs stays this far from the paper edge
 const PRINT_MARGIN_MM = 5;
