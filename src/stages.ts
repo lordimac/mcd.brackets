@@ -64,11 +64,8 @@ export async function createStage({ tournamentId, name, type, names, settings, e
 // Call after creating a stage and after every result.
 export async function resolveMemorialMatches(stageId: Id): Promise<void> {
   const stage = await findStage(stageId);
-  const memorial = new Set(stage.memorial_names ?? []);
-  if (memorial.size === 0) return;
-
-  const players = (await getStorage().select('participant', { tournament_id: stage.tournament_id })) ?? [];
-  const memorialIds = new Set<Id>(players.filter(p => memorial.has(p.name)).map(p => p.id));
+  const memorialIds = await memorialParticipantIds(stage);
+  if (memorialIds.size === 0) return;
   const isMemorial = (id: Id | null | undefined) => id != null && memorialIds.has(id);
 
   // Each forfeit can make further matches playable; the bound only guards against loops
@@ -81,6 +78,14 @@ export async function resolveMemorialMatches(stageId: Id): Promise<void> {
       ? { id: match.id, opponent1: { forfeit: true } }
       : { id: match.id, opponent2: { forfeit: true } });
   }
+}
+
+// Participant IDs of the memorial entries of a stage
+export async function memorialParticipantIds(stage: AppStage): Promise<Set<Id>> {
+  const memorial = new Set(stage.memorial_names ?? []);
+  if (memorial.size === 0) return new Set();
+  const players = (await getStorage().select('participant', { tournament_id: stage.tournament_id })) ?? [];
+  return new Set(players.filter(p => memorial.has(p.name)).map(p => p.id));
 }
 
 // Delete a stage including all participants of its tournament

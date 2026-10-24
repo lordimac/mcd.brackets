@@ -492,7 +492,7 @@ function displayMatches() {
                 </div>
                 <div class="match-actions">
                     <button class="btn btn-secondary btn-sm admin-only" onclick="showQuickWinnerSelectionById(${match.id})">
-                        ${icon('trophy')}<span>Ergebnis eingeben</span>
+                        ${icon('trophy')}<span>${match.opponent1?.result || match.opponent2?.result ? 'Ergebnis ändern' : 'Ergebnis eingeben'}</span>
                     </button>
                 </div>
             </div>
@@ -673,6 +673,12 @@ async function viewBracket(stageId, preserveScroll = false) {
             }
         });
         
+        // A correction prepared for another tournament no longer applies
+        currentBracketStageId = stageId;
+        if (pendingCorrection && pendingCorrection.stageId !== stageId) pendingCorrection = null;
+        renderCorrection();
+        highlightCorrection();
+
         // Restore scroll position if preserving
         if (preserveScroll && scrollY !== null) {
             window.scrollTo(0, scrollY);
@@ -685,6 +691,7 @@ async function viewBracket(stageId, preserveScroll = false) {
 
 function closeBracketViewer() {
     document.getElementById('bracketViewerSection').style.display = 'none';
+    cancelCorrection();
 }
 
 /* Punktesystem: global championship points for 1st–10th place and "ab Platz 11".
@@ -943,8 +950,8 @@ function showQuickWinnerSelection(match) {
     // Check if match is already completed
     if (match.opponent1?.result || match.opponent2?.result) {
         const winnerName = match.opponent1?.result === 'win' ? opponent1Name : opponent2Name;
-        document.getElementById('winnerModalInfo').textContent = 
-            `⚠️ Match bereits abgeschlossen! Gewinner: ${winnerName}`;
+        document.getElementById('winnerModalInfo').textContent =
+            `Bisheriger Gewinner: ${winnerName}. Zum Korrigieren den neuen Gewinner wählen — vor dem Übernehmen siehst du, welche Folgeergebnisse sich ändern.`;
     } else {
         document.getElementById('winnerModalInfo').textContent = 
             'Klicke auf den Gewinner des Matches:';
@@ -961,9 +968,110 @@ function showQuickWinnerSelectionById(matchId) {
 }
 
 function selectWinner(winnerNum) {
-    // Directly update match with selected winner
-    updateMatchQuick(currentMatchForWinner.id, winnerNum === 1);
+    const match = currentMatchForWinner;
     closeWinnerModal();
+    if (!match) return;
+
+    const currentWinner = match.opponent1?.result === 'win' ? 1 : match.opponent2?.result === 'win' ? 2 : null;
+    if (currentWinner === winnerNum) return; // same winner again: nothing changes
+    if (currentWinner === null) {
+        // First result: enter it directly
+        cancelCorrection();
+        updateMatchQuick(match.id, winnerNum === 1);
+        return;
+    }
+    prepareCorrection(match, winnerNum);
+}
+
+/* Correcting a result: the server lists the following matches that already have results
+   (they are reset and have to be entered again). The bracket keeps showing the current
+   state with those matches marked, until the change is confirmed. */
+
+let pendingCorrection = null; // { match, stageId, winnerNum, preview: { label, following } }
+let currentBracketStageId = null;
+
+async function prepareCorrection(match, winnerNum) {
+    try {
+        const preview = await apiFetch(`/matches/${match.id}/following`);
+        const stageId = match.stage_id ?? matches.find(m => m.id === match.id)?.stage_id;
+        pendingCorrection = { match, stageId, winnerNum, preview };
+
+        const bracketOpen = document.getElementById('bracketViewerSection').style.display !== 'none';
+        if (bracketOpen && currentBracketStageId === stageId) {
+            renderCorrection();
+            highlightCorrection();
+        } else {
+            await viewBracket(stageId); // e.g. from the match list: show the bracket with the marks
+        }
+        document.getElementById('correctionPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } catch (error) {
+        alert('❌ Fehler beim Prüfen der Folgeergebnisse: ' + error.message);
+    }
+}
+
+function resultText(match) {
+    const winner = match.opponent1?.result === 'win' ? match.opponent1 : match.opponent2?.result === 'win' ? match.opponent2 : null;
+    if (!winner) return 'läuft';
+    const forfeit = match.opponent1?.forfeit || match.opponent2?.forfeit;
+    return `Sieger ${escapeHtml(getParticipantName(winner.id))}${forfeit ? ' (kampflos)' : ''}`;
+}
+
+function renderCorrection() {
+    const panel = document.getElementById('correctionPanel');
+    if (!pendingCorrection) {
+        panel.style.display = 'none';
+        panel.innerHTML = '';
+        return;
+    }
+    const { match, winnerNum, preview } = pendingCorrection;
+    const name = side => escapeHtml(getParticipantName(match[`opponent${side}`]?.id));
+    const following = preview.following;
+
+    panel.innerHTML = `
+        <h3>${icon('edit')}Ergebnis korrigieren</h3>
+        <p class="correction-match">${escapeHtml(preview.label)}: ${name(1)} vs ${name(2)}</p>
+        <div class="correction-change">
+            <span class="correction-old">Bisher: <strong>${name(winnerNum === 1 ? 2 : 1)}</strong> gewinnt</span>
+            <span class="correction-arrow">→</span>
+            <span class="correction-new">Neu: <strong>${name(winnerNum)}</strong> gewinnt</span>
+        </div>
+        ${following.length ? `
+            <p class="field-hint is-warning">${following.length === 1 ? 'Ein Folgeergebnis hängt' : `${following.length} Folgeergebnisse hängen`} von diesem Match ab. Beim Übernehmen werden sie zurückgesetzt und müssen neu eingetragen werden:</p>
+            <ul class="correction-list">
+                ${following.map(f => `
+                    <li><span class="correction-label">${escapeHtml(f.label)}</span>${escapeHtml(getParticipantName(f.opponent1?.id))} vs ${escapeHtml(getParticipantName(f.opponent2?.id))} — ${resultText(f)}</li>
+                `).join('')}
+            </ul>
+        ` : '<p class="field-hint">Keine Folgeergebnisse betroffen.</p>'}
+        <p class="field-hint">Das Bracket zeigt noch den aktuellen Stand: orange das geänderte Match, gelb gestrichelt die betroffenen Folge-Matches. Erst „Änderung übernehmen“ ändert etwas.</p>
+        <div class="form-actions form-actions-end">
+            <button type="button" class="btn btn-ghost btn-sm" onclick="cancelCorrection()">Abbrechen</button>
+            <button type="button" class="btn btn-primary btn-sm" onclick="applyCorrection()">${icon('edit')}<span>Änderung übernehmen</span></button>
+        </div>
+    `;
+    panel.style.display = '';
+}
+
+function highlightCorrection() {
+    for (const el of document.querySelectorAll('.brackets-viewer .is-correction-target, .brackets-viewer .is-correction-affected')) {
+        el.classList.remove('is-correction-target', 'is-correction-affected');
+    }
+    if (!pendingCorrection) return;
+    const mark = (id, className) => document.querySelector(`.brackets-viewer .match[data-match-id="${Number(id)}"]`)?.classList.add(className);
+    mark(pendingCorrection.match.id, 'is-correction-target');
+    for (const f of pendingCorrection.preview.following) mark(f.id, 'is-correction-affected');
+}
+
+function cancelCorrection() {
+    pendingCorrection = null;
+    renderCorrection();
+    highlightCorrection();
+}
+
+async function applyCorrection() {
+    if (!pendingCorrection) return;
+    const { match, winnerNum } = pendingCorrection;
+    await updateMatchQuick(match.id, winnerNum === 1, true);
 }
 
 function closeWinnerModal() {
@@ -971,39 +1079,27 @@ function closeWinnerModal() {
     currentMatchForWinner = null;
 }
 
-async function updateMatchQuick(matchId, opponent1Wins) {
-    const opponent1 = {
-        result: opponent1Wins ? 'win' : 'loss'
-    };
-    
-    const opponent2 = {
-        result: opponent1Wins ? 'loss' : 'win'
-    };
+// resetFollowing: correction confirmed, the server may reset the following results
+async function updateMatchQuick(matchId, opponent1Wins, resetFollowing = false) {
+    const opponent1 = { result: opponent1Wins ? 'win' : 'loss' };
+    const opponent2 = { result: opponent1Wins ? 'loss' : 'win' };
 
     try {
-        const response = await fetch(`${API_URL}/matches/${matchId}`, {
+        const updated = await apiFetch(`/matches/${matchId}`, {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ opponent1, opponent2 })
+            body: JSON.stringify({ opponent1, opponent2, resetFollowing })
         });
+        pendingCorrection = null;
 
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Failed to update match');
-        }
-
-        // Reload matches and re-render bracket
+        // Reload matches and re-render the bracket (keeping the scroll position)
         await loadMatches();
-        
-        // Find the stage ID from the current bracket and re-render
-        const bracketSection = document.getElementById('bracketViewerSection');
-        if (bracketSection.style.display !== 'none') {
-            // Get stage ID from the first match in the current view
-            const match = matches.find(m => m.id === matchId);
-            if (match) {
-                await viewBracket(match.stage_id, true); // Preserve scroll position
-            }
+        const stageId = updated?.stage_id ?? matches.find(m => m.id === matchId)?.stage_id;
+        if (document.getElementById('bracketViewerSection').style.display !== 'none' && stageId != null) {
+            await viewBracket(stageId, true);
+        } else {
+            renderCorrection();
         }
+        await refreshOpenRankings(); // placements and points may have changed
     } catch (error) {
         alert('❌ Fehler beim Aktualisieren: ' + error.message);
         console.error('Error updating match:', error);

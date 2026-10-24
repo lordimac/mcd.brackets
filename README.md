@@ -2,7 +2,7 @@
 
 Ein vollständiges Turnierverwaltungssystem mit Event-basiertem Meisterschafts-Punktesystem, entwickelt mit [brackets-manager](https://www.npmjs.com/package/brackets-manager).
 
-**Version:** 0.21.0-beta
+**Version:** 0.22.0-beta
 
 ---
 
@@ -250,6 +250,7 @@ Die Zugangsdaten gelten für alle Events und liegen in der Datenbank (`db.json`,
 
 ### Bracket anzeigen & bearbeiten
 - **Gewinner auswählen**: Klick auf Match → Gewinner wählen
+- **Ergebnisse korrigieren**: Jedes Ergebnis lässt sich ändern, im Bracket per Klick oder in der Match-Liste über „Ergebnis ändern“. Hängen schon Folgeergebnisse davon ab (Winner- und Loser-Pfad bis zum Finale), zeigt eine Vorschau über dem Bracket alle betroffenen Matches. Im Bracket ist das geänderte Match orange markiert, die betroffenen Folge-Matches gelb gestrichelt. Das Bracket zeigt dabei noch den bisherigen Stand. Erst „Änderung übernehmen“ setzt die Folgeergebnisse zurück; sie müssen dann neu eingetragen werden. Nicht betroffene Matches behalten ihr Ergebnis, Gedenk-Matches werden wieder automatisch entschieden. Round-Robin-Ergebnisse lassen sich direkt ändern
 - **BYE-Matches**: Werden automatisch entschieden
 - **TBD-Matches**: Noch nicht spielbar, warte auf vorherige Matches
 
@@ -291,7 +292,8 @@ Ist `ADMIN_PASSWORD` gesetzt, sind alle Anfragen außer GET/HEAD (und `GET /api/
 | Method | Endpoint | Beschreibung |
 |--------|----------|--------------|
 | GET    | `/api/matches` | Alle Matches abrufen |
-| PUT    | `/api/matches/:id` | Match-Ergebnis aktualisieren |
+| PUT    | `/api/matches/:id` | Match-Ergebnis setzen/ändern: `{ opponent1, opponent2, resetFollowing? }`. Gibt es schon Folgeergebnisse, ist `resetFollowing: true` nötig (sonst `409`); sie werden dann zurückgesetzt |
+| GET    | `/api/matches/:id/following` | Vorschau einer Korrektur: `{ label, following: [{ id, label, opponent1, opponent2 }] }`, die gespielten Matches, die von diesem Ergebnis abhängen |
 
 ### Participants
 | Method | Endpoint | Beschreibung |

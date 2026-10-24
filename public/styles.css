@@ -1656,6 +1656,82 @@ textarea {
     }
 }
 
+/* Correcting a result (above the bracket) */
+.correction-panel {
+    margin-bottom: 1.25rem;
+    padding: 1rem 1.1rem;
+    background: var(--surface-2);
+    border: 1px solid var(--border-color);
+    border-left: 3px solid var(--primary-color);
+    border-radius: var(--radius);
+}
+
+.correction-panel h3 {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0 0 0.25rem;
+    font-family: var(--font-display);
+    font-size: 1.05rem;
+}
+
+.correction-panel h3 .icon {
+    color: var(--primary-color);
+}
+
+.correction-match {
+    margin: 0 0 0.75rem;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+.correction-change {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 0.75rem;
+}
+
+.correction-change > span {
+    padding: 0.35rem 0.6rem;
+    border-radius: var(--radius-sm);
+    background: var(--surface-3);
+}
+
+.correction-change .correction-new {
+    background: var(--primary-soft);
+    color: var(--text-color);
+}
+
+.correction-change .correction-arrow {
+    background: none;
+    padding: 0;
+    color: var(--text-faint);
+}
+
+.correction-list {
+    margin: 0.4rem 0 0.75rem;
+    padding-left: 1.1rem;
+    font-size: 0.9rem;
+    columns: 2 420px;
+    column-gap: 2rem;
+}
+
+.correction-list li {
+    margin-bottom: 0.25rem;
+    break-inside: avoid;
+}
+
+.correction-label {
+    color: var(--text-secondary);
+    margin-right: 0.35rem;
+}
+
+.correction-panel .field-hint {
+    margin: 0 0 0.6rem;
+}
+
 /* Winner selection modal */
 .winner-modal {
     max-width: 640px;
@@ -2179,6 +2255,20 @@ textarea {
 .brackets-viewer .opponents:has(.participant.win) {
     border-color: rgba(34, 197, 94, 0.45);
 }
+
+/* Correcting a result: the corrected match and the ones whose results will be reset
+   (after the green edge above, which they override) */
+.brackets-viewer .match.is-correction-target .opponents {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(255, 69, 0, 0.35);
+}
+
+.brackets-viewer .match.is-correction-affected .opponents {
+    border-color: var(--warning-color);
+    border-style: dashed;
+    background: var(--warning-soft);
+}
+
 
 /* Popover */
 .brackets-viewer [popover] {

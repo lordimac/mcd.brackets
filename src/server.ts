@@ -17,7 +17,8 @@ import { OpnsenseError } from './opnsense';
 import { getStats, startUpdateChecks, updateFor } from './info';
 import { playerNamesForEvent, syncEventsFromStages } from './lan-store';
 import { isStageType, normalizeNames } from './seeding';
-import { createStage, deleteStage, findStage, pickSettings, resolveMemorialMatches } from './stages';
+import { createStage, deleteStage, findStage, pickSettings } from './stages';
+import { describeFollowing, updateMatchResult } from './results';
 import { getStandings } from './standings';
 
 const app = express();
@@ -217,17 +218,19 @@ app.post('/api/stages/:id/regenerate', async (req: Request<{ id: string }>, res:
   res.status(201).json(stage);
 });
 
-// Update match result
+// Played matches that depend on this match's result (shown before a correction resets them)
+app.get('/api/matches/:id/following', async (req: Request<{ id: string }>, res: Response) => {
+  res.json(await describeFollowing(parseInt(req.params.id)));
+});
+
+// Update match result. Correcting a match whose following matches already have results
+// needs resetFollowing: true; those results are reset and have to be entered again.
 app.put('/api/matches/:id', async (req: Request<{ id: string }>, res: Response) => {
-  const { opponent1, opponent2 } = req.body ?? {};
+  const { opponent1, opponent2, resetFollowing } = req.body ?? {};
   const matchId = parseInt(req.params.id);
 
-  const updatedMatch = await withLock(async () => {
-    await getManager().update.match({ id: matchId, opponent1, opponent2 });
-    const match = await getStorage().select('match', matchId);
-    if (match) await resolveMemorialMatches(match.stage_id); // next matches may be against a memorial entry
-    return getStorage().select('match', matchId);
-  });
+  const updatedMatch = await withLock(() => withRollback(() =>
+    updateMatchResult(matchId, { opponent1, opponent2, resetFollowing: resetFollowing === true })));
   res.json(updatedMatch ?? {});
 });
 
