@@ -2,7 +2,7 @@
 
 Ein vollständiges Turnierverwaltungssystem mit Event-basiertem Meisterschafts-Punktesystem, entwickelt mit [brackets-manager](https://www.npmjs.com/package/brackets-manager).
 
-**Version:** 0.20.0-beta
+**Version:** 0.20.1-beta
 
 ---
 
@@ -96,6 +96,9 @@ Platzierungsbasierte Punkte:
 - Ansehen (Brackets, Ranglisten, Teilnehmerliste, IP-Zettel, Exporte) bleibt ohne Anmeldung möglich; Bearbeiten-Elemente werden dann ausgeblendet
 - Anmeldung über „Anmelden“ oben rechts, gültig 7 Tage (signiertes HttpOnly-Cookie); ein neues Passwort beendet alle Sitzungen
 - Ohne `ADMIN_PASSWORD` darf jeder bearbeiten (wie bisher)
+- Nach 10 falschen Passwörtern innerhalb von 15 Minuten ist die Anmeldung für diese IP-Adresse vorübergehend gesperrt (`429`)
+- Änderungen werden nur von den Seiten der App selbst angenommen: Ein Browser auf einer fremden Seite (auch einer anderen App auf demselben Host) bekommt `403` (Schutz gegen CSRF)
+- Sicherheits-Header (Content-Security-Policy, kein Einbetten in Frames, `nosniff`); hinter einem HTTPS-Reverse-Proxy mit `TRUST_PROXY=true` bekommt das Sitzungs-Cookie das `Secure`-Flag
 - Einrichtung siehe [Admin-Passwort einrichten](#admin-passwort-einrichten)
 
 ### 🪑 Sitzplan
@@ -161,6 +164,8 @@ docker compose pull && docker compose up -d
 
 **Aus dem Quellcode bauen mit `npm run docker:rebuild`** (Image `mcd-brackets` + Container auf Port 3001, Daten in `./data`): Das Skript liest `.env`, sichert vor dem Neustart `data/db.json` als `data/db-before-rebuild-<zeit>.json` (die letzten 10 bleiben) und wartet, bis der Container healthy ist.
 
+**Update von Versionen vor 0.20.1:** Der Container läuft jetzt als Benutzer `node` (UID 1000) statt als root. Unter Linux gehört ein bestehendes `./data` danach evtl. noch root; dann einmalig `sudo chown -R 1000:1000 ./data` ausführen. Docker Desktop (macOS/Windows) braucht das nicht.
+
 **Ohne Compose:**
 ```bash
 docker pull ghcr.io/lordimac/mcd.brackets:latest
@@ -206,6 +211,7 @@ Umgebungsvariablen:
 | `PORT`     | `3000`   | HTTP-Port |
 | `DATA_DIR` | `./data` | Verzeichnis für `db.json` und Restore-Sicherungen |
 | `ADMIN_PASSWORD` | *(leer)* | Passwort zum Bearbeiten; leer = jeder darf bearbeiten. Für `docker compose` und `npm run docker:rebuild` in `.env` eintragen (`ADMIN_PASSWORD=…`, nicht im Git) |
+| `TRUST_PROXY` | *(aus)* | Hinter einem Reverse-Proxy auf `true` setzen (oder Anzahl der Proxys bzw. deren Adressen), damit Client-IP (Login-Sperre), HTTPS (`Secure`-Cookie) und Host aus den `X-Forwarded-*`-Headern kommen. Ohne Proxy aus lassen, sonst lassen sich die Header fälschen |
 | `UPDATE_CHECK` | `true` | Prüft beim Start und alle 6 Stunden auf GitHub, ob es eine neuere Version gibt (Hinweis im Footer). Ohne Internet passiert einfach nichts; `false` schaltet den Check ab |
 
 ---
@@ -262,7 +268,7 @@ Oben rechts in der Kopfleiste (nur angemeldet):
 
 ## REST API
 
-Ist `ADMIN_PASSWORD` gesetzt, sind alle Anfragen außer GET/HEAD (und `GET /api/backup`) nur mit Admin-Sitzung erlaubt, sonst `401`.
+Ist `ADMIN_PASSWORD` gesetzt, sind alle Anfragen außer GET/HEAD (und `GET /api/backup`) nur mit Admin-Sitzung erlaubt, sonst `401`. Ändernde Anfragen, die ein Browser von einer fremden Seite schickt (`Sec-Fetch-Site: cross-site`/`same-site` oder fremder `Origin`), werden mit `403` abgelehnt; Werkzeuge wie curl ohne diese Header sind nicht betroffen. JSON-Bodies dürfen höchstens 3 MB groß sein (`/api/restore`: 10 MB).
 
 ### Anmeldung
 | Method | Endpoint | Beschreibung |
@@ -354,7 +360,7 @@ Alle Endpunkte nur mit Admin-Sitzung (auch GET). Fehler der Firewall kommen als 
 
 ## Technologien
 
-**Backend:** Node.js 22+ (Docker: Node 24), Express 5, TypeScript 7  
+**Backend:** Node.js 24 LTS, Express 5, TypeScript 7  
 **Frontend:** Vanilla JavaScript, HTML5, CSS3  
 **Engine:** brackets-manager 1.11, brackets-json-db 1.0  
 **Visualisierung:** brackets-viewer.js 1.9  

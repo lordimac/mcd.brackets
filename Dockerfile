@@ -35,6 +35,10 @@ RUN npm ci --omit=dev
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/public ./public
 
+# Run as the unprivileged user "node" (uid 1000); it must own the data directory
+RUN mkdir -p /app/data && chown node:node /app/data
+USER node
+
 # Create volume for database
 VOLUME ["/app/data"]
 

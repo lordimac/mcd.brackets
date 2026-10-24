@@ -30,7 +30,7 @@ if ! docker buildx inspect "$BUILDER" >/dev/null 2>&1; then
 fi
 
 echo "▶ Building mcd-brackets:$VERSION"
-docker buildx build --builder "$BUILDER" --load \
+docker buildx build --builder "$BUILDER" --pull --load \
   -t mcd-brackets:latest -t "mcd-brackets:$VERSION" .
 
 echo "▶ Recreating container '$CONTAINER' on port $PORT (data: $DATA_DIR)"

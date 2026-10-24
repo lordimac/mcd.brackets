@@ -2,8 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { NextFunction, Request, Response } from 'express';
 import {
-  authRequired, createSessionToken, isAdmin, isValidSessionToken, passwordMatches,
-  requireAdminForChanges, SESSION_COOKIE,
+  authRequired, clearedSessionCookie, createSessionToken, isAdmin, isValidSessionToken, LOGIN_MAX_FAILURES, loginRetryAfter,
+  passwordMatches, recordLoginFailure, rejectCrossSite, requireAdminForChanges, resetLoginFailures, SESSION_COOKIE, sessionCookie,
 } from './auth';
 import { HttpError } from './http-error';
 
@@ -74,4 +74,53 @@ test('reads are public, changes and the backup need the session', () => {
     }
     assert.equal(guard(request('PUT', '/matches/3', createSessionToken())), undefined);
   });
+});
+
+test('a malformed session cookie counts as not logged in', () => {
+  withPassword('geheim', () => {
+    const req = { method: 'POST', path: '/stages', headers: { cookie: `${SESSION_COOKIE}=%` } } as unknown as Request;
+    assert.equal(isAdmin(req), false);
+  });
+});
+
+test('session cookies get Secure only via HTTPS', () => {
+  assert.ok(!sessionCookie('t').includes('Secure'));
+  assert.ok(sessionCookie('t', true).endsWith('; Secure'));
+  assert.ok(clearedSessionCookie(true).includes('Max-Age=0; Secure'));
+});
+
+test('login is blocked after too many wrong passwords per IP', () => {
+  const ip = '192.0.2.10';
+  const start = 1_000_000;
+  for (let i = 0; i < LOGIN_MAX_FAILURES; i++) {
+    assert.equal(loginRetryAfter(ip, start + i), 0);
+    recordLoginFailure(ip, start + i);
+  }
+  assert.equal(loginRetryAfter(ip, start + 60_000), 15 * 60 - 60);
+  assert.equal(loginRetryAfter('192.0.2.11', start), 0, 'other IPs are not affected');
+  // The window slides: once the oldest failure is 15 min old, one more attempt is allowed
+  assert.equal(loginRetryAfter(ip, start + 15 * 60 * 1000 + 1), 0);
+
+  for (let i = 0; i < LOGIN_MAX_FAILURES; i++) recordLoginFailure(ip, start);
+  resetLoginFailures(ip); // successful login
+  assert.equal(loginRetryAfter(ip, start), 0);
+});
+
+// Runs the CSRF check and returns the error it passed on (or undefined)
+function crossSite(method: string, headers: Record<string, string | undefined>): unknown {
+  const req = { method, path: '/rooms/1/clear', headers: { host: 'lan.example:3001', ...headers }, host: 'lan.example:3001' } as unknown as Request;
+  let passed: unknown = 'not called';
+  rejectCrossSite(req, {} as Response, ((error?: unknown) => { passed = error; }) as NextFunction);
+  return passed;
+}
+
+test('changes from foreign pages are rejected (CSRF)', () => {
+  for (const headers of [{ 'sec-fetch-site': 'cross-site' }, { 'sec-fetch-site': 'same-site' }, { origin: 'http://lan.example:3000' }, { origin: 'null' }]) {
+    const error = crossSite('POST', headers);
+    assert.ok(error instanceof HttpError && error.status === 403, JSON.stringify(headers));
+  }
+  for (const headers of [{ 'sec-fetch-site': 'same-origin' }, { 'sec-fetch-site': 'none' }, {}, { origin: 'http://lan.example:3001' }]) {
+    assert.equal(crossSite('POST', headers), undefined, JSON.stringify(headers));
+  }
+  assert.equal(crossSite('GET', { 'sec-fetch-site': 'cross-site' }), undefined, 'reads stay possible');
 });

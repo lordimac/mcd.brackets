@@ -1,6 +1,6 @@
 {
   "name": "mcd-brackets",
-  "version": "0.20.0-beta",
+  "version": "0.20.1-beta",
   "description": "Tournament bracket management system using brackets-manager",
   "main": "dist/server.js",
   "scripts": {
@@ -34,20 +34,18 @@
   "author": "",
   "license": "ISC",
   "engines": {
-    "node": ">=22"
+    "node": ">=24"
   },
   "dependencies": {
     "@fontsource/chakra-petch": "^5.3.0",
     "brackets-json-db": "^1.0.3",
     "brackets-manager": "^1.11.1",
     "brackets-viewer": "^1.9.1",
-    "cors": "^2.8.6",
     "express": "^5.3.0",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.1"
   },
   "devDependencies": {
-    "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "^24.19.2",
     "brackets-model": "^1.7.0",

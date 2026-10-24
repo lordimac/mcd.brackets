@@ -1,9 +1,11 @@
 import express, { ErrorRequestHandler, Request, Response } from 'express';
-import cors from 'cors';
 import path from 'path';
 import fs from 'fs';
 import { APP_TABLES, dataDir, dbPath, ensureAppTables, getManager, getStorage, replaceDatabase, withLock, withRollback } from './db';
-import { authRequired, clearedSessionCookie, createSessionToken, isAdmin, passwordMatches, requireAdminForChanges, sessionCookie } from './auth';
+import {
+  authRequired, clearedSessionCookie, createSessionToken, isAdmin, loginRetryAfter, passwordMatches, recordLoginFailure,
+  rejectCrossSite, requireAdminForChanges, resetLoginFailures, sessionCookie,
+} from './auth';
 import { HttpError } from './http-error';
 import { ValidationError } from './lan';
 import { lanRouter } from './lan-routes';
@@ -30,9 +32,40 @@ const version: string = packageJson.version;
 const REPO_URL: string = String(packageJson.repository?.url ?? '').replace(/^git\+/, '').replace(/\.git$/, '');
 const BUILD_ID = `${version}-${Date.now().toString(36)}`;
 
-// Middleware
-app.use(cors());
-app.use(express.json({ limit: '10mb' }));
+app.disable('x-powered-by');
+
+// Behind a reverse proxy: TRUST_PROXY=true (or hop count / proxy addresses), so req.ip,
+// req.secure and req.host come from the X-Forwarded-* headers
+function trustProxySetting(value: string | undefined): boolean | number | string {
+  if (!value || value === 'false') return false;
+  if (value === 'true') return true;
+  return /^\d+$/.test(value) ? Number(value) : value;
+}
+app.set('trust proxy', trustProxySetting(process.env.TRUST_PROXY));
+
+// Security headers. 'unsafe-inline' is needed for the onclick handlers and style attributes;
+// everything else may only come from this server, and the app must not be framed (click-to-win).
+const CONTENT_SECURITY_POLICY = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob:",
+  "font-src 'self'",
+  "connect-src 'self'",
+  "object-src 'none'",
+  "base-uri 'none'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+].join('; ');
+
+app.use((_req: Request, res: Response, next) => {
+  res.setHeader('Content-Security-Policy', CONTENT_SECURITY_POLICY);
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'same-origin');
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+  next();
+});
 
 app.get(['/', '/index.html'], (_req: Request, res: Response) => {
   const html = fs.readFileSync(path.join(publicDir, 'index.html'), 'utf-8')
@@ -47,8 +80,13 @@ app.use(express.static(publicDir, { etag: true, lastModified: true, setHeaders: 
 
 // API Routes
 
-// Admin login (ADMIN_PASSWORD): reads stay public, changes need the session cookie
+// Changes only from the app's own pages (CSRF), and only with the admin session (ADMIN_PASSWORD).
+// Both run before the body parser, so nobody can make the server parse large bodies without login.
+app.use('/api', rejectCrossSite);
 app.use('/api', requireAdminForChanges);
+// A restore carries the whole database; everything else is small (the event logo is up to 2 MB)
+app.use('/api/restore', express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '3mb' }));
 
 app.get('/api/auth', (req: Request, res: Response) => {
   res.json({ required: authRequired(), admin: isAdmin(req) });
@@ -59,16 +97,24 @@ app.post('/api/login', async (req: Request, res: Response) => {
     res.json({ required: false, admin: true });
     return;
   }
+  const ip = req.ip ?? '';
+  const retryAfter = loginRetryAfter(ip);
+  if (retryAfter > 0) {
+    res.setHeader('Retry-After', String(retryAfter));
+    throw new HttpError(429, `Zu viele Fehlversuche — bitte in ${Math.ceil(retryAfter / 60)} Minute(n) erneut versuchen`);
+  }
   if (!passwordMatches(req.body?.password)) {
+    recordLoginFailure(ip);
     await new Promise(resolve => setTimeout(resolve, 800)); // slows down guessing
     throw new HttpError(401, 'Falsches Passwort');
   }
-  res.setHeader('Set-Cookie', sessionCookie(createSessionToken()));
+  resetLoginFailures(ip);
+  res.setHeader('Set-Cookie', sessionCookie(createSessionToken(), req.secure));
   res.json({ required: true, admin: true });
 });
 
-app.post('/api/logout', (_req: Request, res: Response) => {
-  res.setHeader('Set-Cookie', clearedSessionCookie);
+app.post('/api/logout', (req: Request, res: Response) => {
+  res.setHeader('Set-Cookie', clearedSessionCookie(req.secure));
   res.json({ required: authRequired(), admin: !authRequired() });
 });
 
@@ -277,9 +323,18 @@ app.get('/api/info', async (_req: Request, res: Response) => {
 // JSON errors for all routes (Express 5 forwards rejected promises here)
 const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
   // OpnsenseError: the firewall failed or is unreachable → 502 with a readable message
-  const status = error instanceof HttpError ? error.status : error instanceof ValidationError ? 400 : error instanceof OpnsenseError ? 502 : 500;
+  // Client errors of Express/body-parser (invalid JSON, body too large) carry their own 4xx status
+  const clientStatus = Number(error?.status ?? error?.statusCode);
+  const status = error instanceof HttpError ? error.status
+    : error instanceof ValidationError ? 400
+    : error instanceof OpnsenseError ? 502
+    : clientStatus >= 400 && clientStatus < 500 ? clientStatus
+    : 500;
   if (status === 500) console.error(error);
-  res.status(status).json({ error: error.message || 'Internal server error' });
+  // Node system errors (ENOENT, EACCES, …) contain file paths → don't show them;
+  // other messages (e.g. from brackets-manager) are shown in the app
+  const hidden = status === 500 && (typeof error?.code === 'string' || !error?.message);
+  res.status(status).json({ error: hidden ? 'Interner Serverfehler' : error.message });
 };
 app.use(errorHandler);
 
