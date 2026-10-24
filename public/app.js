@@ -586,6 +586,25 @@ async function resetBracket(stageId) {
     }
 }
 
+// Delete a tournament; the server removes its participants and matches as well
+async function deleteStage(stageId) {
+    const stage = stages.find(s => s.id === stageId);
+    if (!confirm(`Turnier „${stage?.name ?? stageId}“ mit allen Ergebnissen löschen?`)) return;
+
+    try {
+        await apiFetch(`/stages/${stageId}`, { method: 'DELETE' });
+        // Bracket or rankings on screen may belong to the deleted tournament
+        closeBracketViewer();
+        closeRankings();
+        await loadParticipants();
+        await loadStages();
+        await loadMatches();
+    } catch (error) {
+        alert('❌ Fehler beim Löschen: ' + error.message);
+        console.error('Error deleting stage:', error);
+    }
+}
+
 
 // View stage matches
 function viewStageMatches(stageId) {
@@ -846,6 +865,12 @@ function showQuickWinnerSelection(match) {
     
     // Show modal
     document.getElementById('winnerModal').classList.add('show');
+}
+
+// "Ergebnis eingeben" in the match list (outside the bracket viewer)
+function showQuickWinnerSelectionById(matchId) {
+    const match = matches.find(m => m.id === matchId);
+    if (match) showQuickWinnerSelection(match);
 }
 
 function selectWinner(winnerNum) {
