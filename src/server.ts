@@ -11,6 +11,7 @@ import { ValidationError } from './lan';
 import { lanRouter } from './lan-routes';
 import { opnsenseRouter } from './opnsense-routes';
 import { seatingRouter } from './seating-routes';
+import { loadPoints, pointsRouter } from './points-routes';
 import { migrateRooms } from './seating-store';
 import { OpnsenseError } from './opnsense';
 import { getStats, startUpdateChecks, updateFor } from './info';
@@ -122,6 +123,7 @@ app.post('/api/logout', (req: Request, res: Response) => {
 app.use('/api', lanRouter);
 app.use('/api', opnsenseRouter);
 app.use('/api', seatingRouter);
+app.use('/api', pointsRouter);
 
 // Get all tournaments (stages)
 app.get('/api/stages', async (_req: Request, res: Response) => {
@@ -274,7 +276,8 @@ app.get('/api/viewer-data/:stageId', async (req: Request<{ stageId: string }>, r
 
 // Get final standings/placements incl. championship points for a stage
 app.get('/api/standings/:stageId', async (req: Request<{ stageId: string }>, res: Response) => {
-  const standings = await getStandings(getStorage(), getManager(), parseInt(req.params.stageId));
+  // Points come from the current settings, so changing them recalculates every tournament
+  const standings = await getStandings(getStorage(), getManager(), parseInt(req.params.stageId), await loadPoints());
   if (!standings) throw new HttpError(404, 'Stage not found');
   res.json(standings);
 });

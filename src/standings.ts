@@ -1,12 +1,6 @@
 import type { BracketsManager } from 'brackets-manager';
 import type { CrudInterface, Group, Id, Match, Participant, Round, Stage } from 'brackets-model';
-
-// Championship points by placement (index 0 = 1st place); everyone below gets 1 point
-export const POINTS_SYSTEM = [30, 22, 16, 12, 9, 7, 5, 3, 2, 2, 2, 2, 1, 1, 1, 1];
-
-export function pointsForPlacement(placement: number): number {
-  return POINTS_SYSTEM[placement - 1] ?? 1;
-}
+import { DEFAULT_POINTS, pointsForPlacement, type PointsConfig } from './points';
 
 export interface Standing {
   placement: number;
@@ -32,7 +26,9 @@ interface EliminationStats extends RankedParticipant {
   wonFinalMatch: boolean;
 }
 
-export async function getStandings(storage: CrudInterface, manager: BracketsManager, stageId: Id): Promise<Standing[] | null> {
+export async function getStandings(
+  storage: CrudInterface, manager: BracketsManager, stageId: Id, pointsConfig: PointsConfig = DEFAULT_POINTS,
+): Promise<Standing[] | null> {
   const stage = await storage.select('stage', stageId);
   if (!stage) return null;
 
@@ -58,7 +54,7 @@ export async function getStandings(storage: CrudInterface, manager: BracketsMana
     wins: p.wins,
     losses: p.losses,
     pending: countPending(matches, p.id),
-    points: pointsForPlacement(index + 1),
+    points: pointsForPlacement(index + 1, pointsConfig),
   }));
 }
 

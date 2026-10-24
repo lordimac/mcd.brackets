@@ -46,6 +46,7 @@ async function loadAuth() {
     document.body.classList.toggle('read-only', !auth.admin);
     document.getElementById('loginButton').style.display = auth.required && !auth.admin ? '' : 'none';
     document.getElementById('logoutButton').style.display = auth.required && auth.admin ? '' : 'none';
+    renderPoints(); // fields are editable only for admins
 }
 
 function openLoginModal() {
@@ -124,6 +125,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     restoreSections();
     await loadAuth();
     showView();
+    await loadPoints();
     await loadEvents();
     await loadStages();
     await loadParticipants();
@@ -133,6 +135,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 function setupEventListeners() {
     document.getElementById('createTournamentForm').addEventListener('submit', createTournament);
     document.getElementById('loginForm').addEventListener('submit', login);
+    document.getElementById('pointsForm').addEventListener('submit', savePoints);
+    document.getElementById('pointsGrid').addEventListener('input', markChangedPoints);
     document.getElementById('eventName').addEventListener('change', updateEventPlayersHint);
     window.addEventListener('hashchange', showView);
 }
@@ -223,7 +227,7 @@ function updateBrandLogo() {
 }
 
 // Collapsible cards; the open/closed state is remembered per browser
-const COLLAPSIBLE_SECTIONS = ['createTournamentSection', 'eventConfigSection', 'roomConfigSection'];
+const COLLAPSIBLE_SECTIONS = ['createTournamentSection', 'pointsSection', 'eventConfigSection', 'roomConfigSection'];
 
 function toggleSection(sectionId, open) {
     const section = document.getElementById(sectionId);
@@ -683,6 +687,87 @@ function closeBracketViewer() {
     document.getElementById('bracketViewerSection').style.display = 'none';
 }
 
+/* Punktesystem: global championship points for 1st–10th place and "ab Platz 11".
+   The server calculates the points on every standings request, so after saving
+   only the rankings on screen have to be loaded again. */
+
+let pointsConfig = null; // { places: [10], rest, defaults: { places, rest } }
+
+async function loadPoints() {
+    try {
+        pointsConfig = await apiFetch('/points');
+    } catch (error) {
+        console.error('Error loading points:', error);
+    }
+    renderPoints();
+}
+
+// Fields: label, input id, current and default value
+function pointsFields(config) {
+    return [
+        ...config.places.map((value, i) => ({ label: `Platz ${i + 1}`, id: `points-${i}`, value, def: config.defaults.places[i] })),
+        { label: `ab Platz ${config.places.length + 1}`, id: 'points-rest', value: config.rest, def: config.defaults.rest }
+    ];
+}
+
+function renderPoints() {
+    const grid = document.getElementById('pointsGrid');
+    if (!grid || !pointsConfig) return;
+    grid.innerHTML = pointsFields(pointsConfig).map(f => `
+        <div class="form-group" data-default="${f.def}">
+            <label for="${f.id}">${f.label}</label>
+            <input type="number" id="${f.id}" min="0" max="1000" step="1" required value="${f.value}" ${isAdmin ? '' : 'disabled'}>
+            <div class="points-default">Standard: ${f.def}</div>
+        </div>
+    `).join('');
+    markChangedPoints();
+}
+
+// Highlights fields that differ from the default
+function markChangedPoints() {
+    for (const group of document.querySelectorAll('#pointsGrid .form-group')) {
+        const input = group.querySelector('input');
+        group.classList.toggle('is-changed', input.value !== '' && Number(input.value) !== Number(group.dataset.default));
+    }
+}
+
+function resetPointsToDefault() {
+    if (!pointsConfig) return;
+    for (const f of pointsFields(pointsConfig)) document.getElementById(f.id).value = f.def;
+    markChangedPoints();
+}
+
+async function savePoints(e) {
+    e.preventDefault();
+    const value = id => document.getElementById(id).value;
+    const places = pointsConfig.places.map((_, i) => value(`points-${i}`));
+    try {
+        pointsConfig = await apiFetch('/points', {
+            method: 'PUT',
+            body: JSON.stringify({ places, rest: value('points-rest') })
+        });
+        renderPoints();
+        await refreshOpenRankings();
+        alert('✅ Punkte gespeichert. Alle Ranglisten werden mit den neuen Werten berechnet.');
+    } catch (error) {
+        alert('❌ Fehler beim Speichern: ' + error.message);
+    }
+}
+
+// The rankings on screen (single tournament or event) are loaded again with the new points
+let reloadRankings = null;
+let rankingsRefreshing = false;
+
+async function refreshOpenRankings() {
+    if (!reloadRankings || document.getElementById('rankingsSection').style.display === 'none') return;
+    rankingsRefreshing = true;
+    try {
+        await reloadRankings();
+    } finally {
+        rankingsRefreshing = false;
+    }
+}
+
 // Fetch placements incl. championship points from the server
 async function fetchStandings(stageId) {
     const response = await fetch(`${API_URL}/standings/${stageId}`);
@@ -739,7 +824,7 @@ function showRankings(title, rankings, showTournaments = false) {
         `;
     }
 
-    section.scrollIntoView({ behavior: 'smooth' });
+    if (!rankingsRefreshing) section.scrollIntoView({ behavior: 'smooth' });
 }
 
 // View rankings
@@ -762,6 +847,7 @@ async function viewRankings(stageId) {
 
         const title = stage.event_name ? `${stage.event_name} · ${stage.name}` : stage.name;
         showRankings(title, rankings);
+        reloadRankings = () => viewRankings(stageId);
     } catch (error) {
         alert('❌ Fehler beim Laden der Rangliste: ' + error.message);
         console.error('Error loading rankings:', error);
@@ -820,6 +906,7 @@ async function viewEventRankings(eventName) {
         });
 
         showRankings(`${eventName} · Gesamtwertung`, rankings, true);
+        reloadRankings = () => viewEventRankings(eventName);
     } catch (error) {
         alert('❌ Fehler beim Laden der Event-Rangliste: ' + error.message);
         console.error('Error loading event rankings:', error);

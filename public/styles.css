@@ -333,6 +333,42 @@ body {
     min-height: 40px;
 }
 
+/* Punktesystem: 10 places + "ab Platz 11", default value below each field */
+.points-intro {
+    margin: 0 0 1rem;
+}
+
+.points-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.points-grid .form-group {
+    margin-bottom: 0;
+}
+
+.points-grid input[type="number"] {
+    font-family: var(--font-display);
+    font-weight: 600;
+}
+
+/* Value differs from the default */
+.points-grid .is-changed input {
+    border-color: var(--view-color);
+}
+
+.points-grid .points-default {
+    margin-top: 0.3rem;
+    font-size: 0.75rem;
+    color: var(--text-faint);
+}
+
+.points-grid .is-changed .points-default {
+    color: var(--text-secondary);
+}
+
 /* Attendee view: event picker + configuration toggle */
 .section-header.event-bar {
     flex-wrap: wrap;

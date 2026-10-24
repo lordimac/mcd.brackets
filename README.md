@@ -2,7 +2,7 @@
 
 Ein vollständiges Turnierverwaltungssystem mit Event-basiertem Meisterschafts-Punktesystem, entwickelt mit [brackets-manager](https://www.npmjs.com/package/brackets-manager).
 
-**Version:** 0.20.2-beta
+**Version:** 0.21.0-beta
 
 ---
 
@@ -58,7 +58,9 @@ Ein vollständiges Turnierverwaltungssystem mit Event-basiertem Meisterschafts-P
 - **Automatische Spieler** — Turniere nehmen alle Teilnehmer ihres Events (per Nickname); „Neu auslosen“ übernimmt neu hinzugekommene
 
 ### 🏅 Punktesystem & Rankings
-Platzierungsbasierte Punkte:
+Platzierungsbasierte Punkte, gleich für alle Turniere. Unter „Turniere“ › „Punktesystem“ lassen sich die Punkte für Platz 1–10 und „ab Platz 11“ anpassen (nur Admin). Unter jedem Feld steht der Standardwert, „Standardwerte eintragen“ setzt alle zurück. Die Punkte werden bei jedem Abruf einer Rangliste aus der Platzierung berechnet. Eine Änderung gilt deshalb sofort für alle Turniere, auch für laufende und abgeschlossene.
+
+Standardwerte:
 
 | Platz | Punkte |
 |-------|--------|
@@ -70,8 +72,8 @@ Platzierungsbasierte Punkte:
 | 6     | 7      |
 | 7     | 5      |
 | 8     | 3      |
-| 9–12  | 2      |
-| 13+   | 1      |
+| 9–10  | 2      |
+| 11+   | 1      |
 
 - **Korrekte Double Elimination Platzierung** — Basierend auf erreichter Bracket-Runde
 - **Event-Meisterschaft** — Gesamtpunkte über alle Turniere eines Events
@@ -302,6 +304,8 @@ Ist `ADMIN_PASSWORD` gesetzt, sind alle Anfragen außer GET/HEAD (und `GET /api/
 |--------|----------|--------------|
 | GET    | `/api/viewer-data/:stageId` | Turnierdaten für Bracket-Viewer |
 | GET    | `/api/standings/:stageId` | Platzierungen inkl. Punkten: `{ placement, participant_id, participant_name, wins, losses, pending, points }` |
+| GET    | `/api/points` | Punktesystem: `{ places: [10 Werte für Platz 1–10], rest, defaults: { places, rest } }` |
+| PUT    | `/api/points` | Punktesystem speichern: `{ places: [10 ganze Zahlen 0–1000], rest }` |
 
 ### Events & Teilnehmer
 | Method | Endpoint | Beschreibung |
@@ -418,7 +422,8 @@ mcd.brackets/
 │   ├── seating.ts      # Sitzplan: Tischgruppen, Geometrie, Bausteine, Nummerierung (reine Logik)
 │   ├── seating-store.ts # Räume & Platzvergabe in der Datenbank
 │   ├── seating-routes.ts # REST-Routen für den Sitzplan
-│   ├── standings.ts    # Platzierungen + Punktesystem
+│   ├── standings.ts    # Platzierungen + Punkte
+│   ├── points.ts       # Punktesystem (Standardwerte, Prüfung), points-routes.ts: /api/points
 │   ├── seeding.ts      # Auslosung + BYEs
 │   └── *.test.ts       # Tests (npm test)
 ├── public/

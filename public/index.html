@@ -118,6 +118,28 @@
                 </div>
             </section>
 
+            <!-- Championship points (collapsible, global for all tournaments) -->
+            <section class="card">
+                <div class="section-header collapsible-header" onclick="toggleSection('pointsSection')">
+                    <h2><svg class="icon icon-accent"><use href="#i-chart"/></svg>Punktesystem</h2>
+                    <span class="collapse-icon" id="pointsIcon"><svg class="icon"><use href="#i-chevron"/></svg></span>
+                </div>
+                <div id="pointsSection" class="collapsible-content" style="display: none;">
+                    <p class="field-hint points-intro">Meisterschaftspunkte je Platzierung, gleich für alle Turniere. Änderungen gelten sofort für alle Ranglisten — auch laufende und abgeschlossene Turniere werden neu berechnet.</p>
+                    <form id="pointsForm">
+                        <div class="points-grid" id="pointsGrid"></div>
+                        <div class="form-actions admin-only">
+                            <button type="button" class="btn btn-ghost btn-sm" id="pointsResetBtn" onclick="resetPointsToDefault()">
+                                <svg class="icon"><use href="#i-refresh"/></svg><span>Standardwerte eintragen</span>
+                            </button>
+                            <button type="submit" class="btn btn-primary btn-sm">
+                                <svg class="icon"><use href="#i-settings"/></svg><span>Punkte speichern</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+
             <!-- Events List Section -->
             <section class="card">
                 <div class="section-header">

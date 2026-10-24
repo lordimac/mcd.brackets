@@ -6,7 +6,7 @@ import path from 'path';
 import { BracketsManager } from 'brackets-manager';
 import { JsonDatabase } from 'brackets-json-db';
 import { Status, type CrudInterface, type InputStage } from 'brackets-model';
-import { getStandings, pointsForPlacement } from './standings';
+import { getStandings } from './standings';
 
 function setup() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mcd-brackets-test-'));
@@ -43,12 +43,17 @@ async function playedStandings(stage: Omit<InputStage, 'tournamentId' | 'name'>)
 
 const names = (standings: { participant_name: string }[]) => standings.map(s => s.participant_name);
 
-test('pointsForPlacement follows the points table and gives 1 point below 16th', () => {
-  assert.equal(pointsForPlacement(1), 30);
-  assert.equal(pointsForPlacement(2), 22);
-  assert.equal(pointsForPlacement(9), 2);
-  assert.equal(pointsForPlacement(16), 1);
-  assert.equal(pointsForPlacement(40), 1);
+test('standings use the given points settings (changing them recalculates finished tournaments)', async () => {
+  const { storage, manager } = setup();
+  const created = await manager.create.stage({ tournamentId: 1, name: 'Test', type: 'single_elimination', seeding: ['A', 'B', 'C', 'D'] });
+  await playAll(storage, manager, Number(created.id));
+
+  const byDefault = await getStandings(storage, manager, created.id);
+  assert.deepEqual(byDefault!.map(s => s.points), [30, 22, 16, 12]);
+
+  const custom = { places: [100, 50, 25, 10, 9, 8, 7, 6, 5, 4], rest: 0 };
+  const recalculated = await getStandings(storage, manager, created.id, custom);
+  assert.deepEqual(recalculated!.map(s => s.points), [100, 50, 25, 10]);
 });
 
 test('double elimination with simple grand final', async () => {

@@ -64,12 +64,12 @@ npm run docker:rebuild # Image bauen + Container mcd-brackets neu erstellen (Por
 
 ## Domänenlogik
 
-- **Punktesystem** nur in `src/standings.ts` (`POINTS_SYSTEM`, Platz 1–16, danach 1 Punkt). Bei Änderungen die README-Tabelle mitpflegen.
+- **Punktesystem** global, anpassbar: `src/points.ts` (`DEFAULT_POINTS` = Platz 1–10 + `rest` für ab Platz 11, `validatePoints`, `pointsFromRecord` → bei kaputtem Datensatz die Standardwerte), gespeichert als ein Datensatz in Tabelle `points` (fehlt = Standard), `GET/PUT /api/points` in `points-routes.ts` (`loadPoints()`). `getStandings(…, pointsConfig)` rechnet die Punkte bei jedem Abruf aus der Platzierung, deshalb wirkt eine Änderung sofort auf alle Turniere, nichts wird gespeichert oder migriert. Frontend: Karte „Punktesystem“ in `#turniere` (`renderPoints`, Standardwert unter jedem Feld, `is-changed`), nach dem Speichern lädt `refreshOpenRankings()` eine offene Rangliste neu. Bei geänderten Standardwerten die README-Tabelle mitpflegen.
 - **Event-Rankings** aggregiert der Browser: alle Stages mit gleichem `event_name` → je `/api/standings` → `points` pro Teilnehmername summieren.
 - `event_name` ist ein **eigenes Feld** an der Stage (nicht Teil von brackets-manager) und wird nach `manager.create.stage` per `storage.update` ergänzt.
 - Ein Turnier = eine Stage; Participants hängen per `tournament_id` daran. Die Turnier-ID vergibt der Server (`max+1` im Lock). Stage-IDs werden von brackets-manager nach dem Löschen wiederverwendet.
 - Round Robin braucht `groupCount`; `createStage()` setzt standardmäßig 1.
-- Datenmodell `db.json`: `participant`, `stage`, `group`, `round`, `match`, `match_game`.
+- Datenmodell `db.json`: `participant`, `stage`, `group`, `round`, `match`, `match_game` (brackets-manager) plus `event`, `attendee`, `opnsense`, `room`, `points` (`APP_TABLES`).
 
 ## Konventionen
 
