@@ -469,15 +469,12 @@ export async function migrateMemorialStages(): Promise<string[]> {
   return changed;
 }
 
-// Switches the match for 3rd place of a single elimination tournament on or off. brackets-manager
-// can't add it to an existing stage, so the stage is rebuilt with the same seeding and all results
-// are entered again; switching it off drops only the result of the 3rd place match.
-export async function setConsolationFinal(stageId: Id, enabled: boolean): Promise<{ stage_id: Id; dropped: number }> {
-  const stage = await findStage(stageId);
-  if (stage.type !== 'single_elimination') throw new HttpError(400, 'Ein Spiel um Platz 3 gibt es nur bei Single Elimination');
-  if (!!stage.settings.consolationFinal === enabled) return { stage_id: stage.id, dropped: 0 };
+// Settings that can change after the start. brackets-manager can't change them on an existing
+// stage, so the stage is rebuilt with the same seeding and all results are entered again;
+// results of matches that no longer exist are dropped and counted.
+async function rebuildWithSettings(stage: AppStage, settings: StageSettings): Promise<{ stage_id: Id; dropped: number }> {
   const { seedingIds } = await eliminationSeeding(stage);
-  const changed: AppStage = { ...stage, settings: { ...stage.settings, consolationFinal: enabled } };
+  const changed: AppStage = { ...stage, settings: { ...stage.settings, ...settings } };
   const { stageId: newId, dropped } = await rebuildStage(changed, seedingIds, {
     memorial_names: stage.memorial_names ?? [],
     withdrawn_names: stage.withdrawn_names ?? [],
@@ -485,4 +482,22 @@ export async function setConsolationFinal(stageId: Id, enabled: boolean): Promis
     memorial_seats: stage.memorial_seats,
   }, true);
   return { stage_id: newId, dropped };
+}
+
+// Switches the match for 3rd place of a single elimination tournament on or off;
+// switching it off drops only the result of the 3rd place match.
+export async function setConsolationFinal(stageId: Id, enabled: boolean): Promise<{ stage_id: Id; dropped: number }> {
+  const stage = await findStage(stageId);
+  if (stage.type !== 'single_elimination') throw new HttpError(400, 'Ein Spiel um Platz 3 gibt es nur bei Single Elimination');
+  if (!!stage.settings.consolationFinal === enabled) return { stage_id: stage.id, dropped: 0 };
+  return rebuildWithSettings(stage, { consolationFinal: enabled });
+}
+
+// Switches the second grand final match of a double elimination tournament (played when the
+// loser bracket winner wins the first one) on or off; switching it off drops only its result.
+export async function setGrandFinalDouble(stageId: Id, enabled: boolean): Promise<{ stage_id: Id; dropped: number }> {
+  const stage = await findStage(stageId);
+  if (stage.type !== 'double_elimination') throw new HttpError(400, 'Ein Grand Final mit Rückspiel gibt es nur bei Double Elimination');
+  if ((stage.settings.grandFinal === 'double') === enabled) return { stage_id: stage.id, dropped: 0 };
+  return rebuildWithSettings(stage, { grandFinal: enabled ? 'double' : 'simple' });
 }

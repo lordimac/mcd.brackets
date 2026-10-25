@@ -11,7 +11,7 @@ process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'mcd-brackets-sync-
 const { ensureAppTables, getManager, getStorage }: typeof import('./db') = require('./db');
 const store: typeof import('./lan-store') = require('./lan-store');
 const { createStage, findStage, resolveMemorialMatches }: typeof import('./stages') = require('./stages');
-const { setConsolationFinal, syncEventStages }: typeof import('./stage-sync') = require('./stage-sync');
+const { setConsolationFinal, setGrandFinalDouble, syncEventStages }: typeof import('./stage-sync') = require('./stage-sync');
 const { getStandings }: typeof import('./standings') = require('./standings');
 
 let eventCounter = 0;
@@ -247,4 +247,51 @@ test('the match for 3rd place can be switched on and off later, results stay', a
 
   const de = await tournament(event.name, 'double_elimination');
   await assert.rejects(setConsolationFinal(de.id, true), /Single Elimination/);
+});
+
+test('the second grand final match can be switched on and off later, results stay', async () => {
+  const event = await eventWithPlayers(8);
+  const stage = await tournament(event.name, 'double_elimination');
+  const groupOf = async (id: Id) => {
+    const groups = (await getStorage().select('group', { stage_id: id })) ?? [];
+    return (m: Match) => groups.find(g => g.id === m.group_id)!.number;
+  };
+  const grandFinal = async (id: Id) => {
+    const group = await groupOf(id);
+    return (await matchesOf(id)).filter(m => group(m) === 3);
+  };
+  const notGrandFinal = await groupOf(stage.id);
+  await play(stage.id, m => notGrandFinal(m) !== 3);
+  // The loser bracket winner (opponent 2) wins the first grand final match
+  const [first] = await grandFinal(stage.id);
+  await getManager().update.match({ id: first.id, opponent1: { result: 'loss' }, opponent2: { result: 'win' } });
+  const before = await results(stage.id);
+  assert.equal((await grandFinal(stage.id)).length, 1);
+
+  const on = await setGrandFinalDouble(stage.id, true);
+  assert.equal(on.dropped, 0);
+  assert.equal((await findStage(on.stage_id)).settings.grandFinal, 'double');
+  assert.deepEqual(await results(on.stage_id), before);
+  const [, second] = await grandFinal(on.stage_id);
+  assert.equal(second.status, Status.Ready, 'the second match is needed now');
+
+  await play(on.stage_id);
+  assert.equal((await results(on.stage_id)).length, before.length + 1);
+  const off = await setGrandFinalDouble(on.stage_id, false);
+  assert.equal(off.dropped, 1, 'only the second grand final match');
+  assert.equal((await findStage(off.stage_id)).settings.grandFinal, 'simple');
+  assert.equal((await grandFinal(off.stage_id)).length, 1);
+  assert.deepEqual(await results(off.stage_id), before);
+
+  assert.deepEqual(await setGrandFinalDouble(off.stage_id, false), { stage_id: off.stage_id, dropped: 0 });
+  // The winner bracket winner won the first match: switching on keeps every result
+  const other = await tournament(event.name, 'double_elimination');
+  await play(other.id);
+  const decided = await results(other.id);
+  const again = await setGrandFinalDouble(other.id, true);
+  assert.equal((await grandFinal(again.stage_id)).length, 2);
+  assert.deepEqual(await results(again.stage_id), decided);
+
+  const se = await tournament(event.name, 'single_elimination');
+  await assert.rejects(setGrandFinalDouble(se.id, true), /Double Elimination/);
 });

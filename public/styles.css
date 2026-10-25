@@ -1539,6 +1539,19 @@ textarea {
     background: var(--surface-3);
 }
 
+.rank-badge.is-shared {
+    width: auto;
+    min-width: 30px;
+    padding: 0 0.4rem;
+    font-size: 0.85rem;
+}
+
+.rank-badge.rank-open {
+    color: var(--text-faint);
+    background: transparent;
+    border: 1px dashed var(--border-strong);
+}
+
 .rank-badge.rank-1 { background: var(--gold); color: #3a2a00; }
 .rank-badge.rank-2 { background: var(--silver); color: #23272f; }
 .rank-badge.rank-3 { background: var(--bronze); color: #2e1606; }
@@ -1564,6 +1577,10 @@ textarea {
     font-family: var(--font-display);
     font-weight: 700;
     font-size: 1.15em;
+}
+
+.stat-cell.points.is-open {
+    color: var(--text-faint);
 }
 
 .stat-cell.wins {
@@ -1896,6 +1913,10 @@ body:not(.read-only) .read-only-only {
     text-align: center;
     font-size: 0.75rem;
     color: var(--text-secondary);
+}
+
+.brackets-viewer .round-deadline.is-empty {
+    visibility: hidden;
 }
 
 .brackets-viewer .round-deadline.is-start {

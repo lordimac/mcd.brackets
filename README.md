@@ -2,7 +2,7 @@
 
 Ein vollständiges Turnierverwaltungssystem mit Event-basiertem Meisterschafts-Punktesystem, entwickelt mit [brackets-manager](https://www.npmjs.com/package/brackets-manager).
 
-**Version:** 0.24.0-beta
+**Version:** 0.25.0-beta
 
 ---
 
@@ -87,7 +87,8 @@ Standardwerte:
 | 9–10  | 2      |
 | 11+   | 1      |
 
-- **Korrekte Double Elimination Platzierung** — Basierend auf erreichter Bracket-Runde
+- **Geteilte Plätze** — Wer in derselben Runde ausscheidet, teilt sich den Platz (z. B. „5–6“) und bekommt den gerundeten Durchschnitt der Punkte dieser Plätze (5–6 → 8, 9–12 → 2)
+- **Punkte erst bei feststehendem Platz** — Wer noch im Turnier ist, steht als „offen“ ohne Punkte in der Liste; ein noch nicht gespieltes Turnier vergibt keine Punkte
 - **Event-Meisterschaft** — Gesamtpunkte über alle Turniere eines Events
 - **Einzelturnier-Rankings** — Detaillierte Statistiken pro Turnier
 
@@ -260,7 +261,7 @@ Die Zugangsdaten gelten für alle Events und liegen in der Datenbank (`db.json`,
 1. Event auswählen — alle Teilnehmer des Events spielen mit
 2. Turnier-Name eingeben
 3. Typ wählen (Single/Double Elimination oder Round Robin)
-4. Optional: Grand Final mit Rückspiel (Double Elimination) bzw. Spiel um Platz 3 (Single Elimination). Das Spiel um Platz 3 lässt sich auch später auf der Turnierkarte ein- und ausschalten — das Bracket wird dann mit derselben Auslosung neu aufgebaut, alle Ergebnisse bleiben (beim Ausschalten nur das des Platz-3-Spiels nicht)
+4. Optional: Grand Final mit Rückspiel (Double Elimination) bzw. Spiel um Platz 3 (Single Elimination). Beides lässt sich auch später auf der Turnierkarte ein- und ausschalten — das Bracket wird dann mit derselben Auslosung neu aufgebaut, alle Ergebnisse bleiben (beim Ausschalten nur das des Platz-3-Spiels bzw. des Rückspiels nicht)
 
 ### Bracket anzeigen & bearbeiten
 - **Gewinner auswählen**: Klick auf Match → Gewinner wählen
@@ -312,7 +313,7 @@ Ist `ADMIN_PASSWORD` gesetzt, sind alle Anfragen außer GET/HEAD (und `GET /api/
 | PUT    | `/api/events/:id/timetable` | Zeitplan speichern: `{ entries, notes }` (immer vollständig; `category`: meal, program, tournament, other) |
 | GET    | `/api/events/:id/schedule` | Gemeinsame Zeiten aller Turniere eines Events: `{ slots: [{ slot, ends_at, mixed, rounds: [{ stage_id, stage_name, label }] }], finals: [{ stage_id, stage_name, group, round, label, starts_at }] }` |
 | PUT    | `/api/events/:id/schedule` | `{ slots: [{ slot, ends_at }], finals: [{ stage_id, group, round, starts_at }] }`: jede Runde mit Spielzeit (SE, Winner Bracket) aller Turniere bekommt die Zeit ihrer Spielrunde, die Spiele um Platz 1–3 ihren Beginn; nicht genannte bleiben unverändert. Antwort `{ slots, finals, decided }` |
-| PUT    | `/api/stages/:id/settings` | Nachträglich änderbare Einstellungen: `{ consolationFinal: boolean }` (Spiel um Platz 3, nur Single Elimination; Neuaufbau mit gleicher Auslosung). Antwort `{ stage_id, dropped }` |
+| PUT    | `/api/stages/:id/settings` | Nachträglich änderbare Einstellungen: `{ consolationFinal: boolean }` (Spiel um Platz 3, nur Single Elimination) oder `{ grandFinalDouble: boolean }` (Grand Final mit Rückspiel, nur Double Elimination); Neuaufbau mit gleicher Auslosung. Antwort `{ stage_id, dropped }` |
 | GET    | `/api/stages/:id/schedule` | Runden mit Zeiten: `{ rounds: [{ round_id, group, round, label, slot, kind, ends_at, starts_at }] }` (`kind`: `deadline` oder `start` für die Spiele um Platz 1–3) |
 | PUT    | `/api/stages/:id/schedule` | Zeiten speichern: `{ rounds: [{ group, round, ends_at \| starts_at }] }` (ISO-Zeit, leer = keine); schon geschlossene Runden werden sofort ausgelost, Antwort `{ rounds, decided }` |
 | GET    | `/api/matches/:id/following` | Vorschau einer Korrektur: `{ label, following: [{ id, label, opponent1, opponent2 }] }`, die gespielten Matches, die von diesem Ergebnis abhängen |
@@ -327,7 +328,7 @@ Ist `ADMIN_PASSWORD` gesetzt, sind alle Anfragen außer GET/HEAD (und `GET /api/
 | Method | Endpoint | Beschreibung |
 |--------|----------|--------------|
 | GET    | `/api/viewer-data/:stageId` | Turnierdaten für Bracket-Viewer |
-| GET    | `/api/standings/:stageId` | Platzierungen inkl. Punkten: `{ placement, participant_id, participant_name, wins, losses, pending, points }` |
+| GET    | `/api/standings/:stageId` | Platzierungen inkl. Punkten: `{ placement, placement_to, participant_id, participant_name, wins, losses, pending, points }` — geteilter Platz = `placement`…`placement_to`, `null` = noch offen (0 Punkte) |
 | GET    | `/api/points` | Punktesystem: `{ places: [10 Werte für Platz 1–10], rest, defaults: { places, rest } }` |
 | PUT    | `/api/points` | Punktesystem speichern: `{ places: [10 ganze Zahlen 0–1000], rest }` |
 
@@ -413,18 +414,14 @@ Die Daten werden in `data/db.json` gespeichert (per Docker Volume persistent):
 
 ## Platzierungsberechnung
 
-### Double Elimination
-Die Platzierung basiert auf:
-1. Erreichter Gruppe (Finals > Loser Bracket > Winner Bracket)
-2. Gewonnen/Verloren in der letzten Runde
-3. Gesamte Wins als Tiebreaker
-4. Gesamte Losses (weniger = besser) als finaler Tiebreaker
-
-### Single Elimination
-Sortierung nach Wins → Losses.
+### Single und Double Elimination
+Die Platzierung ergibt sich nur aus der Runde, in der jemand ausscheidet (bei Double Elimination: Niederlage im Loser Bracket bzw. im Grand Final). Alle, die in derselben Runde ausscheiden, teilen sich den Platz — Siege und Niederlagen entscheiden nichts, sonst wäre ein Freilos ein Nachteil. Ohne Spiel um Platz 3 teilen sich die Halbfinal-Verlierer Platz 3–4. Wie viele Spieler in einer Runde ausscheiden, steht durch das Bracket fest; der Platz ist deshalb schon während des Turniers endgültig, sobald jemand raus ist. Beim Grand Final mit Rückspiel entscheidet das erste Spiel, wenn es der Sieger des Winner Brackets gewinnt, sonst das Rückspiel.
 
 ### Round Robin
-3 Punkte pro Sieg, 1 pro Unentschieden; Gleichstände löst brackets-manager über die Score-Differenz. Bei mehreren Gruppen kommen alle Gruppenersten vor allen Gruppenzweiten usw.
+3 Punkte pro Sieg, 1 pro Unentschieden; Gleichstände löst brackets-manager über die Score-Differenz. Bei mehreren Gruppen kommen alle Gruppenersten vor allen Gruppenzweiten usw. Die Plätze (und damit Punkte) stehen erst fest, wenn alle Spiele gespielt sind; bis dahin ist die Reihenfolge vorläufig.
+
+### Gesamtwertung
+Summe der Punkte aus allen Turnieren eines Events; bei Gleichstand entscheiden Siege, Siegrate und Anzahl Turniere, sind auch die gleich, teilen sich die Spieler den Platz.
 
 ---
 

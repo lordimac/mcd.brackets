@@ -17,7 +17,7 @@ import { migrateRooms } from './seating-store';
 import { OpnsenseError } from './opnsense';
 import { getStats, startUpdateChecks, updateFor } from './info';
 import { getEvent, playerNamesForEvent, syncEventsFromStages } from './lan-store';
-import { memorialByes, migrateMemorialStages, setConsolationFinal } from './stage-sync';
+import { memorialByes, migrateMemorialStages, setConsolationFinal, setGrandFinalDouble } from './stage-sync';
 import { isStageType, normalizeNames } from './seeding';
 import { createStage, deleteStage, findStage, pickSettings } from './stages';
 import { describeFollowing, updateMatchResult } from './results';
@@ -166,10 +166,17 @@ app.put('/api/events/:id/schedule', async (req: Request<{ id: string }>, res: Re
   res.json(await withLock(() => withRollback(() => saveEventSchedule(event.name, req.body?.slots, req.body?.finals ?? []))));
 });
 
-// Settings that can change later: { consolationFinal } — match for 3rd place (single elimination)
+// Settings that can change later: { consolationFinal } — match for 3rd place (single elimination),
+// { grandFinalDouble } — grand final with a second match (double elimination)
 app.put('/api/stages/:id/settings', async (req: Request<{ id: string }>, res: Response) => {
-  if (typeof req.body?.consolationFinal !== 'boolean') throw new HttpError(400, 'consolationFinal fehlt');
-  res.json(await withLock(() => withRollback(() => setConsolationFinal(parseInt(req.params.id), req.body.consolationFinal))));
+  const id = parseInt(req.params.id);
+  if (typeof req.body?.consolationFinal === 'boolean') {
+    res.json(await withLock(() => withRollback(() => setConsolationFinal(id, req.body.consolationFinal))));
+  } else if (typeof req.body?.grandFinalDouble === 'boolean') {
+    res.json(await withLock(() => withRollback(() => setGrandFinalDouble(id, req.body.grandFinalDouble))));
+  } else {
+    throw new HttpError(400, 'consolationFinal oder grandFinalDouble fehlt');
+  }
 });
 
 // Get matches for a stage

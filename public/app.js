@@ -393,6 +393,13 @@ function displayStages() {
                 </label>
                 ${stage.settings?.consolationFinal ? '<p class="stage-option-info read-only-only">mit Spiel um Platz 3</p>' : ''}
             ` : ''}
+            ${stage.type === 'double_elimination' ? `
+                <label class="toggle toggle-sm admin-only stage-option">
+                    <input type="checkbox" ${stage.settings?.grandFinal === 'double' ? 'checked' : ''} onchange="setGrandFinalDouble(${stage.id}, this.checked, this)">
+                    <span>Grand Final mit Rückspiel</span>
+                </label>
+                ${stage.settings?.grandFinal === 'double' ? '<p class="stage-option-info read-only-only">Grand Final mit Rückspiel</p>' : ''}
+            ` : ''}
             ${nextDeadlineHtml(stage)}
             <div class="stage-actions">
                 <button class="btn btn-primary btn-sm" onclick="viewBracket(${stage.id})">
@@ -656,27 +663,36 @@ function updateTypeSettings() {
     document.getElementById('consolationToggle').style.display = type === 'single_elimination' ? '' : 'none';
 }
 
-// Match for 3rd place of a single elimination tournament, also later: the server rebuilds the
-// bracket with the same draw and keeps the results (switching off drops the 3rd place result)
-async function setConsolationFinal(stageId, enabled, input) {
+// Settings that can change later (match for 3rd place, grand final with a second match): the server
+// rebuilds the bracket with the same draw and keeps the results (switching off drops the result
+// of the removed match)
+async function changeStageSetting(stageId, setting, enabled, input, matchName) {
     const stage = stages.find(s => s.id === stageId);
-    if (!enabled && !confirm(`Spiel um Platz 3 bei „${stage?.name ?? ''}“ entfernen? Ein schon eingetragenes Ergebnis dieses Spiels geht verloren.`)) {
+    if (!enabled && !confirm(`${matchName} bei „${stage?.name ?? ''}“ entfernen? Ein schon eingetragenes Ergebnis dieses Spiels geht verloren.`)) {
         input.checked = true;
         return;
     }
     try {
-        const { stage_id, dropped } = await apiFetch(`/stages/${stageId}/settings`, { method: 'PUT', body: JSON.stringify({ consolationFinal: enabled }) });
+        const { stage_id, dropped } = await apiFetch(`/stages/${stageId}/settings`, { method: 'PUT', body: JSON.stringify({ [setting]: enabled }) });
         await loadParticipants();
         await loadStages();
         await loadMatches();
         if (document.getElementById('bracketViewerSection').style.display !== 'none' && currentBracketStageId === stageId) {
             await viewBracket(stage_id, true);
         }
-        if (dropped > 0) alert(`Das Ergebnis des Spiels um Platz 3 wurde verworfen.`);
+        if (dropped > 0) alert(`Das Ergebnis von „${matchName}“ wurde verworfen.`);
     } catch (error) {
         input.checked = !enabled;
         alert('❌ ' + error.message);
     }
+}
+
+function setConsolationFinal(stageId, enabled, input) {
+    return changeStageSetting(stageId, 'consolationFinal', enabled, input, 'Spiel um Platz 3');
+}
+
+function setGrandFinalDouble(stageId, enabled, input) {
+    return changeStageSetting(stageId, 'grandFinalDouble', enabled, input, 'Grand-Final-Rückspiel');
 }
 
 // View stage matches
@@ -735,6 +751,7 @@ async function viewBracket(stageId, preserveScroll = false) {
         }, {
             clear: true,
             participantOriginPlacement: 'before',
+            customRoundName: grandFinalRoundName,
             onMatchClick: (match) => {
                 // Entering results needs the admin login
                 if (!isAdmin) return;
@@ -805,6 +822,25 @@ function markDeadlines(deadlines, starts = {}) {
             : `${overdue ? 'Runde geschlossen ·' : 'bis'} ${formatDeadline(endsAt)}`;
         round.querySelector('h3')?.after(note);
     }
+    // Rounds without a time in a row with times (e.g. the grand final next to the winner bracket)
+    // get an empty line instead, so their matches stay level with the connectors
+    for (const row of document.querySelectorAll('.brackets-viewer .rounds')) {
+        if (!row.querySelector('.round-deadline')) continue;
+        for (const round of row.querySelectorAll('article.round')) {
+            if (round.querySelector('.round-deadline')) continue;
+            const spacer = document.createElement('p');
+            spacer.className = 'round-deadline is-empty';
+            spacer.textContent = '\u00a0';
+            round.querySelector('h3')?.after(spacer);
+        }
+    }
+}
+
+// Grand final headings: "Grand Final" and, when it is played, "Rückspiel" (instead of "GF Round 1/2");
+// all other rounds keep the names of brackets-viewer
+function grandFinalRoundName(info) {
+    if (info.groupType !== 'final-group' || info.finalType !== 'grand-final') return '';
+    return info.roundNumber === 1 ? 'Grand Final' : 'Rückspiel';
 }
 
 // Memorial entries in elimination brackets are BYEs with a name: show the name instead of "BYE"
@@ -1150,13 +1186,11 @@ function showRankings(title, rankings, showTournaments = false) {
                     ${showTournaments ? '<div class="stat-cell">Turniere</div>' : ''}
                     <div class="stat-cell">Siegrate</div>
                 </div>
-                ${rankings.map((r, index) => `
-                    <div class="rankings-row ${index < 3 ? 'top-' + (index + 1) : ''}">
-                        <div class="rank-cell">
-                            <span class="rank-badge ${index < 3 ? 'rank-' + (index + 1) : ''}">${index + 1}</span>
-                        </div>
+                ${rankings.map(r => `
+                    <div class="rankings-row ${r.placement && r.placement <= 3 ? 'top-' + r.placement : ''}">
+                        <div class="rank-cell">${rankBadge(r)}</div>
                         <div class="name-cell">${escapeHtml(r.name)}</div>
-                        <div class="stat-cell points">${r.points}</div>
+                        <div class="stat-cell points${r.placement == null ? ' is-open' : ''}">${r.placement == null ? '–' : r.points}</div>
                         <div class="stat-cell wins">${r.wins}</div>
                         <div class="stat-cell losses">${r.losses}</div>
                         <div class="stat-cell">${r.wins + r.losses}</div>
@@ -1172,6 +1206,15 @@ function showRankings(title, rankings, showTournaments = false) {
     if (!rankingsRefreshing) section.scrollIntoView({ behavior: 'smooth' });
 }
 
+// Place as badge: "5" or shared "5–6"; an open place (player still in the tournament) as "–"
+function rankBadge(r) {
+    if (r.placement == null) return '<span class="rank-badge rank-open" title="Platz noch offen – noch im Turnier">–</span>';
+    const shared = r.placement_to != null && r.placement_to !== r.placement;
+    const label = shared ? `${r.placement}–${r.placement_to}` : `${r.placement}`;
+    const title = shared ? ` title="Geteilter Platz ${label}"` : '';
+    return `<span class="rank-badge${r.placement <= 3 ? ' rank-' + r.placement : ''}${shared ? ' is-shared' : ''}"${title}>${label}</span>`;
+}
+
 // View rankings
 async function viewRankings(stageId) {
     try {
@@ -1183,6 +1226,8 @@ async function viewRankings(stageId) {
 
         const standings = await fetchStandings(stageId);
         const rankings = standings.map(s => ({
+            placement: s.placement,
+            placement_to: s.placement_to,
             name: s.participant_name,
             wins: s.wins,
             losses: s.losses,
@@ -1248,6 +1293,12 @@ async function viewEventRankings(eventName) {
             const winRateDiff = parseFloat(formatWinRate(b.wins, b.losses)) - parseFloat(formatWinRate(a.wins, a.losses));
             if (winRateDiff !== 0) return winRateDiff;
             return b.tournaments - a.tournaments;
+        });
+        // Same points, wins, win rate and tournaments = same place
+        const sameAs = (a, b) => a.points === b.points && a.wins === b.wins && a.losses === b.losses && a.tournaments === b.tournaments;
+        rankings.forEach((r, index) => {
+            r.placement = index > 0 && sameAs(r, rankings[index - 1]) ? rankings[index - 1].placement : index + 1;
+            r.placement_to = r.placement;
         });
 
         showRankings(`${eventName} · Gesamtwertung`, rankings, true);
