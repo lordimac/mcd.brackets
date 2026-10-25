@@ -7,6 +7,7 @@ import type { Attendee, LanEvent } from './lan';
 import type { OpnsenseSettings } from './opnsense';
 import type { PointsConfig } from './points';
 import type { Room } from './seating';
+import type { Timetable } from './timetable';
 
 export const dataDir = path.resolve(process.env.DATA_DIR ?? path.join(__dirname, '../data'));
 export const dbPath = path.join(dataDir, 'db.json');
@@ -28,9 +29,10 @@ interface AppTables {
   opnsense: OpnsenseSettings; // at most one record: connection to the firewall
   room: Room;                 // seating plan rooms of an event
   points: PointsConfig & { id: number }; // at most one record: championship points (default if missing)
+  timetable: Timetable;       // at most one record per event: own entries and notes
 }
 type AppTable = keyof AppTables;
-export const APP_TABLES: AppTable[] = ['event', 'attendee', 'opnsense', 'room', 'points'];
+export const APP_TABLES: AppTable[] = ['event', 'attendee', 'opnsense', 'room', 'points', 'timetable'];
 
 export interface AppStore {
   select<T extends AppTable>(table: T): Promise<AppTables[T][] | null>;

@@ -34,6 +34,7 @@
         <symbol id="i-logout" viewBox="0 0 24 24"><path d="M9 21H5V3h4M16 17l5-5-5-5M21 12H9"/></symbol>
         <symbol id="i-external" viewBox="0 0 24 24"><path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></symbol>
         <symbol id="i-seat" viewBox="0 0 24 24"><path d="M19 9V6a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v3M3 16a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5a2 2 0 0 0-4 0v1.5a.5.5 0 0 1-.5.5h-9a.5.5 0 0 1-.5-.5V11a2 2 0 0 0-4 0zM5 18v2M19 18v2"/></symbol>
+        <symbol id="i-clock" viewBox="0 0 24 24"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2"/></symbol>
         <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/></symbol>
     </svg>
 
@@ -49,6 +50,7 @@
             <nav class="tabs" aria-label="Bereiche">
                 <a href="#teilnehmer" class="tab" data-view="attendees"><svg class="icon"><use href="#i-users"/></svg><span>Teilnehmer</span></a>
                 <a href="#sitzplan" class="tab" data-view="seating"><svg class="icon"><use href="#i-seat"/></svg><span>Sitzplan</span></a>
+                <a href="#zeitplan" class="tab" data-view="timetable"><svg class="icon"><use href="#i-clock"/></svg><span>Zeitplan</span></a>
                 <a href="#turniere" class="tab" data-view="tournaments"><svg class="icon"><use href="#i-trophy"/></svg><span>Turniere</span></a>
             </nav>
             <div class="topbar-actions">
@@ -71,6 +73,46 @@
     </header>
 
     <div class="container">
+        <!-- Timetable of an event: own entries, tournament rounds from the deadlines, notes -->
+        <main class="layout view" id="view-timetable" style="display: none;">
+            <section class="card">
+                <div class="section-header event-bar">
+                    <div class="event-picker">
+                        <h2><svg class="icon icon-accent"><use href="#i-flag"/></svg>Event</h2>
+                        <select id="ttEventSelect" onchange="selectTimetableEvent(this.value)" aria-label="Event auswählen"></select>
+                    </div>
+                    <div class="section-actions">
+                        <button class="btn btn-ghost btn-sm admin-only" onclick="openTimetableEntryModal()">
+                            <svg class="icon"><use href="#i-plus"/></svg><span>Eintrag</span>
+                        </button>
+                        <button class="btn btn-ghost btn-sm admin-only" onclick="openTimetableNoteModal()">
+                            <svg class="icon"><use href="#i-plus"/></svg><span>Hinweis</span>
+                        </button>
+                        <button class="btn btn-primary btn-sm" onclick="exportTimetablePdf()" title="Zeitplan mit Hinweisen zum Aushängen">
+                            <svg class="icon"><use href="#i-file"/></svg><span>Zeitplan (PDF)</span>
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <section class="card" id="ttNotesCard" style="display: none;">
+                <div class="section-header">
+                    <h2><svg class="icon icon-accent"><use href="#i-flag"/></svg>Hinweise</h2>
+                </div>
+                <div class="tt-notes" id="ttNotes"></div>
+            </section>
+
+            <section class="card">
+                <div class="section-header">
+                    <div>
+                        <h2><svg class="icon icon-accent"><use href="#i-clock"/></svg>Zeitplan</h2>
+                        <p class="section-subtitle" id="ttPeriod"></p>
+                    </div>
+                </div>
+                <div id="ttList" class="tt-list"><p class="loading">Lade Zeitplan…</p></div>
+            </section>
+        </main>
+
         <main class="layout view" id="view-tournaments">
             <!-- Create Tournament (collapsible) -->
             <section class="card admin-only">
@@ -103,9 +145,13 @@
                     </div>
 
                     <div class="form-group form-group-inline" id="settingsGroup">
-                        <label class="toggle">
+                        <label class="toggle" id="grandFinalToggle">
                             <input type="checkbox" id="grandFinalDouble">
-                            <span>Grand Final mit Rückspiel <span class="label-hint">nur Double Elimination</span></span>
+                            <span>Grand Final mit Rückspiel</span>
+                        </label>
+                        <label class="toggle" id="consolationToggle" style="display: none;">
+                            <input type="checkbox" id="consolationFinal">
+                            <span>Spiel um Platz 3</span>
                         </label>
                     </div>
 
@@ -274,6 +320,17 @@
                                     <label for="eventSettingName">Name</label>
                                     <input type="text" id="eventSettingName" required>
                                 </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="eventSettingStartsOn">Beginn</label>
+                                        <input type="date" id="eventSettingStartsOn">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="eventSettingEndsOn">Ende</label>
+                                        <input type="date" id="eventSettingEndsOn">
+                                    </div>
+                                </div>
+                                <p class="field-hint period-hint">Spielzeiten und Zeitplan bieten nur die Tage dieses Zeitraums an.</p>
                                 <div class="form-group">
                                     <label for="eventSettingDomain">Domain <span class="label-hint">z.B. lan.example.org</span></label>
                                     <input type="text" id="eventSettingDomain" placeholder="lan.example.org" autocomplete="off" spellcheck="false">
@@ -318,7 +375,27 @@
                                 <p class="field-hint is-warning" id="capacityHint"></p>
                             </fieldset>
 
-                            <fieldset class="config-block config-block-wide">
+                            <fieldset class="config-block">
+                                <legend>WLAN <span class="label-hint">steht auf den IP-Zetteln</span></legend>
+                                <div class="form-group">
+                                    <label class="toggle">
+                                        <input type="checkbox" id="eventSettingWifi" onchange="toggleWifiFields()">
+                                        <span>WLAN vorhanden</span>
+                                    </label>
+                                </div>
+                                <div id="wifiFields" style="display: none;">
+                                    <div class="form-group">
+                                        <label for="eventSettingWifiSsid">Netzwerkname (SSID)</label>
+                                        <input type="text" id="eventSettingWifiSsid" maxlength="32" autocomplete="off" spellcheck="false">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="eventSettingWifiPassword">Passwort <span class="label-hint">leer = offenes WLAN</span></label>
+                                        <input type="text" id="eventSettingWifiPassword" maxlength="63" autocomplete="off" spellcheck="false">
+                                    </div>
+                                </div>
+                            </fieldset>
+
+                            <fieldset class="config-block config-block-span2">
                                 <legend>In Gedenken</legend>
                                 <p class="field-hint">Ein Name pro Zeile. Diese Personen stehen in jedem Turnier des Events mit ihrem Namen im Bracket, verlieren ihre Matches aber automatisch. Sie bekommen keine IP-Adressen und erscheinen nicht in den Ranglisten.</p>
                                 <div class="form-group">
@@ -385,7 +462,7 @@
                         <p class="section-subtitle" id="attendeeSummary"></p>
                     </div>
                     <div class="section-actions" id="exportActions">
-                        <button class="btn btn-primary btn-sm" id="exportSlipsBtn" onclick="exportAllSlips()" title="Ein A4-Blatt pro Teilnehmer">
+                        <button class="btn btn-primary btn-sm admin-only" id="exportSlipsBtn" onclick="exportAllSlips()" title="Ein A4-Blatt pro Teilnehmer">
                             <svg class="icon"><use href="#i-file"/></svg><span class="btn-label">IP-Zettel (PDF)</span>
                         </button>
                         <button class="btn btn-secondary btn-sm" onclick="exportIpGuide()" title="Kurze Anleitung: feste IP-Adresse unter Windows und macOS, mit den Netzwerk-Einstellungen des Events">
@@ -433,7 +510,7 @@
                                 <th>Haupt-PC</th>
                                 <th>Zweiter PC</th>
                                 <th>Dritter PC</th>
-                                <th class="col-actions"></th>
+                                <th class="col-actions admin-only"></th>
                             </tr>
                         </thead>
                         <tbody id="attendeeRows"></tbody>
@@ -624,6 +701,80 @@
         </div>
     </div>
 
+    <!-- Timetable entry -->
+    <div id="ttEntryModal" class="modal">
+        <div class="modal-content">
+            <button type="button" class="close" onclick="closeModal('ttEntryModal')" aria-label="Schließen"><svg class="icon"><use href="#i-x"/></svg></button>
+            <h2 id="ttEntryTitle">Eintrag</h2>
+            <form id="ttEntryForm">
+                <input type="hidden" id="ttEntryId">
+                <div class="form-group">
+                    <label for="ttEntryName">Titel</label>
+                    <input type="text" id="ttEntryName" required maxlength="120" placeholder="z.B. Abendessen" autocomplete="off">
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="ttEntryStart">Beginn</label>
+                        <input type="time" id="ttEntryStart" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="ttEntryEnd">Ende <span class="label-hint">optional, früher = nächster Morgen</span></label>
+                        <input type="time" id="ttEntryEnd">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Tage <span class="label-hint">mehrere markieren = wiederholt sich an diesen Tagen</span></label>
+                    <div class="tt-day-picker" id="ttEntryDays"></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="ttEntryCategory">Kategorie</label>
+                        <select id="ttEntryCategory">
+                            <option value="meal">Essen</option>
+                            <option value="program">Programm</option>
+                            <option value="tournament">Turnier</option>
+                            <option value="other">Sonstiges</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="ttEntryInfo">Info <span class="label-hint">optional, z.B. Ort</span></label>
+                        <input type="text" id="ttEntryInfo" maxlength="300" autocomplete="off">
+                    </div>
+                </div>
+                <p class="field-hint">Die Turnierrunden stehen automatisch im Zeitplan, sobald sie Spielzeiten haben (Uhr-Symbol am Turnier bzw. „Spielzeiten“ beim Event).</p>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-danger modal-action-left" id="ttEntryDelete" onclick="deleteTimetableEntry()">Löschen</button>
+                    <button type="button" class="btn btn-ghost" onclick="closeModal('ttEntryModal')">Abbrechen</button>
+                    <button type="submit" class="btn btn-primary">Speichern</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Timetable note -->
+    <div id="ttNoteModal" class="modal">
+        <div class="modal-content">
+            <button type="button" class="close" onclick="closeModal('ttNoteModal')" aria-label="Schließen"><svg class="icon"><use href="#i-x"/></svg></button>
+            <h2 id="ttNoteHeading">Hinweis</h2>
+            <form id="ttNoteForm">
+                <input type="hidden" id="ttNoteId">
+                <div class="form-group">
+                    <label for="ttNoteTitle">Überschrift <span class="label-hint">optional</span></label>
+                    <input type="text" id="ttNoteTitle" maxlength="120" placeholder="z.B. Nachtruhe" autocomplete="off">
+                </div>
+                <div class="form-group">
+                    <label for="ttNoteText">Text</label>
+                    <textarea id="ttNoteText" rows="4" required maxlength="2000"></textarea>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-danger modal-action-left" id="ttNoteDelete" onclick="deleteTimetableNote()">Löschen</button>
+                    <button type="button" class="btn btn-ghost" onclick="closeModal('ttNoteModal')">Abbrechen</button>
+                    <button type="submit" class="btn btn-primary">Speichern</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- New Event Modal -->
     <div id="newEventModal" class="modal">
         <div class="modal-content">
@@ -757,6 +908,24 @@
     </div>
 
     <!-- Edit Attendee Modal -->
+    <!-- Deadlines per round: after a deadline, open matches of the round are decided by lot -->
+    <div id="scheduleModal" class="modal">
+        <div class="modal-content schedule-modal">
+            <button type="button" class="close" onclick="closeModal('scheduleModal')" aria-label="Schließen"><svg class="icon"><use href="#i-x"/></svg></button>
+            <h2>Spielzeiten</h2>
+            <p class="section-subtitle" id="scheduleStageName"></p>
+            <p class="field-hint">Bis wann eine Runde gespielt sein muss. Nach Rundenschluss entscheidet für jedes noch offene Match der Runde das Los, sobald beide Gegner feststehen; solche Ergebnisse sind im Bracket mit „Los“ markiert und lassen sich über „Ergebnis ändern“ korrigieren. Halbfinale, Finale und die Spiele um Platz 3 haben stattdessen eine Beginn-Zeit. Das Loser Bracket hat keine Spielzeiten. Leer = keine Zeit.</p>
+            <p class="field-hint" id="scheduleModeHint"></p>
+            <form id="scheduleForm">
+                <div class="schedule-list" id="scheduleList"></div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-ghost" onclick="closeModal('scheduleModal')">Abbrechen</button>
+                    <button type="submit" class="btn btn-primary">Speichern</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <div id="attendeeModal" class="modal">
         <div class="modal-content">
             <button type="button" class="close" onclick="closeModal('attendeeModal')" aria-label="Schließen"><svg class="icon"><use href="#i-x"/></svg></button>
@@ -824,5 +993,7 @@
     <script src="seating-pdf.js"></script>
     <script src="ip-slips.js"></script>
     <script src="ip-guide.js"></script>
+    <script src="timetable.js"></script>
+    <script src="timetable-pdf.js"></script>
 </body>
 </html>

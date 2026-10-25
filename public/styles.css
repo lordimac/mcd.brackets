@@ -69,6 +69,7 @@
 
 body[data-view="attendees"] { --view-color: var(--secondary-color); }
 body[data-view="seating"] { --view-color: var(--lime); }
+body[data-view="timetable"] { --view-color: var(--pink); }
 body[data-view="tournaments"] { --view-color: var(--primary-color); }
 
 /* Display font for headings, navigation, buttons and badges (public/lib/fonts) */
@@ -251,6 +252,7 @@ body {
 
 .tab[data-view="attendees"] { --tab-color: var(--secondary-color); }
 .tab[data-view="seating"] { --tab-color: var(--lime); }
+.tab[data-view="timetable"] { --tab-color: var(--pink); }
 .tab[data-view="tournaments"] { --tab-color: var(--primary-color); }
 
 .tab .icon {
@@ -473,7 +475,12 @@ body.read-only .admin-only {
     grid-column: 1 / -1;
 }
 
-.config-block-wide .field-hint {
+.config-block-span2 {
+    grid-column: span 2;
+}
+
+.config-block-wide .field-hint,
+.config-block-span2 .field-hint {
     margin: 0 0 0.6rem;
 }
 
@@ -609,6 +616,9 @@ body.read-only .admin-only {
 input[type="text"],
 input[type="password"],
 input[type="number"],
+input[type="datetime-local"],
+input[type="date"],
+input[type="time"],
 select,
 textarea {
     width: 100%;
@@ -635,6 +645,9 @@ select {
 input[type="text"]:hover,
 input[type="password"]:hover,
 input[type="number"]:hover,
+input[type="datetime-local"]:hover,
+input[type="date"]:hover,
+input[type="time"]:hover,
 select:hover,
 textarea:hover {
     border-color: var(--border-strong);
@@ -643,6 +656,9 @@ textarea:hover {
 input[type="text"]:focus,
 input[type="password"]:focus,
 input[type="number"]:focus,
+input[type="datetime-local"]:focus,
+input[type="date"]:focus,
+input[type="time"]:focus,
 select:focus,
 textarea:focus {
     outline: none;
@@ -887,7 +903,7 @@ textarea {
 
 .events-list {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
     gap: 0.75rem;
 }
 
@@ -921,6 +937,7 @@ textarea {
 /* Event row */
 .event-item {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
     gap: 0.75rem;
@@ -1656,6 +1673,343 @@ textarea {
     }
 }
 
+/* Timetable (#zeitplan) */
+.tt-list {
+    display: grid;
+    gap: 1.25rem;
+}
+
+.tt-day-title {
+    margin-bottom: 0.5rem;
+    font-family: var(--font-display);
+    font-size: 1rem;
+    color: var(--view-color);
+}
+
+.tt-outside {
+    margin-left: 0.6rem;
+    font-family: var(--font);
+    font-size: 0.75rem;
+    font-weight: 400;
+    color: var(--warning-color);
+}
+
+.tt-item {
+    --tt-color: var(--violet);
+    display: grid;
+    grid-template-columns: 8.5rem minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.6rem 0.75rem;
+    margin-bottom: 0.4rem;
+    background: var(--surface-2);
+    border: 1px solid var(--border-color);
+    border-left: 3px solid var(--tt-color);
+    border-radius: var(--radius);
+}
+
+.tt-item.tt-meal { --tt-color: var(--lime); }
+.tt-item.tt-program { --tt-color: var(--secondary-color); }
+.tt-item.tt-tournament { --tt-color: var(--primary-color); }
+.tt-item.tt-other { --tt-color: var(--violet); }
+
+/* Over: dimmed */
+.tt-item.is-past {
+    opacity: 0.55;
+}
+
+.tt-time {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.tt-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    min-width: 0;
+}
+
+.tt-title {
+    font-weight: 600;
+}
+
+.tt-category {
+    margin-left: 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 400;
+    color: var(--tt-color);
+}
+
+.tt-info {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.tt-repeat {
+    margin-left: 0.5rem;
+    padding: 0 0.4rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    border-radius: var(--radius-sm);
+    background: var(--surface-3);
+    color: var(--text-secondary);
+}
+
+/* Day picker in the entry dialog: one chip per event day */
+.tt-day-picker {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.day-chip {
+    position: relative;
+    cursor: pointer;
+}
+
+.day-chip input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.day-chip span {
+    display: inline-block;
+    padding: 0.4rem 0.65rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.day-chip:hover span {
+    border-color: var(--border-strong);
+}
+
+.day-chip input:checked + span {
+    background: var(--pink-soft);
+    border-color: var(--pink);
+    color: var(--text-color);
+}
+
+.day-chip input:focus-visible + span {
+    box-shadow: var(--focus-ring);
+}
+
+.tt-day-picker .field-hint {
+    flex-basis: 100%;
+    margin: 0;
+}
+
+.tt-auto {
+    font-size: 0.75rem;
+    color: var(--text-faint);
+}
+
+.tt-notes {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 0.75rem;
+}
+
+.tt-note {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 0.75rem 0.9rem;
+    background: var(--pink-soft);
+    border-left: 3px solid var(--pink);
+    border-radius: var(--radius);
+}
+
+.tt-note-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.tt-note-body strong {
+    display: block;
+    margin-bottom: 0.2rem;
+    font-family: var(--font-display);
+}
+
+.tt-note-body p {
+    white-space: pre-line;
+    font-size: 0.9rem;
+}
+
+@media (max-width: 640px) {
+    .tt-item {
+        grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .tt-time {
+        grid-column: 1 / -1;
+    }
+}
+
+/* Option on the tournament card (single elimination: match for 3rd place) */
+.stage-option {
+    margin: -0.25rem 0 0.75rem;
+    font-size: 0.85rem;
+}
+
+.toggle-sm input {
+    transform: scale(0.85);
+    transform-origin: left center;
+}
+
+.stage-option-info {
+    margin: -0.25rem 0 0.75rem;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+/* Only without admin session (counterpart to .admin-only) */
+body:not(.read-only) .read-only-only {
+    display: none;
+}
+
+/* Deadlines per round */
+.stage-deadline {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin: -0.25rem 0 0.75rem;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.stage-deadline .icon {
+    width: 14px;
+    height: 14px;
+    color: var(--view-color);
+}
+
+.brackets-viewer .round-deadline {
+    margin: -0.35rem 0 0.6rem;
+    text-align: center;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+.brackets-viewer .round-deadline.is-start {
+    color: var(--secondary-color);
+}
+
+.schedule-section {
+    margin: 0.75rem 0 0.1rem;
+    font-family: var(--font-display);
+    font-size: 0.95rem;
+    color: var(--view-color);
+}
+
+.schedule-section small {
+    display: block;
+    font-family: var(--font);
+    font-size: 0.75rem;
+    font-weight: 400;
+    color: var(--text-faint);
+}
+
+.brackets-viewer .round-deadline.is-overdue {
+    color: var(--warning-color);
+}
+
+.badge-drawn {
+    background: var(--warning-soft);
+    color: var(--warning-color);
+}
+
+.schedule-modal {
+    max-width: 640px;
+}
+
+.schedule-modal .schedule-list {
+    max-height: 55vh;
+    overflow-y: auto;
+    padding-right: 0.25rem;
+}
+
+/* Dark calendar icon and picker */
+input[type="datetime-local"],
+input[type="date"],
+input[type="time"] {
+    color-scheme: dark;
+}
+
+.period-hint {
+    margin: -0.6rem 0 1rem;
+}
+
+.schedule-list {
+    display: grid;
+    gap: 0.5rem;
+    margin: 1rem 0 1.25rem;
+}
+
+.schedule-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.schedule-row input[type="datetime-local"] {
+    width: 13.5rem;
+}
+
+.deadline-inputs {
+    display: flex;
+    gap: 0.4rem;
+}
+
+.deadline-inputs select {
+    width: 8.5rem;
+}
+
+.deadline-inputs input[type="time"] {
+    width: 6.5rem;
+}
+
+.schedule-label {
+    font-size: 0.9rem;
+    color: var(--text-color);
+}
+
+.schedule-label small {
+    display: block;
+    margin-top: 0.15rem;
+    font-size: 0.75rem;
+    color: var(--text-faint);
+}
+
+.event-actions {
+    display: flex;
+    flex-shrink: 0;
+    gap: 0.4rem;
+}
+
+/* Name keeps at least ~8rem; otherwise the buttons wrap below it (narrow screens) */
+.event-main {
+    flex: 1 1 8rem;
+}
+
+@media (max-width: 640px) {
+    .schedule-row {
+        grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .schedule-row .schedule-label {
+        grid-column: 1 / -1;
+    }
+}
+
 /* Correcting a result (above the bracket) */
 .correction-panel {
     margin-bottom: 1.25rem;
@@ -1819,6 +2173,10 @@ textarea {
 
     .config-grid {
         grid-template-columns: minmax(0, 1fr);
+    }
+
+    .config-block-span2 {
+        grid-column: auto;
     }
 }
 
@@ -2261,6 +2619,26 @@ textarea {
 .brackets-viewer .match.is-correction-target .opponents {
     border-color: var(--primary-color);
     box-shadow: 0 0 0 3px rgba(255, 69, 0, 0.35);
+}
+
+/* Memorial entry instead of "BYE" (elimination) */
+.brackets-viewer .name.memorial-bye {
+    font-style: italic;
+    color: var(--text-secondary);
+}
+
+.brackets-viewer .match.is-drawn .opponents::after {
+    content: 'Los';
+    position: absolute;
+    top: -9px;
+    right: 8px;
+    padding: 0 5px;
+    font-family: var(--font-display);
+    font-size: 0.65rem;
+    line-height: 16px;
+    border-radius: var(--radius-sm);
+    background: var(--warning-color);
+    color: #141519;
 }
 
 .brackets-viewer .match.is-correction-affected .opponents {
@@ -3264,4 +3642,17 @@ body:not(.read-only) #seatPlanCard:not(.is-layout) .cell-seat:hover::before {
 
 .is-layout .cell-seat.is-taken .seat-no {
     color: var(--primary-color);
+}
+
+/* Four tabs on a phone: text only */
+@media (max-width: 520px) {
+    .tab {
+        padding: 0.55rem 0.2rem;
+        font-size: 0.88rem;
+        letter-spacing: 0;
+    }
+
+    .tab .icon {
+        display: none;
+    }
 }

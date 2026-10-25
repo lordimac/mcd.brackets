@@ -51,12 +51,19 @@ async function resetResults(matches: Match[]): Promise<void> {
       const next = await getManager().find.nextMatches(id);
       if (next.some(isPlayed)) continue;
       await getManager().reset.matchResults(id);
+      await clearDrawn(id);
       pending.delete(id);
     }
   }
 }
 
 // Input is partial: a score is only compared when it is given
+// Results decided by lot after a deadline carry drawn: true (schedule.ts)
+async function clearDrawn(matchId: Id): Promise<void> {
+  const stored = await getStorage().select('match', matchId) as (Match & { drawn?: boolean }) | null;
+  if (stored?.drawn) await getStorage().update('match', matchId, { ...stored, drawn: false } as Match);
+}
+
 const sameResult = (a: ParticipantResult | null | undefined, b: Partial<ParticipantResult> | null | undefined) =>
   (a?.result ?? null) === (b?.result ?? null) && !!a?.forfeit === !!b?.forfeit
   && (b?.score === undefined || b.score === a?.score);
@@ -80,8 +87,12 @@ export async function updateMatchResult(matchId: Id, input: ResultInput): Promis
     throw new HttpError(400, 'Matches mit einem Gedenk-Eintrag werden automatisch entschieden');
   }
 
-  // The same result again (e.g. the same winner clicked twice): nothing to do
-  if (sameResult(match.opponent1, input.opponent1) && sameResult(match.opponent2, input.opponent2)) return match;
+  // The same result again (e.g. the same winner clicked twice): nothing to change, but a result
+  // decided by lot is now confirmed by hand
+  if (sameResult(match.opponent1, input.opponent1) && sameResult(match.opponent2, input.opponent2)) {
+    await clearDrawn(matchId);
+    return getStorage().select('match', matchId);
+  }
 
   const following = await followingResults(matchId);
   if (following.length > 0) {
@@ -92,6 +103,7 @@ export async function updateMatchResult(matchId: Id, input: ResultInput): Promis
   }
 
   await getManager().update.match({ id: matchId, opponent1: input.opponent1, opponent2: input.opponent2 });
+  await clearDrawn(matchId); // entered by hand: no longer "per Los"
   await resolveMemorialMatches(match.stage_id); // next matches may be against a memorial entry
   return getStorage().select('match', matchId);
 }

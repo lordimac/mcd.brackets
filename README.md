@@ -2,7 +2,7 @@
 
 Ein vollständiges Turnierverwaltungssystem mit Event-basiertem Meisterschafts-Punktesystem, entwickelt mit [brackets-manager](https://www.npmjs.com/package/brackets-manager).
 
-**Version:** 0.22.0-beta
+**Version:** 0.24.0-beta
 
 ---
 
@@ -16,7 +16,7 @@ Ein vollständiges Turnierverwaltungssystem mit Event-basiertem Meisterschafts-P
 
 ![Sitzplan](docs/screenshots/sitzplan.png)
 
-**Bracket** — Double Elimination mit Click-to-Win; ein Eintrag „In Gedenken“ verliert sein Match automatisch (F)
+**Bracket** — Double Elimination mit Click-to-Win; ein Eintrag „In Gedenken“ steht an Stelle eines BYE, sein Gegner kommt automatisch weiter
 
 ![Bracket](docs/screenshots/bracket.png)
 
@@ -52,10 +52,22 @@ Ein vollständiges Turnierverwaltungssystem mit Event-basiertem Meisterschafts-P
 - **Bulk-Import** — Liste im Format `Nachname, Vorname // Clan-Nickname` einfügen (Clan endet am ersten Bindestrich), mit Vorschau (IPs und Fehler pro Zeile) vor dem Import
 - **3 IP-Adressen pro Teilnehmer** — aus drei einstellbaren Bereichen (Haupt-PC, Zweiter PC, Dritter PC) mit gleichem Versatz, z.B. `.100` / `.150` / `.200`; freie Plätze werden wiederverwendet
 - **DNS-Namen** — `nickname`, `nickname2`, `nickname3` (ohne Clan) unter der einstellbaren Domain (Umlaute und Sonderzeichen werden DNS-tauglich umgewandelt)
-- **IP-Zettel (PDF)** — ein DIN-A4-Blatt pro Teilnehmer mit Logo (oben rechts, Hoch- oder Querformat je nach Bild), Clan-Nickname, Name, den 3 IPs samt DNS-Namen und den Netzwerk-Einstellungen; einzeln (Icon in der Liste) oder für alle als ein PDF. Alle PDFs halten einen Druckrand von mind. 5 mm ein
+- **IP-Zettel (PDF)** — ein DIN-A4-Blatt pro Teilnehmer mit Logo (oben rechts, Hoch- oder Querformat je nach Bild), Clan-Nickname, Name, den 3 IPs samt DNS-Namen, den Netzwerk-Einstellungen und optional dem WLAN (SSID und Passwort); einzeln (Icon in der Liste) oder für alle als ein PDF. Alle PDFs halten einen Druckrand von mind. 5 mm ein
 - **Anleitung (PDF)** — je eine Seite für Windows (10/11) und macOS (ab 13): feste IP-Adresse einstellen, mit Subnetzmaske, Gateway und DNS des Events in nachgezeichneten Dialogen, Test per ping und Rückstellung nach der LAN
 - **Exporte** — CSV (Excel), hosts-Datei (dnsmasq/Pi-hole), BIND-Zone
-- **Automatische Spieler** — Turniere nehmen alle Teilnehmer ihres Events (per Nickname); „Neu auslosen“ übernimmt neu hinzugekommene
+- **Automatische Spieler** — Turniere nehmen alle Teilnehmer ihres Events (per Nickname). Kommen Teilnehmer hinzu oder fallen weg, passen sich die Turniere des Events sofort an, ohne dass gespielte Ergebnisse verloren gehen:
+  - *Noch nicht begonnen:* Neue Spieler bekommen einen freien Platz (BYE), Weggefallene machen ihren Platz frei; die Auslosung bleibt. Muss das Bracket größer oder kleiner werden, wird neu ausgelost
+  - *Läuft schon:* Neue Spieler bekommen einen freien Platz in Runde 1, solange dessen Folge-Matches noch nicht gespielt sind; alle Ergebnisse bleiben erhalten. Bei Round Robin bekommen sie Matches gegen alle. Gibt es keinen freien Platz mehr, können sie nicht mehr einsteigen (Hinweis; „Neu auslosen“ nimmt alle auf, verwirft aber die Ergebnisse)
+  - *Weggefallene in laufenden Turnieren* verschwinden ebenfalls aus dem Bracket: Ihr Platz wird ein BYE, oder ein neu hinzugekommener Teilnehmer übernimmt ihn. Ergebnisse, an denen sie beteiligt waren, und was darauf aufbaute, werden verworfen (der Hinweis nennt die Anzahl)
+  - Das gilt auch für Änderungen an der Liste „In Gedenken“
+
+### 🕒 Zeitplan (Reiter „Zeitplan“)
+- Zeitplan je Event, für alle lesbar, für Admins bearbeitbar: eigene Einträge mit Uhrzeit (Beginn, optional Ende — ein früheres Ende ist der nächste Morgen), Titel, Info (z. B. Ort) und Kategorie (Essen, Programm, Turnier, Sonstiges — je eine Farbe)
+- Wiederholungen: Im Eintrag die Tage ankreuzen, an denen er gilt (z. B. Frühstück Sa–Mo) — ein Eintrag, der an jedem gewählten Tag erscheint. Zur Auswahl stehen die Tage des Event-Zeitraums
+- Die Turnierrunden kommen automatisch aus den Spielzeiten der Turniere, gleiche Zeiten zusammengefasst („Spielrunde 2 — bis 21:00: Jenga Runde 2 · UNO Winner Bracket Runde 2 …“)
+- Beliebig viele Hinweise (Überschrift optional, Text), z. B. Nachtruhe, Notfallnummer
+- Nach Tagen gegliedert, Vergangenes abgeblendet; Tage außerhalb des Event-Zeitraums (z. B. alte Spielzeiten) sind markiert
+- „Zeitplan (PDF)“: A4 zum Aushängen mit Logo, allen Tagen des Zeitraums und den Hinweisen (mehrseitig, wenn nötig)
 
 ### 🏅 Punktesystem & Rankings
 Platzierungsbasierte Punkte, gleich für alle Turniere. Unter „Turniere“ › „Punktesystem“ lassen sich die Punkte für Platz 1–10 und „ab Platz 11“ anpassen (nur Admin). Unter jedem Feld steht der Standardwert, „Standardwerte eintragen“ setzt alle zurück. Die Punkte werden bei jedem Abruf einer Rangliste aus der Platzierung berechnet. Eine Änderung gilt deshalb sofort für alle Turniere, auch für laufende und abgeschlossene.
@@ -95,7 +107,7 @@ Standardwerte:
 
 ### 🔒 Admin-Passwort
 - Mit der Umgebungsvariable `ADMIN_PASSWORD` dürfen nur angemeldete Admins Turniere, Ergebnisse, Teilnehmer und Event-Einstellungen ändern sowie Backups laden/einspielen
-- Ansehen (Brackets, Ranglisten, Teilnehmerliste, IP-Zettel, Exporte) bleibt ohne Anmeldung möglich; Bearbeiten-Elemente werden dann ausgeblendet
+- Ansehen (Brackets, Ranglisten, Teilnehmerliste, Exporte) bleibt ohne Anmeldung möglich; Bearbeiten-Elemente und die IP-Zettel werden dann ausgeblendet
 - Anmeldung über „Anmelden“ oben rechts, gültig 7 Tage (signiertes HttpOnly-Cookie); ein neues Passwort beendet alle Sitzungen
 - Ohne `ADMIN_PASSWORD` darf jeder bearbeiten (wie bisher)
 - Nach 10 falschen Passwörtern innerhalb von 15 Minuten ist die Anmeldung für diese IP-Adresse vorübergehend gesperrt (`429`)
@@ -129,7 +141,9 @@ Standardwerte:
 
 ### 🕯️ In Gedenken
 - Pro Event eine Liste von Namen (Konfiguration → „In Gedenken“), z.B. für verstorbene Mitglieder
-- Sie stehen in jedem Turnier des Events mit ihrem Namen im Bracket; sie verlieren ihre Matches automatisch, der Gegner kommt weiter
+- Single/Double Elimination: Sie ersetzen ein BYE — in Runde 1 steht ihr Name dort, wo ein Spieler ein Freilos bekommt; der Spieler kommt automatisch weiter. Bei Double Elimination steht ihr Name auch in Runde 1 des Loser Brackets, dort wo ihr „Verlierer“ hinkäme; der Verlierer, der dort ankommt, kommt ebenfalls automatisch weiter. Sie gewinnen nie und spielen sonst nirgends mit. Die Plätze sind so gewählt, dass jeder Gedenk-Eintrag einem Spieler gegenübersteht und sich zwei Gedenk-Einträge auch im Loser Bracket nicht begegnen
+- Round Robin: Sie stehen in der Tabelle und verlieren jedes Match kampflos (gegeneinander verlieren beide)
+- Brackets aus älteren Versionen, in denen sie noch mitgespielt haben, werden beim Start mit derselben Auslosung umgestellt (echte Ergebnisse bleiben)
 - Unter der Teilnehmerliste stehen sie als „Never forget … — immer dabei“
 - Keine IP-Adressen, keine Platzierung/Punkte in den Ranglisten
 
@@ -222,7 +236,7 @@ Umgebungsvariablen:
 
 ### Teilnehmer verwalten (Reiter „Teilnehmer“, erster Reiter)
 1. Event anlegen („Neu“) — Domain und IP-Bereiche werden vom letzten Event übernommen
-2. Unter „Konfiguration“ (einklappbar) Domain, Logo, Netzwerk (Subnetzmaske, Router/Gateway, DNS — stehen auf den IP-Zetteln) und die drei IP-Bereiche einstellen
+2. Unter „Konfiguration“ (einklappbar) Zeitraum des Events (Beginn/Ende — Spielzeiten und Zeitplan bieten nur diese Tage an), Domain, Logo, Netzwerk (Subnetzmaske, Router/Gateway, DNS — stehen auf den IP-Zetteln) und die drei IP-Bereiche einstellen. Mit dem Haken „WLAN vorhanden“ lassen sich SSID und Passwort eintragen; nur dann steht auf den IP-Zetteln eine Rubrik „WLAN“. Passwort leer = offenes WLAN. IP-Zettel und WLAN-Passwort gibt es nur für angemeldete Admins
 3. Teilnehmer mit Vorname, Name und Nickname hinzufügen — einzeln oder per „Mehrere auf einmal importieren…“ (`Nachname, Vorname // Clan-Nickname`, eine Zeile pro Teilnehmer). IPs und DNS-Namen werden automatisch vergeben, beim Import in der Reihenfolge der Nachnamen
 4. IP-Zettel als PDF drucken („IP-Zettel (PDF)“ für alle, Datei-Icon in der Zeile für einzelne) und bei Bedarf CSV, hosts-Datei oder BIND-Zone herunterladen
 5. Optional: DNS-Namen mit „OPNsense“ nach Unbound übertragen (siehe unten)
@@ -246,12 +260,13 @@ Die Zugangsdaten gelten für alle Events und liegen in der Datenbank (`db.json`,
 1. Event auswählen — alle Teilnehmer des Events spielen mit
 2. Turnier-Name eingeben
 3. Typ wählen (Single/Double Elimination oder Round Robin)
-4. Optional: Grand Final mit Rückspiel für Double Elimination
+4. Optional: Grand Final mit Rückspiel (Double Elimination) bzw. Spiel um Platz 3 (Single Elimination). Das Spiel um Platz 3 lässt sich auch später auf der Turnierkarte ein- und ausschalten — das Bracket wird dann mit derselben Auslosung neu aufgebaut, alle Ergebnisse bleiben (beim Ausschalten nur das des Platz-3-Spiels nicht)
 
 ### Bracket anzeigen & bearbeiten
 - **Gewinner auswählen**: Klick auf Match → Gewinner wählen
 - **Ergebnisse korrigieren**: Jedes Ergebnis lässt sich ändern, im Bracket per Klick oder in der Match-Liste über „Ergebnis ändern“. Hängen schon Folgeergebnisse davon ab (Winner- und Loser-Pfad bis zum Finale), zeigt eine Vorschau über dem Bracket alle betroffenen Matches. Im Bracket ist das geänderte Match orange markiert, die betroffenen Folge-Matches gelb gestrichelt. Das Bracket zeigt dabei noch den bisherigen Stand. Erst „Änderung übernehmen“ setzt die Folgeergebnisse zurück; sie müssen dann neu eingetragen werden. Nicht betroffene Matches behalten ihr Ergebnis, Gedenk-Matches werden wieder automatisch entschieden. Round-Robin-Ergebnisse lassen sich direkt ändern
 - **BYE-Matches**: Werden automatisch entschieden
+- **Spielzeiten**: Über das Uhr-Symbol am Turnier lässt sich festlegen, bis wann eine Runde gespielt sein muss — nur bei Single Elimination und im Winner Bracket von Double Elimination (Tag aus dem Event-Zeitraum + Uhrzeit; ohne Zeitraum Datum frei wählbar; nur eine Uhrzeit übernimmt den Tag der Zeile darüber). Das Loser Bracket und Round Robin haben keine Spielzeiten. „Spielzeiten“ beim Event setzt dieselben Zeiten für alle Turniere des Events über gemeinsame Spielrunden (Runde n → Spielrunde n); einzelne Turniere lassen sich danach noch anpassen, Spielrunden mit unterschiedlichen Zeiten bleiben unverändert, solange man dort nichts einträgt. Die Spiele um Platz 1–3 — Halbfinale, Finale und Spiel um Platz 3, bei Double Elimination Grand Final und Loser-Bracket-Finale (dessen Verlierer wird Dritter) — haben stattdessen eine Beginn-Zeit („ab …“, im Event-Dialog je Turnier unter „Finalspiele“) und werden nie ausgelost. Die Zeit steht im Bracket unter dem Rundennamen, die nächste auch auf der Turnierkarte. Nach Rundenschluss entscheidet für jedes noch offene Match der Runde das Los (geprüft alle 30 Sekunden, sobald beide Gegner feststehen). Solche Ergebnisse sind mit „Los“ markiert und lassen sich über „Ergebnis ändern“ korrigieren; wählt man dort denselben Gewinner, gilt das Ergebnis als bestätigt und die Markierung verschwindet. Ein offenes Bracket mit Spielzeiten lädt jede Minute neu. Nach Schluss von Runde 1 können keine neuen Spieler mehr einsteigen
 - **TBD-Matches**: Noch nicht spielbar, warte auf vorherige Matches
 
 ### Rankings
@@ -293,6 +308,13 @@ Ist `ADMIN_PASSWORD` gesetzt, sind alle Anfragen außer GET/HEAD (und `GET /api/
 |--------|----------|--------------|
 | GET    | `/api/matches` | Alle Matches abrufen |
 | PUT    | `/api/matches/:id` | Match-Ergebnis setzen/ändern: `{ opponent1, opponent2, resetFollowing? }`. Gibt es schon Folgeergebnisse, ist `resetFollowing: true` nötig (sonst `409`); sie werden dann zurückgesetzt |
+| GET    | `/api/events/:id/timetable` | Zeitplan: `{ entries: [{ id, days: ["YYYY-MM-DD"], start: "HH:MM", end: "HH:MM" \| null, title, info, category }], notes: [{ id, title, text }], tournament_rounds: [{ ends_at, title, rounds: [{ stage_name, label }] }] }` (Zeiten = Ortszeit des Events) |
+| PUT    | `/api/events/:id/timetable` | Zeitplan speichern: `{ entries, notes }` (immer vollständig; `category`: meal, program, tournament, other) |
+| GET    | `/api/events/:id/schedule` | Gemeinsame Zeiten aller Turniere eines Events: `{ slots: [{ slot, ends_at, mixed, rounds: [{ stage_id, stage_name, label }] }], finals: [{ stage_id, stage_name, group, round, label, starts_at }] }` |
+| PUT    | `/api/events/:id/schedule` | `{ slots: [{ slot, ends_at }], finals: [{ stage_id, group, round, starts_at }] }`: jede Runde mit Spielzeit (SE, Winner Bracket) aller Turniere bekommt die Zeit ihrer Spielrunde, die Spiele um Platz 1–3 ihren Beginn; nicht genannte bleiben unverändert. Antwort `{ slots, finals, decided }` |
+| PUT    | `/api/stages/:id/settings` | Nachträglich änderbare Einstellungen: `{ consolationFinal: boolean }` (Spiel um Platz 3, nur Single Elimination; Neuaufbau mit gleicher Auslosung). Antwort `{ stage_id, dropped }` |
+| GET    | `/api/stages/:id/schedule` | Runden mit Zeiten: `{ rounds: [{ round_id, group, round, label, slot, kind, ends_at, starts_at }] }` (`kind`: `deadline` oder `start` für die Spiele um Platz 1–3) |
+| PUT    | `/api/stages/:id/schedule` | Zeiten speichern: `{ rounds: [{ group, round, ends_at \| starts_at }] }` (ISO-Zeit, leer = keine); schon geschlossene Runden werden sofort ausgelost, Antwort `{ rounds, decided }` |
 | GET    | `/api/matches/:id/following` | Vorschau einer Korrektur: `{ label, following: [{ id, label, opponent1, opponent2 }] }`, die gespielten Matches, die von diesem Ergebnis abhängen |
 
 ### Participants
@@ -436,6 +458,8 @@ mcd.brackets/
 │   ├── opnsense.js     # OPNsense-Einstellungen + Übertragen-Dialog
 │   ├── seating.js      # Sitzplan-Ansicht (Raum-Editor, Vergabe, Suche)
 │   ├── seating-pdf.js  # Sitzplan und Platz-Schilder als PDF
+│   ├── timetable.js    # Zeitplan-Ansicht (Einträge, Hinweise)
+│   ├── timetable-pdf.js # Zeitplan als PDF
 │   ├── styles.css      # Dark Theme Styling
 │   └── lib/            # Lokale Kopien der Browser-Libs (npm run vendor)
 ├── data/

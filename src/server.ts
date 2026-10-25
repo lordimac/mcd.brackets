@@ -11,14 +11,17 @@ import { ValidationError } from './lan';
 import { lanRouter } from './lan-routes';
 import { opnsenseRouter } from './opnsense-routes';
 import { seatingRouter } from './seating-routes';
+import { timetableRouter } from './timetable-routes';
 import { loadPoints, pointsRouter } from './points-routes';
 import { migrateRooms } from './seating-store';
 import { OpnsenseError } from './opnsense';
 import { getStats, startUpdateChecks, updateFor } from './info';
-import { playerNamesForEvent, syncEventsFromStages } from './lan-store';
+import { getEvent, playerNamesForEvent, syncEventsFromStages } from './lan-store';
+import { memorialByes, migrateMemorialStages, setConsolationFinal } from './stage-sync';
 import { isStageType, normalizeNames } from './seeding';
 import { createStage, deleteStage, findStage, pickSettings } from './stages';
 import { describeFollowing, updateMatchResult } from './results';
+import { decideOverdueMatches, eventFinals, eventSchedule, saveEventSchedule, saveSchedule, stageRounds, startScheduleChecks } from './schedule';
 import { getStandings } from './standings';
 
 const app = express();
@@ -124,6 +127,7 @@ app.post('/api/logout', (req: Request, res: Response) => {
 app.use('/api', lanRouter);
 app.use('/api', opnsenseRouter);
 app.use('/api', seatingRouter);
+app.use('/api', timetableRouter);
 app.use('/api', pointsRouter);
 
 // Get all tournaments (stages)
@@ -134,6 +138,38 @@ app.get('/api/stages', async (_req: Request, res: Response) => {
 // Get specific stage
 app.get('/api/stages/:id', async (req: Request<{ id: string }>, res: Response) => {
   res.json(await findStage(parseInt(req.params.id)));
+});
+
+// Deadlines per round ("ausgespielt bis"); after a deadline open matches are decided by lot
+app.get('/api/stages/:id/schedule', async (req: Request<{ id: string }>, res: Response) => {
+  res.json({ rounds: await stageRounds(parseInt(req.params.id)) });
+});
+
+app.put('/api/stages/:id/schedule', async (req: Request<{ id: string }>, res: Response) => {
+  const stageId = parseInt(req.params.id);
+  const result = await withLock(() => withRollback(async () => {
+    await saveSchedule(stageId, req.body?.rounds);
+    const decided = await decideOverdueMatches(stageId); // deadlines in the past apply at once
+    return { rounds: await stageRounds(stageId), decided };
+  }));
+  res.json(result);
+});
+
+// Shared deadlines for all tournaments of an event, by play slot ("Spielrunde")
+app.get('/api/events/:id/schedule', async (req: Request<{ id: string }>, res: Response) => {
+  const event = await getEvent(parseInt(req.params.id));
+  res.json({ slots: await eventSchedule(event.name), finals: await eventFinals(event.name) });
+});
+
+app.put('/api/events/:id/schedule', async (req: Request<{ id: string }>, res: Response) => {
+  const event = await getEvent(parseInt(req.params.id));
+  res.json(await withLock(() => withRollback(() => saveEventSchedule(event.name, req.body?.slots, req.body?.finals ?? []))));
+});
+
+// Settings that can change later: { consolationFinal } — match for 3rd place (single elimination)
+app.put('/api/stages/:id/settings', async (req: Request<{ id: string }>, res: Response) => {
+  if (typeof req.body?.consolationFinal !== 'boolean') throw new HttpError(400, 'consolationFinal fehlt');
+  res.json(await withLock(() => withRollback(() => setConsolationFinal(parseInt(req.params.id), req.body.consolationFinal))));
 });
 
 // Get matches for a stage
@@ -204,7 +240,7 @@ app.post('/api/stages/:id/regenerate', async (req: Request<{ id: string }>, res:
     const memorial = useEvent ? fromEvent!.memorial : [...previousMemorial];
 
     await deleteStage(stage);
-    return createStage({
+    const created = await createStage({
       tournamentId: stage.tournament_id,
       name: stage.name,
       type: stage.type,
@@ -213,6 +249,11 @@ app.post('/api/stages/:id/regenerate', async (req: Request<{ id: string }>, res:
       eventName: stage.event_name,
       memorial
     });
+    // The deadlines stay; rounds that no longer exist simply don't show them
+    if (!stage.schedule?.length) return created;
+    const withSchedule = { ...await findStage(created.id), schedule: stage.schedule };
+    await getStorage().update('stage', created.id, withSchedule);
+    return withSchedule;
   }));
 
   res.status(201).json(stage);
@@ -273,7 +314,12 @@ app.get('/api/viewer-data/:stageId', async (req: Request<{ stageId: string }>, r
     stage: [stage],
     match: (await storage.select('match', { stage_id: stageId })) ?? [],
     match_game: (await storage.select('match_game', { stage_id: stageId })) ?? [],
-    participant: (await storage.select('participant', { tournament_id: stage.tournament_id })) ?? []
+    participant: (await storage.select('participant', { tournament_id: stage.tournament_id })) ?? [],
+    // round_id → deadline / start time, shown under the round names
+    round_deadlines: Object.fromEntries((await stageRounds(stageId)).filter(r => r.ends_at).map(r => [r.round_id, r.ends_at])),
+    round_starts: Object.fromEntries((await stageRounds(stageId)).filter(r => r.starts_at).map(r => [r.round_id, r.starts_at])),
+    // Memorial entries as named BYEs (elimination): [{ match_id, side, name }]
+    memorial_byes: await memorialByes(stage),
   });
 });
 
@@ -349,11 +395,14 @@ async function start(): Promise<void> {
   await ensureAppTables();
   await syncEventsFromStages();
   const migrated = await migrateRooms();
+  const memorialChanged = await withLock(() => migrateMemorialStages());
+  if (memorialChanged.length) console.log(`🕯️  Gedenk-Einträge umgestellt in: ${memorialChanged.join(', ')}`);
   if (migrated > 0) console.log(`🪑 ${migrated} Sitzplan-Raum/Räume ins neue Format übernommen`);
   if (!authRequired()) {
     console.warn('⚠️  Kein ADMIN_PASSWORD gesetzt — alle Besucher dürfen Turniere und Teilnehmer bearbeiten.');
   }
   startUpdateChecks(REPO_URL);
+  startScheduleChecks();
   app.listen(PORT, () => {
     console.log(`🚀 Server läuft auf http://localhost:${PORT}`);
     console.log(`📊 API verfügbar unter http://localhost:${PORT}/api`);

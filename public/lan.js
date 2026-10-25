@@ -79,10 +79,16 @@ function renderEventSelect() {
 function fillEventSettings(event) {
     document.getElementById('eventSettingName').value = event.name;
     document.getElementById('eventSettingDomain').value = event.domain;
+    document.getElementById('eventSettingStartsOn').value = event.starts_on ?? '';
+    document.getElementById('eventSettingEndsOn').value = event.ends_on ?? '';
     document.getElementById('eventSettingDns').value = event.dns_server;
     document.getElementById('eventSettingNetmask').value = event.netmask ?? '';
     document.getElementById('eventSettingGateway').value = event.gateway ?? '';
     document.getElementById('eventSettingMemorial').value = (event.memorial ?? []).join('\n');
+    document.getElementById('eventSettingWifi').checked = !!event.wifi_enabled;
+    document.getElementById('eventSettingWifiSsid').value = event.wifi_ssid ?? '';
+    document.getElementById('eventSettingWifiPassword').value = event.wifi_password ?? '';
+    toggleWifiFields();
     document.getElementById('rangeInputs').innerHTML = event.ranges.map((range, i) => `
         <span class="range-label">${RANGE_LABELS[i]}</span>
         <input type="text" class="range-start" value="${escapeHtml(range.start)}" aria-label="${RANGE_LABELS[i]} Start" spellcheck="false">
@@ -98,6 +104,11 @@ function fillEventSettings(event) {
     const zoneLink = document.getElementById('exportZone');
     zoneLink.classList.toggle('is-disabled', !event.domain);
     zoneLink.title = event.domain ? 'BIND-Zonendatei herunterladen' : 'Für die BIND-Zone zuerst eine Domain eintragen';
+}
+
+// SSID and password can only be entered with "WLAN vorhanden"
+function toggleWifiFields() {
+    document.getElementById('wifiFields').style.display = document.getElementById('eventSettingWifi').checked ? '' : 'none';
 }
 
 /* IP helpers (mirror of src/lan.ts, for live feedback only) */
@@ -130,15 +141,20 @@ async function saveEventSettings(e) {
     const event = currentEvent();
     if (!event) return;
     try {
-        await apiFetch(`/events/${event.id}`, {
+        const result = await apiFetch(`/events/${event.id}`, {
             method: 'PUT',
             body: JSON.stringify({
                 name: document.getElementById('eventSettingName').value,
                 domain: document.getElementById('eventSettingDomain').value,
+                starts_on: document.getElementById('eventSettingStartsOn').value,
+                ends_on: document.getElementById('eventSettingEndsOn').value,
                 dns_server: document.getElementById('eventSettingDns').value,
                 netmask: document.getElementById('eventSettingNetmask').value,
                 gateway: document.getElementById('eventSettingGateway').value,
                 memorial: document.getElementById('eventSettingMemorial').value,
+                wifi_enabled: document.getElementById('eventSettingWifi').checked,
+                wifi_ssid: document.getElementById('eventSettingWifiSsid').value,
+                wifi_password: document.getElementById('eventSettingWifiPassword').value,
                 ranges: readRanges()
             })
         });
@@ -146,6 +162,7 @@ async function saveEventSettings(e) {
         renderEventSelect();
         await loadAttendees();
         await loadStages(); // event name may have changed on tournaments
+        await reportBracketChanges(result.bracket_changes); // e.g. changed memorial names
     } catch (error) {
         alert('❌ ' + error.message);
     }
@@ -198,7 +215,8 @@ async function importFromEvent() {
         renderEventSelect();
         await loadAttendees();
         const skipped = result.skipped.length ? `\nÜbersprungen (schon vorhanden oder kein Platz): ${result.skipped.join(', ')}` : '';
-        alert(`✅ ${result.added} Teilnehmer übernommen.${skipped}`);
+        const brackets = await applyBracketChanges(result.bracket_changes);
+        alert(`✅ ${result.added} Teilnehmer übernommen.${skipped}${brackets ? `\n\n${brackets}` : ''}`);
     } catch (error) {
         alert('❌ ' + error.message);
     }
@@ -324,8 +342,8 @@ function renderAttendees() {
                     <span class="ip">${ip}</span>
                     <span class="dns">${dnsHtml(a.dns_names[i])}</span>
                 </td>`).join('')}
-            <td class="col-actions">
-                <button class="btn btn-ghost btn-icon" onclick="exportSlip(${a.id})" title="IP-Zettel (PDF)" aria-label="IP-Zettel als PDF">${icon('file')}</button>
+            <td class="col-actions admin-only">
+                <button class="btn btn-ghost btn-icon admin-only" onclick="exportSlip(${a.id})" title="IP-Zettel (PDF)" aria-label="IP-Zettel als PDF">${icon('file')}</button>
                 <button class="btn btn-ghost btn-icon admin-only" onclick="editAttendee(${a.id})" title="Bearbeiten" aria-label="Bearbeiten">${icon('edit')}</button>
                 <button class="btn btn-danger btn-icon admin-only" onclick="deleteAttendee(${a.id})" title="Löschen" aria-label="Löschen">${icon('trash')}</button>
             </td>
@@ -333,11 +351,42 @@ function renderAttendees() {
     `).join('');
 }
 
+/* Tournaments follow the attendees (src/stage-sync.ts): the server answers changes with
+   bracket_changes. Tournaments and an open bracket are reloaded (a rebuilt stage has a new ID);
+   what the user should know (withdrawn, no free place, errors) comes back as text. */
+
+async function applyBracketChanges(changes) {
+    if (!changes?.length) return '';
+    await loadParticipants();
+    await loadStages();
+    await loadMatches();
+    const bracketOpen = document.getElementById('bracketViewerSection').style.display !== 'none';
+    const moved = changes.find(c => c.old_stage_id === currentBracketStageId);
+    if (bracketOpen && moved) await viewBracket(moved.stage_id, true);
+
+    const list = names => names.map(n => `„${n}“`).join(', ');
+    const lines = [];
+    for (const c of changes) {
+        if (c.error) lines.push(`• ${c.name}: konnte nicht angepasst werden (${c.error})`);
+        if (c.dropped > 0) {
+            const replaced = c.added.length ? `; den Platz übernimmt ${list(c.added)}` : '; der Platz ist jetzt ein BYE';
+            lines.push(`• ${c.name}: ${list(c.removed)} aus dem Turnier genommen${replaced}. ${c.dropped} Ergebnis(se), an denen ${list(c.removed)} beteiligt war oder die darauf aufbauten, wurden verworfen.`);
+        }
+        if (c.late.length) lines.push(`• ${c.name}: ${list(c.late)} kann nicht mehr einsteigen — das Turnier läuft und hat keinen freien Platz mehr. „Neu auslosen“ nimmt alle auf, verwirft aber die Ergebnisse.`);
+    }
+    return lines.length ? `Turniere angepasst:\n${lines.join('\n')}` : '';
+}
+
+async function reportBracketChanges(changes) {
+    const message = await applyBracketChanges(changes);
+    if (message) alert(message);
+}
+
 async function addAttendee(e) {
     e.preventDefault();
     const fields = ['newFirstName', 'newLastName', 'newClan', 'newNickname'].map(id => document.getElementById(id));
     try {
-        await apiFetch(`/events/${currentEventId}/attendees`, {
+        const result = await apiFetch(`/events/${currentEventId}/attendees`, {
             method: 'POST',
             body: JSON.stringify({ first_name: fields[0].value, last_name: fields[1].value, clan: fields[2].value, nickname: fields[3].value })
         });
@@ -346,6 +395,7 @@ async function addAttendee(e) {
         await loadEvents();
         renderEventSelect();
         await loadAttendees();
+        await reportBracketChanges(result.bracket_changes);
     } catch (error) {
         alert('❌ ' + error.message);
     }
@@ -367,7 +417,7 @@ async function saveAttendee(e) {
     e.preventDefault();
     const id = Number(document.getElementById('editAttendeeId').value);
     try {
-        await apiFetch(`/attendees/${id}`, {
+        const result = await apiFetch(`/attendees/${id}`, {
             method: 'PUT',
             body: JSON.stringify({
                 first_name: document.getElementById('editFirstName').value,
@@ -379,6 +429,7 @@ async function saveAttendee(e) {
         closeModal('attendeeModal');
         await loadAttendees();
         await loadParticipants(); // nickname may have changed in tournaments
+        await reportBracketChanges(result.bracket_changes);
     } catch (error) {
         alert('❌ ' + error.message);
     }
@@ -386,12 +437,13 @@ async function saveAttendee(e) {
 
 async function deleteAttendee(id) {
     const attendee = attendees.find(a => a.id === id);
-    if (!attendee || !confirm(`Teilnehmer „${attendee.display_name}“ löschen? Die IP-Adressen werden wieder frei.`)) return;
+    if (!attendee || !confirm(`Teilnehmer „${attendee.display_name}“ löschen? Die IP-Adressen werden wieder frei.\n\nIn allen Turnieren des Events wird der Platz frei (BYE). Ergebnisse, an denen der Teilnehmer schon beteiligt war, und was darauf aufbaute, werden verworfen.`)) return;
     try {
-        await apiFetch(`/attendees/${id}`, { method: 'DELETE' });
+        const result = await apiFetch(`/attendees/${id}`, { method: 'DELETE' });
         await loadEvents();
         renderEventSelect();
         await loadAttendees();
+        await reportBracketChanges(result?.bracket_changes);
     } catch (error) {
         alert('❌ ' + error.message);
     }
@@ -465,7 +517,7 @@ async function previewBulkImport() {
 
 async function runBulkImport() {
     try {
-        const { rows, added } = await requestBulkImport(false);
+        const { rows, added, bracket_changes } = await requestBulkImport(false);
         const failed = rows.filter(r => !r.ok);
         closeModal('bulkImportModal');
         await loadEvents();
@@ -474,7 +526,8 @@ async function runBulkImport() {
         const details = failed.length
             ? `\n\nÜbersprungen:\n${failed.map(r => `Zeile ${r.line}: ${r.error}`).join('\n')}`
             : '';
-        alert(`✅ ${added} Teilnehmer importiert.${details}`);
+        const brackets = await applyBracketChanges(bracket_changes);
+        alert(`✅ ${added} Teilnehmer importiert.${details}${brackets ? `\n\n${brackets}` : ''}`);
     } catch (error) {
         alert('❌ ' + error.message);
     }

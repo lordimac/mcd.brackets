@@ -57,7 +57,13 @@ for (const type of ['single_elimination', 'double_elimination', 'round_robin'] a
 
     const players = (await getStorage().select('participant', { tournament_id: stage.tournament_id })) ?? [];
     const memorialIds = new Set(players.filter(p => ['Opa Willi', 'Tante Erna'].includes(p.name)).map(p => p.id));
-    assert.equal(memorialIds.size, 2, 'memorial entries are named participants');
+    if (type === 'round_robin') {
+      assert.equal(memorialIds.size, 2, 'round robin: memorial entries are named participants');
+    } else {
+      // Elimination: named BYEs on BYE places, no participants
+      assert.equal(memorialIds.size, 0);
+      assert.deepEqual(Object.values(stage.memorial_seats ?? {}).sort(), ['Opa Willi', 'Tante Erna']);
+    }
 
     // Play everything; memorial matches must resolve themselves after every result
     for (;;) {

@@ -33,14 +33,21 @@ export async function getStandings(
   if (!stage) return null;
 
   const matches = (await storage.select('match', { stage_id: stageId })) ?? [];
-  // Memorial entries ("In Gedenken") are byes and don't appear in the standings
-  const memorial = new Set((stage as Stage & { memorial_names?: string[] }).memorial_names ?? []);
-  const participants = ((await storage.select('participant', { tournament_id: stage.tournament_id })) ?? [])
-    .filter(p => p.name && !memorial.has(p.name)); // Skip BYE
+  // Memorial entries ("In Gedenken") are byes and don't appear in the standings. Withdrawn
+  // players (left the event during the tournament) only appear if they really played a match.
+  const appStage = stage as Stage & { memorial_names?: string[]; withdrawn_names?: string[] };
+  const withdrawn = new Set(appStage.withdrawn_names ?? []);
+  const allParticipants = (await storage.select('participant', { tournament_id: stage.tournament_id })) ?? [];
+  const played = playedParticipantIds(matches);
+  const hidden = new Set([
+    ...appStage.memorial_names ?? [],
+    ...allParticipants.filter(p => withdrawn.has(p.name) && !played.has(p.id)).map(p => p.name),
+  ]);
+  const participants = allParticipants.filter(p => p.name && !hidden.has(p.name)); // Skip BYE
 
   let ranked: RankedParticipant[];
   if (stage.type === 'round_robin') {
-    ranked = (await rankRoundRobin(manager, stageId)).filter(p => !memorial.has(p.name));
+    ranked = (await rankRoundRobin(manager, stageId)).filter(p => !hidden.has(p.name));
   } else {
     const groups = (await storage.select('group', { stage_id: stageId })) ?? [];
     const rounds = (await storage.select('round', { stage_id: stageId })) ?? [];
@@ -56,6 +63,19 @@ export async function getStandings(
     pending: countPending(matches, p.id),
     points: pointsForPlacement(index + 1, pointsConfig),
   }));
+}
+
+// Participants with at least one result that was really played (not a forfeit or a BYE)
+function playedParticipantIds(matches: Match[]): Set<Id> {
+  const ids = new Set<Id>();
+  for (const m of matches) {
+    if (m.opponent1?.id == null || m.opponent2?.id == null) continue;
+    if (!m.opponent1.result && !m.opponent2.result) continue;
+    if (m.opponent1.forfeit || m.opponent2.forfeit) continue;
+    ids.add(m.opponent1.id);
+    ids.add(m.opponent2.id);
+  }
+  return ids;
 }
 
 // Playable matches (both opponents known) without a result yet

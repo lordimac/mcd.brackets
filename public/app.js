@@ -65,6 +65,7 @@ async function login(e) {
         });
         closeModal('loginModal');
         await loadAuth();
+        await reloadEventsForAuth();
         await loadOpnsenseSettings();
         if (typeof renderSeating === 'function') renderSeating();
     } catch (error) {
@@ -76,6 +77,7 @@ async function login(e) {
 async function logout() {
     await apiFetch('/logout', { method: 'POST', body: '{}' }).catch(() => null);
     await loadAuth();
+    await reloadEventsForAuth();
     clearOpnsenseSettings();
     if (typeof renderSeating === 'function') renderSeating();
 }
@@ -136,23 +138,28 @@ function setupEventListeners() {
     document.getElementById('createTournamentForm').addEventListener('submit', createTournament);
     document.getElementById('loginForm').addEventListener('submit', login);
     document.getElementById('pointsForm').addEventListener('submit', savePoints);
+    document.getElementById('scheduleForm').addEventListener('submit', saveSchedule);
     document.getElementById('pointsGrid').addEventListener('input', markChangedPoints);
     document.getElementById('eventName').addEventListener('change', updateEventPlayersHint);
+    document.getElementById('tournamentType').addEventListener('change', updateTypeSettings);
+    updateTypeSettings();
     window.addEventListener('hashchange', showView);
 }
 
-// Views: #turniere (default), #teilnehmer and #sitzplan
-const VIEWS = { '#teilnehmer': 'attendees', '#sitzplan': 'seating' };
+// Views: #turniere (default), #teilnehmer, #sitzplan and #zeitplan
+const VIEWS = { '#teilnehmer': 'attendees', '#sitzplan': 'seating', '#zeitplan': 'timetable' };
 
 function showView() {
     const view = VIEWS[location.hash] ?? 'tournaments';
     document.getElementById('view-tournaments').style.display = view === 'tournaments' ? '' : 'none';
     document.getElementById('view-attendees').style.display = view === 'attendees' ? '' : 'none';
     document.getElementById('view-seating').style.display = view === 'seating' ? '' : 'none';
+    document.getElementById('view-timetable').style.display = view === 'timetable' ? '' : 'none';
     document.body.dataset.view = view;
     document.querySelectorAll('.tab').forEach(tab => tab.classList.toggle('active', tab.dataset.view === view));
     if (view === 'attendees' && typeof showAttendeeView === 'function') showAttendeeView();
     if (view === 'seating' && typeof showSeatingView === 'function') showSeatingView();
+    if (view === 'timetable' && typeof showTimetableView === 'function') showTimetableView();
 }
 
 /* Footer: short statistics and the hint on a newer version (GET /api/info) */
@@ -200,6 +207,13 @@ async function loadFooterInfo() {
 }
 
 // Events with attendee counts (also used by the attendee view in lan.js)
+// The WLAN password only comes with the admin session: after login/logout load the
+// events again, otherwise the settings form would show (and save) an empty password
+async function reloadEventsForAuth() {
+    await loadEvents();
+    if (typeof renderEventSelect === 'function') renderEventSelect();
+}
+
 async function loadEvents() {
     try {
         lanEvents = await apiFetch('/events');
@@ -346,9 +360,10 @@ function displayStages() {
     const container = document.getElementById('stagesList');
     const eventFilter = document.getElementById('eventFilter').value;
     
-    let filteredStages = stages;
+    // By tournament number: a rebuilt stage gets a new ID but keeps its place in the list
+    let filteredStages = [...stages].sort((a, b) => Number(a.tournament_id) - Number(b.tournament_id));
     if (eventFilter) {
-        filteredStages = stages.filter(s => s.event_name === eventFilter);
+        filteredStages = filteredStages.filter(s => s.event_name === eventFilter);
     }
     
     if (!filteredStages || filteredStages.length === 0) {
@@ -371,6 +386,14 @@ function displayStages() {
                 <span class="info-badge badge-id">${icon('users')}${participantCount}</span>
                 <span class="info-badge badge-id">#${stage.tournament_id}</span>
             </div>
+            ${stage.type === 'single_elimination' ? `
+                <label class="toggle toggle-sm admin-only stage-option">
+                    <input type="checkbox" ${stage.settings?.consolationFinal ? 'checked' : ''} onchange="setConsolationFinal(${stage.id}, this.checked, this)">
+                    <span>Spiel um Platz 3</span>
+                </label>
+                ${stage.settings?.consolationFinal ? '<p class="stage-option-info read-only-only">mit Spiel um Platz 3</p>' : ''}
+            ` : ''}
+            ${nextDeadlineHtml(stage)}
             <div class="stage-actions">
                 <button class="btn btn-primary btn-sm" onclick="viewBracket(${stage.id})">
                     ${icon('bracket')}<span>Bracket</span>
@@ -382,6 +405,11 @@ function displayStages() {
                 <button class="btn btn-ghost btn-icon" onclick="viewStageMatches(${stage.id})" title="Matches anzeigen" aria-label="Matches anzeigen">
                     ${icon('list')}
                 </button>
+                ${stage.type !== 'round_robin' ? `
+                    <button class="btn btn-ghost btn-icon admin-only" onclick="openScheduleModal(${stage.id})" title="Spielzeiten: bis wann jede Runde gespielt sein muss" aria-label="Spielzeiten">
+                        ${icon('clock')}
+                    </button>
+                ` : ''}
                 <button class="btn btn-ghost btn-icon admin-only" onclick="resetBracket(${stage.id})" title="Neu auslosen (mit allen aktuellen Teilnehmern)" aria-label="Neu auslosen">
                     ${icon('shuffle')}
                 </button>
@@ -424,9 +452,14 @@ function displayEvents() {
                 <h3>${escapeHtml(event.name)}</h3>
                 <p class="event-meta">${event.tournaments.length} Turnier${event.tournaments.length !== 1 ? 'e' : ''}</p>
             </div>
-            <button class="btn btn-secondary btn-sm" data-event="${escapeHtml(event.name)}" onclick="viewEventRankings(this.dataset.event)">
-                ${icon('trophy')}<span>Gesamtwertung</span>
-            </button>
+            <div class="event-actions">
+                <button class="btn btn-ghost btn-sm admin-only" data-event="${escapeHtml(event.name)}" onclick="openEventScheduleModal(this.dataset.event)" title="Spielzeiten für alle Turniere dieses Events">
+                    ${icon('clock')}<span>Spielzeiten</span>
+                </button>
+                <button class="btn btn-secondary btn-sm" data-event="${escapeHtml(event.name)}" onclick="viewEventRankings(this.dataset.event)">
+                    ${icon('trophy')}<span>Gesamtwertung</span>
+                </button>
+            </div>
         </div>
     `).join('');
 }
@@ -480,6 +513,7 @@ function displayMatches() {
                 <div class="match-info">
                     ${stage ? `<span class="info-badge badge-id">${escapeHtml(stage.name)}</span>` : ''}
                     <span class="info-badge ${statusBadge[0]}">${statusBadge[1]}</span>
+                    ${match.drawn ? '<span class="info-badge badge-drawn" title="Nach Rundenschluss per Los entschieden">per Los</span>' : ''}
                 </div>
                 <div class="match-opponents">
                     <div class="opponent ${match.opponent1?.result === 'win' ? 'winner' : ''}">
@@ -532,11 +566,15 @@ async function createTournament(e) {
     const name = document.getElementById('stageName').value;
     const type = document.getElementById('tournamentType').value;
     const grandFinalDouble = document.getElementById('grandFinalDouble').checked;
+    const consolationFinal = document.getElementById('consolationFinal').checked;
 
     // The server takes all attendees of the event, assigns the tournament ID, shuffles and adds BYEs
     const settings = {};
     if (type === 'double_elimination') {
         settings.grandFinal = grandFinalDouble ? 'double' : 'simple';
+    }
+    if (type === 'single_elimination') {
+        settings.consolationFinal = consolationFinal;
     }
 
     try {
@@ -547,6 +585,7 @@ async function createTournament(e) {
 
         alert('✅ Turnier erfolgreich erstellt!');
         document.getElementById('createTournamentForm').reset();
+        updateTypeSettings();
         await loadEvents();
         await loadStages();
         await loadMatches();
@@ -609,6 +648,36 @@ async function deleteStage(stageId) {
     }
 }
 
+
+// "Neues Turnier": only the options of the chosen mode
+function updateTypeSettings() {
+    const type = document.getElementById('tournamentType').value;
+    document.getElementById('grandFinalToggle').style.display = type === 'double_elimination' ? '' : 'none';
+    document.getElementById('consolationToggle').style.display = type === 'single_elimination' ? '' : 'none';
+}
+
+// Match for 3rd place of a single elimination tournament, also later: the server rebuilds the
+// bracket with the same draw and keeps the results (switching off drops the 3rd place result)
+async function setConsolationFinal(stageId, enabled, input) {
+    const stage = stages.find(s => s.id === stageId);
+    if (!enabled && !confirm(`Spiel um Platz 3 bei „${stage?.name ?? ''}“ entfernen? Ein schon eingetragenes Ergebnis dieses Spiels geht verloren.`)) {
+        input.checked = true;
+        return;
+    }
+    try {
+        const { stage_id, dropped } = await apiFetch(`/stages/${stageId}/settings`, { method: 'PUT', body: JSON.stringify({ consolationFinal: enabled }) });
+        await loadParticipants();
+        await loadStages();
+        await loadMatches();
+        if (document.getElementById('bracketViewerSection').style.display !== 'none' && currentBracketStageId === stageId) {
+            await viewBracket(stage_id, true);
+        }
+        if (dropped > 0) alert(`Das Ergebnis des Spiels um Platz 3 wurde verworfen.`);
+    } catch (error) {
+        input.checked = !enabled;
+        alert('❌ ' + error.message);
+    }
+}
 
 // View stage matches
 function viewStageMatches(stageId) {
@@ -673,6 +742,11 @@ async function viewBracket(stageId, preserveScroll = false) {
             }
         });
         
+        markDeadlines(data.round_deadlines ?? {}, data.round_starts ?? {});
+        markDrawnMatches(data.match);
+        markMemorialByes(data.memorial_byes ?? []);
+        scheduleBracketRefresh(stageId, Object.keys(data.round_deadlines ?? {}).length > 0);
+
         // A correction prepared for another tournament no longer applies
         currentBracketStageId = stageId;
         if (pendingCorrection && pendingCorrection.stageId !== stageId) pendingCorrection = null;
@@ -692,6 +766,270 @@ async function viewBracket(stageId, preserveScroll = false) {
 function closeBracketViewer() {
     document.getElementById('bracketViewerSection').style.display = 'none';
     cancelCorrection();
+    scheduleBracketRefresh(null, false);
+}
+
+/* Deadlines per round (src/schedule.ts): after a deadline the server decides open matches of the
+   round by lot (drawn: true). Shown under the round names and on the tournament cards; an open
+   bracket with deadlines reloads every minute, so decisions by lot show up. */
+
+function formatDeadline(iso) {
+    return new Date(iso).toLocaleString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+
+// Next deadline ("bis …") or start of a match for places 1–3 ("ab …") on the tournament card
+function nextDeadlineHtml(stage) {
+    const now = Date.now();
+    const next = (stage.schedule ?? [])
+        .map(d => ({ ...d, at: d.ends_at ?? d.starts_at }))
+        .filter(d => d.at && Date.parse(d.at) > now)
+        .sort((a, b) => Date.parse(a.at) - Date.parse(b.at))[0];
+    if (!next) return '';
+    return `<p class="stage-deadline">${icon('clock')}${escapeHtml(next.label)} ${next.starts_at ? 'ab' : 'bis'} ${escapeHtml(formatDeadline(next.at))}</p>`;
+}
+
+// Under the round names: until when the round is played ("bis …", after that "Runde geschlossen …")
+// or start ("Beginn …")
+function markDeadlines(deadlines, starts = {}) {
+    const now = Date.now();
+    for (const round of document.querySelectorAll('.brackets-viewer article.round[data-round-id]')) {
+        round.querySelector('.round-deadline')?.remove();
+        const endsAt = deadlines[round.dataset.roundId];
+        const startsAt = starts[round.dataset.roundId];
+        if (!endsAt && !startsAt) continue;
+        const note = document.createElement('p');
+        const overdue = endsAt && Date.parse(endsAt) <= now;
+        note.className = `round-deadline${overdue ? ' is-overdue' : ''}${startsAt ? ' is-start' : ''}`;
+        note.textContent = startsAt
+            ? `Beginn ${formatDeadline(startsAt)}`
+            : `${overdue ? 'Runde geschlossen ·' : 'bis'} ${formatDeadline(endsAt)}`;
+        round.querySelector('h3')?.after(note);
+    }
+}
+
+// Memorial entries in elimination brackets are BYEs with a name: show the name instead of "BYE"
+function markMemorialByes(byes) {
+    for (const { match_id, side, name } of byes) {
+        const sides = document.querySelectorAll(`.brackets-viewer .match[data-match-id="${Number(match_id)}"] .opponents .participant`);
+        const label = sides[side - 1]?.querySelector('.name');
+        if (!label) continue;
+        label.textContent = name;
+        label.classList.add('memorial-bye');
+        label.title = 'In Gedenken';
+    }
+}
+
+function markDrawnMatches(list) {
+    for (const match of list.filter(m => m.drawn)) {
+        const el = document.querySelector(`.brackets-viewer .match[data-match-id="${Number(match.id)}"]`);
+        if (!el) continue;
+        el.classList.add('is-drawn');
+        el.title = 'Nach Rundenschluss per Los entschieden';
+    }
+}
+
+let bracketRefreshTimer = null;
+
+function scheduleBracketRefresh(stageId, enabled) {
+    clearInterval(bracketRefreshTimer);
+    bracketRefreshTimer = null;
+    if (!enabled || stageId == null) return;
+    bracketRefreshTimer = setInterval(async () => {
+        const busy = pendingCorrection || document.querySelector('.modal.show');
+        if (busy || document.getElementById('bracketViewerSection').style.display === 'none') return;
+        await loadMatches();
+        await viewBracket(currentBracketStageId, true);
+    }, 60_000);
+}
+
+// What the deadline modal edits: { type: 'stage', id } or { type: 'event', id } (shared play slots)
+let scheduleTarget = null;
+
+/* Event period ("YYYY-MM-DD" days, local): deadlines and the timetable offer only these days */
+
+const pad2 = n => String(n).padStart(2, '0');
+const localDay = date => `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+
+// All days of the event, or [] without a period
+function eventDays(event) {
+    if (!event?.starts_on || !event?.ends_on) return [];
+    const days = [];
+    for (let date = new Date(`${event.starts_on}T12:00`); localDay(date) <= event.ends_on; date.setDate(date.getDate() + 1)) {
+        days.push(localDay(date));
+    }
+    return days;
+}
+
+// "Sa., 21.11."
+function formatEventDay(day) {
+    return new Date(`${day}T12:00`).toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' });
+}
+
+// ISO timestamp ↔ local day + "HH:MM"
+function splitLocal(iso) {
+    if (!iso) return { day: '', time: '' };
+    const date = new Date(iso);
+    return { day: localDay(date), time: `${pad2(date.getHours())}:${pad2(date.getMinutes())}` };
+}
+
+const joinLocal = (day, time) => (day && time ? new Date(`${day}T${time}`).toISOString() : null);
+
+// "YYYY-MM-DDTHH:MM" in local time for <input type="datetime-local">
+function toLocalInput(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    const pad = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+// Days offered in the deadline modal: the event's period (empty: free date and time input)
+let scheduleDays = [];
+
+const periodTip = () => (scheduleDays.length ? '' : 'Tipp: Mit einem Zeitraum beim Event (Teilnehmer › Konfiguration) stehen hier nur dessen Tage zur Auswahl.');
+
+// One row: with an event period a day selection + time, otherwise date and time in one field.
+// A day outside the period (set before the period changed) stays selectable.
+function scheduleRow(i, label, detail, value, data) {
+    const { day, time } = splitLocal(value);
+    const days = day && !scheduleDays.includes(day) ? [...scheduleDays, day].sort() : scheduleDays;
+    const inputs = scheduleDays.length
+        ? `<span class="deadline-inputs">
+               <select id="deadline-day-${i}" aria-label="Tag" onchange="markDeadlineTouched(${i})">
+                   <option value="">–</option>
+                   ${days.map(d => `<option value="${d}"${d === day ? ' selected' : ''}>${escapeHtml(formatEventDay(d))}</option>`).join('')}
+               </select>
+               <input type="time" id="deadline-time-${i}" value="${time}" aria-label="Uhrzeit" oninput="suggestDeadlineDay(${i})">
+           </span>`
+        : `<input type="datetime-local" id="deadline-${i}" value="${toLocalInput(value)}" oninput="markDeadlineTouched(${i})">`;
+    return `
+        <div class="schedule-row" id="deadline-row-${i}" ${data}>
+            <span class="schedule-label">${escapeHtml(label)}${detail ? `<small>${detail}</small>` : ''}</span>
+            ${inputs}
+            <button type="button" class="btn btn-ghost btn-icon" onclick="clearDeadlineInput(${i})" title="Zeit entfernen" aria-label="Zeit entfernen">${icon('x')}</button>
+        </div>
+    `;
+}
+
+function markDeadlineTouched(i) {
+    document.getElementById(`deadline-row-${i}`).dataset.touched = '1';
+}
+
+// A time without day: take the day of the row above (or the first day of the event)
+function suggestDeadlineDay(i) {
+    markDeadlineTouched(i);
+    const day = document.getElementById(`deadline-day-${i}`);
+    if (day.value || !document.getElementById(`deadline-time-${i}`).value) return;
+    let previous = '';
+    for (let j = i - 1; j >= 0 && !previous; j--) previous = document.getElementById(`deadline-day-${j}`)?.value ?? '';
+    day.value = previous || scheduleDays[0] || '';
+}
+
+function clearDeadlineInput(i) {
+    for (const id of [`deadline-${i}`, `deadline-day-${i}`, `deadline-time-${i}`]) {
+        const input = document.getElementById(id);
+        if (input) input.value = '';
+    }
+    markDeadlineTouched(i);
+}
+
+// ISO deadline of a row, null = none; a day without time (or the reverse) is an error
+function deadlineOf(row) {
+    const i = row.id.replace('deadline-row-', '');
+    const free = document.getElementById(`deadline-${i}`);
+    if (free) return free.value ? new Date(free.value).toISOString() : null;
+    const day = document.getElementById(`deadline-day-${i}`).value;
+    const time = document.getElementById(`deadline-time-${i}`).value;
+    if (!day && !time) return null;
+    if (!day || !time) throw new Error(`${row.querySelector('.schedule-label').firstChild.textContent}: Tag und Uhrzeit angeben`);
+    return joinLocal(day, time);
+}
+
+// Deadlines of one tournament (round by round)
+async function openScheduleModal(stageId) {
+    try {
+        const { rounds } = await apiFetch(`/stages/${stageId}/schedule`);
+        const stage = stages.find(s => s.id === stageId);
+        scheduleTarget = { type: 'stage', id: stageId };
+        scheduleDays = eventDays(lanEvents.find(e => e.name === stage?.event_name));
+        document.getElementById('scheduleStageName').textContent = stage?.name ?? '';
+        document.getElementById('scheduleModeHint').textContent = (stage?.event_name
+            ? `Gleiche Zeiten für alle Turniere: „Spielzeiten“ beim Event „${stage.event_name}“. `
+            : '') + periodTip();
+        // Loser bracket rounds (except its final) have no time
+        document.getElementById('scheduleList').innerHTML = rounds.filter(r => r.kind !== 'none').map((r, i) => r.kind === 'start'
+            ? scheduleRow(i, r.label, 'Beginn — wird nie ausgelost', r.starts_at, `data-group="${r.group}" data-round="${r.round}" data-kind="start"`)
+            : scheduleRow(i, r.label, `Spielrunde ${r.slot}`, r.ends_at, `data-group="${r.group}" data-round="${r.round}"`)
+        ).join('');
+        openModal('scheduleModal');
+    } catch (error) {
+        alert('❌ Fehler beim Laden der Spielzeiten: ' + error.message);
+    }
+}
+
+// Shared deadlines for all tournaments of an event, by play slot ("Spielrunde")
+async function openEventScheduleModal(eventName) {
+    const event = lanEvents.find(e => e.name === eventName);
+    if (!event) return;
+    try {
+        const { slots, finals } = await apiFetch(`/events/${event.id}/schedule`);
+        scheduleTarget = { type: 'event', id: event.id };
+        scheduleDays = eventDays(event);
+        document.getElementById('scheduleStageName').textContent = `${eventName} · alle Turniere`;
+        document.getElementById('scheduleModeHint').textContent = 'Runde n aller Turniere gehört zur Spielrunde n und bekommt deren Zeit. Einzelne Turniere lassen sich danach über ihr Uhr-Symbol noch anpassen. ' + periodTip();
+        document.getElementById('scheduleList').innerHTML = slots.map((slot, i) => {
+            const detail = slot.rounds.map(r => `${escapeHtml(r.stage_name)}: ${escapeHtml(r.label)}`).join(' · ')
+                + (slot.mixed ? ' — <em>derzeit unterschiedlich, leer lassen = so lassen</em>' : '');
+            return scheduleRow(i, `Spielrunde ${slot.slot}`, detail, slot.ends_at, `data-slot="${slot.slot}" data-mixed="${slot.mixed ? 1 : 0}"`);
+        }).join('') + (finals.length ? `
+            <h3 class="schedule-section">Finalspiele <small>Beginn je Turnier — wird nie ausgelost</small></h3>
+            ${finals.map((f, j) => scheduleRow(slots.length + j, `${f.stage_name}: ${f.label}`, '', f.starts_at,
+                `data-stage="${f.stage_id}" data-group="${f.group}" data-round="${f.round}" data-kind="start"`)).join('')}
+        ` : '');
+        openModal('scheduleModal');
+    } catch (error) {
+        alert('❌ Fehler beim Laden der Spielzeiten: ' + error.message);
+    }
+}
+
+async function saveSchedule(e) {
+    e.preventDefault();
+    const rows = [...document.querySelectorAll('#scheduleList .schedule-row')];
+    const isEvent = scheduleTarget.type === 'event';
+    let entries;
+    let finals;
+    try {
+        // Rows of the matches for places 1–3 carry a start time instead of a deadline
+        const round = row => {
+            const base = { group: Number(row.dataset.group), round: Number(row.dataset.round) };
+            return row.dataset.kind === 'start' ? { ...base, starts_at: deadlineOf(row) } : { ...base, ends_at: deadlineOf(row) };
+        };
+        entries = isEvent
+            // Slots with different deadlines per tournament stay as they are unless something was entered
+            ? rows.filter(row => row.dataset.slot && (row.dataset.mixed !== '1' || row.dataset.touched))
+                .map(row => ({ slot: Number(row.dataset.slot), ends_at: deadlineOf(row) }))
+            : rows.map(round);
+        finals = isEvent ? rows.filter(row => row.dataset.stage).map(row => ({ stage_id: Number(row.dataset.stage), ...round(row) })) : [];
+    } catch (error) {
+        alert('❌ ' + error.message);
+        return;
+    }
+    const past = entries.filter(r => r.ends_at && Date.parse(r.ends_at) <= Date.now());
+    if (past.length && !confirm('Mindestens eine Runde ist damit schon geschlossen. Ihre offenen Matches werden sofort per Los entschieden. Fortfahren?')) return;
+
+    try {
+        const { decided } = isEvent
+            ? await apiFetch(`/events/${scheduleTarget.id}/schedule`, { method: 'PUT', body: JSON.stringify({ slots: entries, finals }) })
+            : await apiFetch(`/stages/${scheduleTarget.id}/schedule`, { method: 'PUT', body: JSON.stringify({ rounds: entries }) });
+        closeModal('scheduleModal');
+        await loadStages();
+        await loadMatches();
+        if (document.getElementById('bracketViewerSection').style.display !== 'none' && currentBracketStageId != null) {
+            await viewBracket(currentBracketStageId, true);
+        }
+        if (decided > 0) alert(`🎲 ${decided} Match(es) per Los entschieden.`);
+    } catch (error) {
+        alert('❌ Fehler beim Speichern der Spielzeiten: ' + error.message);
+    }
 }
 
 /* Punktesystem: global championship points for 1st–10th place and "ab Platz 11".
@@ -973,7 +1311,12 @@ function selectWinner(winnerNum) {
     if (!match) return;
 
     const currentWinner = match.opponent1?.result === 'win' ? 1 : match.opponent2?.result === 'win' ? 2 : null;
-    if (currentWinner === winnerNum) return; // same winner again: nothing changes
+    if (currentWinner === winnerNum) {
+        // Same winner again: nothing changes, unless the lot decided it, then this confirms it by hand
+        const drawn = match.drawn ?? matches.find(m => m.id === match.id)?.drawn;
+        if (drawn) updateMatchQuick(match.id, winnerNum === 1);
+        return;
+    }
     if (currentWinner === null) {
         // First result: enter it directly
         cancelCorrection();
@@ -993,6 +1336,12 @@ let currentBracketStageId = null;
 async function prepareCorrection(match, winnerNum) {
     try {
         const preview = await apiFetch(`/matches/${match.id}/following`);
+        if (preview.following.length === 0) {
+            // Nothing depends on it: change it right away, no preview needed
+            cancelCorrection();
+            await updateMatchQuick(match.id, winnerNum === 1, true);
+            return;
+        }
         const stageId = match.stage_id ?? matches.find(m => m.id === match.id)?.stage_id;
         pendingCorrection = { match, stageId, winnerNum, preview };
 

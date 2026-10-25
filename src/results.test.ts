@@ -94,18 +94,20 @@ test('the preview describes the following matches', async () => {
   assert.ok(preview.following.some(f => f.label === 'Grand Final'));
 });
 
-test('memorial matches cannot be changed and are decided again after a correction', async () => {
-  const stage = await playedStage('single_elimination', ['A', 'B', 'C', 'D', 'E', 'F', 'G'], ['Opa Willi']);
-  const players = (await getStorage().select('participant', { tournament_id: stage.tournament_id })) ?? [];
+test('memorial matches (round robin) cannot be changed; elimination corrections never bring memorial entries into play', async () => {
+  const rr = await playedStage('round_robin', ['A', 'B', 'C'], ['Opa Willi']);
+  const players = (await getStorage().select('participant', { tournament_id: rr.tournament_id })) ?? [];
   const memorialId = players.find(p => p.name === 'Opa Willi')!.id;
-  const memorialMatch = (await matchesOf(stage.id)).find(m => m.opponent1?.id === memorialId || m.opponent2?.id === memorialId)!;
+  const memorialMatch = (await matchesOf(rr.id)).find(m => m.opponent1?.id === memorialId || m.opponent2?.id === memorialId)!;
   await assert.rejects(updateMatchResult(memorialMatch.id, flipped(memorialMatch)), (e: unknown) => e instanceof HttpError && e.status === 400);
 
-  const target = (await matchesOf(stage.id)).find(m =>
-    m.opponent1?.id != null && m.opponent2?.id != null && m.opponent1.id !== memorialId && m.opponent2.id !== memorialId)!;
+  // Elimination: the memorial entry is a named BYE, a correction with following results works as usual
+  const se = await playedStage('single_elimination', ['A', 'B', 'C', 'D', 'E', 'F', 'G'], ['Opa Willi']);
+  assert.ok(!((await getStorage().select('participant', { tournament_id: se.tournament_id })) ?? []).some(p => p.name === 'Opa Willi'));
+  const target = await firstRealMatch(se.id);
   await updateMatchResult(target.id, { ...flipped(target), resetFollowing: true });
-  const open = (await matchesOf(stage.id)).filter(m => m.status === Status.Ready);
-  assert.ok(open.every(m => m.opponent1?.id !== memorialId && m.opponent2?.id !== memorialId), 'memorial matches resolve themselves again');
+  await playAll(se.id);
+  assert.ok(!(await matchesOf(se.id)).some(m => m.status === Status.Ready));
 });
 
 test('round robin results can be changed directly', async () => {

@@ -141,41 +141,31 @@ function addSlipPage(doc, event, attendee, createdAt) {
         y += cardH + 4;
     });
 
-    // Network settings: mask, gateway and DNS (empty ones get a line to fill in by hand).
+    // Network settings in one row: mask, gateway and DNS (empty ones get a line to fill in by hand).
     // The domain is only part of the DNS names above, it is not entered anywhere.
-    const settings = [
-        ['Subnetzmaske', event.netmask],
-        ['Router/Gateway', event.gateway],
-        ['DNS', event.dns_server],
-    ];
-
     y += 4;
     slipLabel(doc, 'Netzwerk-Einstellungen', margin, y);
-    y += 5;
-    const gap = 6, boxW = (contentWidth - gap) / 2, boxH = 17;
-    settings.forEach(([label, value], i) => {
-        const bx = margin + (i % 2) * (boxW + gap);
-        const by = y + Math.floor(i / 2) * (boxH + gap / 2);
-        doc.setFillColor(255, 255, 255);
-        doc.setDrawColor(...SLIP.border);
-        doc.roundedRect(bx, by, boxW, boxH, 2.5, 2.5, 'FD');
-        slipLabel(doc, label, bx + 5, by + 6.5, SLIP.muted, 7);
-        if (value) {
-            doc.setFont('courier', 'bold');
-            doc.setFontSize(fitFontSize(doc, value, boxW - 10, 13, 8));
-            doc.setTextColor(...SLIP.text);
-            doc.text(value, bx + 5, by + 13);
-        } else {
-            doc.setDrawColor(...SLIP.faint);
-            doc.setLineDashPattern([1, 1], 0);
-            doc.line(bx + 5, by + 13.5, bx + boxW - 5, by + 13.5);
-            doc.setLineDashPattern([], 0);
-        }
-    });
-    y += Math.ceil(settings.length / 2) * (boxH + gap / 2) - gap / 2;
+    y = drawValueBoxes(doc, [
+        { label: 'Subnetzmaske', value: event.netmask },
+        { label: 'Router/Gateway', value: event.gateway },
+        { label: 'DNS', value: event.dns_server },
+    ], margin, y + 5, contentWidth);
 
-    // Hint
-    y += 9;
+    // WLAN (only when the event has one). Password: '' = open network, null = hidden for
+    // visitors without admin login (line to fill in)
+    if (event.wifi_enabled) {
+        y += 7;
+        slipLabel(doc, 'WLAN', margin, y);
+        y = drawValueBoxes(doc, [
+            { label: 'Netzwerkname (SSID)', value: event.wifi_ssid },
+            event.wifi_password === ''
+                ? { label: 'Passwort', note: 'keins (offenes WLAN)' }
+                : { label: 'Passwort', value: event.wifi_password },
+        ], margin, y + 5, contentWidth);
+    }
+
+    // Hint (a bit closer with WLAN, so a page with a large logo still fits)
+    y += event.wifi_enabled ? 7 : 9;
     const hint = 'Bitte nur die dir zugewiesenen Adressen verwenden und in den Netzwerkeinstellungen deiner Rechner eintragen. '
         + 'Der Haupt-PC bekommt Adresse 1, weitere Rechner oder Server die Adressen 2 und 3. Bei Fragen hilft die Orga.';
     doc.setFont('helvetica', 'normal');
@@ -197,6 +187,53 @@ function addSlipPage(doc, event, attendee, createdAt) {
     doc.setTextColor(...SLIP.faint);
     doc.text(`${event.name} · ${attendee.display_name}`, margin, 287);
     doc.text(`Erstellt am ${createdAt.toLocaleDateString('de-DE')}`, right, 287, { align: 'right' });
+}
+
+// A row of boxes with a small label and a value in courier (easy to tell 0/O and 1/l apart).
+// Values that don't fit even at 8 pt wrap onto more lines and make the row taller.
+// Empty values get a dashed line to fill in by hand, note a short text instead.
+// Returns the y below the row.
+function drawValueBoxes(doc, items, x, y, width) {
+    const gap = 6;
+    const boxW = (width - gap * (items.length - 1)) / items.length;
+    const inner = boxW - 10;
+
+    const layouts = items.map(item => {
+        if (!item.value) return { size: 13, lines: [] };
+        doc.setFont('courier', 'bold');
+        const size = fitFontSize(doc, item.value, inner, 13, 8);
+        const lines = doc.getTextWidth(item.value) > inner ? doc.splitTextToSize(item.value, inner) : [item.value];
+        return { size, lines };
+    });
+    const lineH = size => size * 0.42;
+    const boxH = Math.max(17, ...layouts.map(l => 9 + l.lines.length * lineH(l.size) + 2.5));
+
+    items.forEach((item, i) => {
+        const bx = x + i * (boxW + gap);
+        doc.setFillColor(255, 255, 255);
+        doc.setDrawColor(...SLIP.border);
+        doc.roundedRect(bx, y, boxW, boxH, 2.5, 2.5, 'FD');
+        slipLabel(doc, item.label, bx + 5, y + 6.5, SLIP.muted, 7);
+
+        const { size, lines } = layouts[i];
+        if (lines.length) {
+            doc.setFont('courier', 'bold');
+            doc.setFontSize(size);
+            doc.setTextColor(...SLIP.text);
+            lines.forEach((line, n) => doc.text(line, bx + 5, y + 13 + n * lineH(size)));
+        } else if (item.note) {
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(10);
+            doc.setTextColor(...SLIP.muted);
+            doc.text(item.note, bx + 5, y + 13);
+        } else {
+            doc.setDrawColor(...SLIP.faint);
+            doc.setLineDashPattern([1, 1], 0);
+            doc.line(bx + 5, y + 13.5, bx + boxW - 5, y + 13.5);
+            doc.setLineDashPattern([], 0);
+        }
+    });
+    return y + boxH;
 }
 
 function buildSlipsPdf(event, list) {

@@ -2,11 +2,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   assertUniqueAttendee, DEFAULT_RANGES, describeAttendee, eventCapacity, exportBindZone, exportCsv,
-  assertNotMemorial, displayName, exportHosts, normalizeMemorial, formatIPv4, isValidNetmask, nextFreeSlot, parseBulkLine, parseIPv4, splitClanNickname, toHostname, validateAttendee, validateEventSettings,
+  assertNotMemorial, displayName, exportHosts, normalizeMemorial, formatIPv4, isValidNetmask, nextFreeSlot, parseBulkLine, parseIPv4, splitClanNickname, toHostname, validateAttendee, validateEventSettings, validatePeriod, validateWifi,
   ValidationError, type Attendee, type LanEvent,
 } from './lan';
 
-const event: LanEvent = { id: 1, name: 'mcd.lan 2026', domain: 'lan.example.org', dns_server: '192.168.120.1', netmask: '255.255.255.0', gateway: '192.168.120.1', logo: '', memorial: [], ranges: DEFAULT_RANGES };
+const event: LanEvent = { id: 1, name: 'mcd.lan 2026', domain: 'lan.example.org', dns_server: '192.168.120.1', netmask: '255.255.255.0', gateway: '192.168.120.1', logo: '', starts_on: '', ends_on: '', wifi_enabled: false, wifi_ssid: '', wifi_password: '', memorial: [], ranges: DEFAULT_RANGES };
 
 function attendee(nickname: string, slot: number, extra: Partial<Attendee> = {}): Attendee {
   return { id: slot, event_id: 1, first_name: 'Max', last_name: 'Muster', clan: '', nickname, hostname: toHostname(nickname), slot, ...extra };
@@ -165,4 +165,39 @@ test('memorial names: one per line, trimmed, unique, never equal to a player', (
 
   assert.throws(() => assertNotMemorial('ANNA', ['Anna']), /In Gedenken/);
   assert.doesNotThrow(() => assertNotMemorial('Anna2', ['Anna']));
+});
+
+test('WLAN: SSID required when switched on, password empty or a WPA passphrase', () => {
+  const base = { name: 'x', ranges: DEFAULT_RANGES };
+  assert.deepEqual(
+    validateWifi({ wifi_enabled: true, wifi_ssid: '  mcd.lan  ', wifi_password: ' geheim 123 ' }),
+    { wifi_enabled: true, wifi_ssid: 'mcd.lan', wifi_password: ' geheim 123 ' },
+  );
+  assert.equal(validateEventSettings({ ...base, wifi_enabled: true, wifi_ssid: 'Gäste-WLAN', wifi_password: '' }).wifi_password, '');
+  assert.throws(() => validateEventSettings({ ...base, wifi_enabled: true, wifi_ssid: '' }), /SSID/);
+  assert.throws(() => validateEventSettings({ ...base, wifi_enabled: true, wifi_ssid: 'x'.repeat(33) }), /32/);
+  assert.throws(() => validateEventSettings({ ...base, wifi_enabled: true, wifi_ssid: 'LAN 🎮' }), /gedruckt/);
+  assert.throws(() => validateEventSettings({ ...base, wifi_enabled: true, wifi_ssid: 'LAN', wifi_password: 'kurz' }), /8 bis 63/);
+  assert.throws(() => validateEventSettings({ ...base, wifi_enabled: true, wifi_ssid: 'LAN', wifi_password: 'Übermütig123' }), /8 bis 63/);
+
+  // Switched off: no checks, the values stay for later
+  const off = validateEventSettings({ ...base, wifi_enabled: false, wifi_ssid: 'LAN', wifi_password: 'kurz' });
+  assert.deepEqual([off.wifi_enabled, off.wifi_ssid, off.wifi_password], [false, 'LAN', 'kurz']);
+  // Old events without the fields: WLAN off
+  assert.equal(validateEventSettings(base).wifi_enabled, false);
+});
+
+test('event period: both days or none, end not before start, at most 31 days', () => {
+  assert.deepEqual(validatePeriod({}), { starts_on: '', ends_on: '' });
+  assert.deepEqual(validatePeriod({ starts_on: '2026-11-20', ends_on: '2026-11-23' }), { starts_on: '2026-11-20', ends_on: '2026-11-23' });
+  assert.deepEqual(validatePeriod({ starts_on: '2026-11-20', ends_on: '2026-11-20' }).ends_on, '2026-11-20');
+  for (const input of [
+    { starts_on: '2026-11-20' },
+    { starts_on: '2026-11-23', ends_on: '2026-11-20' },
+    { starts_on: '2026-02-30', ends_on: '2026-03-02' },
+    { starts_on: '20.11.2026', ends_on: '23.11.2026' },
+    { starts_on: '2026-01-01', ends_on: '2026-02-15' },
+  ]) {
+    assert.throws(() => validatePeriod(input), ValidationError, JSON.stringify(input));
+  }
 });

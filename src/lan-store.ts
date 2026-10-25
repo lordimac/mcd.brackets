@@ -66,7 +66,7 @@ export async function syncEventsFromStages(): Promise<void> {
   const names = new Set((await allStages()).map(s => s.event_name).filter((n): n is string => !!n));
   for (const name of names) {
     if (!known.has(name)) {
-      await getAppStore().insert('event', { name, domain: '', dns_server: '', netmask: '', gateway: '', logo: '', memorial: [], ranges: DEFAULT_RANGES });
+      await getAppStore().insert('event', { name, domain: '', dns_server: '', netmask: '', gateway: '', logo: '', starts_on: '', ends_on: '', wifi_enabled: false, wifi_ssid: '', wifi_password: '', memorial: [], ranges: DEFAULT_RANGES });
     }
   }
 }
@@ -81,6 +81,11 @@ export async function createEvent(input: EventSettingsInput): Promise<LanEvent> 
     netmask: input.netmask ?? latest?.netmask ?? '',
     gateway: input.gateway ?? latest?.gateway ?? '',
     logo: input.logo ?? latest?.logo ?? '',
+    starts_on: input.starts_on ?? '', // every event has its own dates
+    ends_on: input.ends_on ?? '',
+    wifi_enabled: input.wifi_enabled ?? latest?.wifi_enabled ?? false,
+    wifi_ssid: input.wifi_ssid ?? latest?.wifi_ssid ?? '',
+    wifi_password: input.wifi_password ?? latest?.wifi_password ?? '',
     memorial: input.memorial ?? latest?.memorial ?? [],
     ranges: input.ranges ?? latest?.ranges ?? DEFAULT_RANGES,
   });
@@ -126,6 +131,7 @@ export async function deleteEvent(id: number): Promise<void> {
   }
   await getAppStore().delete('attendee', { event_id: id });
   await getAppStore().delete('room', { event_id: id });
+  await getAppStore().delete('timetable', { event_id: id });
   await getAppStore().delete('event', { id });
 }
 

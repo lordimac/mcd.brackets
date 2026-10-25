@@ -17,6 +17,11 @@ export interface LanEvent {
   netmask: string;     // optional, printed on the IP slips
   gateway: string;     // optional, printed on the IP slips
   logo: string;        // optional PNG/JPEG data URL, printed on the IP slips
+  starts_on: string;   // first day of the event, "YYYY-MM-DD" ('' = not set); offered for deadlines and the timetable
+  ends_on: string;     // last day of the event
+  wifi_enabled: boolean; // print the WLAN access on the IP slips
+  wifi_ssid: string;
+  wifi_password: string; // empty = open network; only admins get it from the API (lan-routes.ts)
   memorial: string[];  // "In Gedenken": take part in every tournament by name, but always as a bye
   ranges: IpRange[];   // one range per RANGE_LABELS entry
 }
@@ -131,6 +136,11 @@ export interface EventSettingsInput {
   netmask?: unknown;
   gateway?: unknown;
   logo?: unknown;
+  starts_on?: unknown;
+  ends_on?: unknown;
+  wifi_enabled?: unknown;
+  wifi_ssid?: unknown;
+  wifi_password?: unknown;
   memorial?: unknown;
   ranges?: unknown;
 }
@@ -188,8 +198,52 @@ export function validateEventSettings(input: EventSettingsInput, usedSlots: numb
   }
 
   const memorial = normalizeMemorial(input.memorial);
+  const wifi = validateWifi(input);
+  const period = validatePeriod(input);
 
-  return { name, domain, dns_server: dnsServer, netmask, gateway, logo, memorial, ranges };
+  return { name, domain, dns_server: dnsServer, netmask, gateway, logo, ...period, ...wifi, memorial, ranges };
+}
+
+// Period of the event: both days or none, at most 31 days
+export const MAX_EVENT_DAYS = 31;
+const DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+export function isValidDay(value: unknown): value is string {
+  if (typeof value !== 'string' || !DAY_PATTERN.test(value)) return false;
+  const date = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+
+export function validatePeriod(input: EventSettingsInput): Pick<LanEvent, 'starts_on' | 'ends_on'> {
+  const startsOn = typeof input.starts_on === 'string' ? input.starts_on.trim() : '';
+  const endsOn = typeof input.ends_on === 'string' ? input.ends_on.trim() : '';
+  if (!startsOn && !endsOn) return { starts_on: '', ends_on: '' };
+  if (!isValidDay(startsOn) || !isValidDay(endsOn)) throw new ValidationError('Zeitraum: Beginn und Ende als Datum angeben (oder beide leer lassen)');
+  if (endsOn < startsOn) throw new ValidationError('Zeitraum: das Ende liegt vor dem Beginn');
+  const days = (Date.parse(endsOn) - Date.parse(startsOn)) / 86_400_000 + 1;
+  if (days > MAX_EVENT_DAYS) throw new ValidationError(`Zeitraum: höchstens ${MAX_EVENT_DAYS} Tage`);
+  return { starts_on: startsOn, ends_on: endsOn };
+}
+
+// WLAN for the IP slips. SSID: up to 32 characters that the PDF fonts can print (Latin-1).
+// Password: empty (open network) or a WPA passphrase, 8–63 printable ASCII characters
+// (not trimmed: spaces count). When switched off, the values are kept for later.
+const PRINTABLE_LATIN1 = /^[\x20-\x7E\u00A0-\u00FF]*$/;
+const WPA_PASSPHRASE = /^[\x20-\x7E]{8,63}$/;
+
+export function validateWifi(input: EventSettingsInput): Pick<LanEvent, 'wifi_enabled' | 'wifi_ssid' | 'wifi_password'> {
+  const wifi_enabled = input.wifi_enabled === true;
+  const wifi_ssid = typeof input.wifi_ssid === 'string' ? input.wifi_ssid.trim() : '';
+  const wifi_password = typeof input.wifi_password === 'string' ? input.wifi_password : '';
+  if (!wifi_enabled) return { wifi_enabled, wifi_ssid, wifi_password };
+
+  if (!wifi_ssid) throw new ValidationError('WLAN: der Netzwerkname (SSID) fehlt');
+  if (wifi_ssid.length > 32) throw new ValidationError('WLAN: die SSID darf höchstens 32 Zeichen lang sein');
+  if (!PRINTABLE_LATIN1.test(wifi_ssid)) throw new ValidationError('WLAN: die SSID enthält Zeichen, die im PDF nicht gedruckt werden können');
+  if (wifi_password && !WPA_PASSPHRASE.test(wifi_password)) {
+    throw new ValidationError('WLAN: das Passwort muss 8 bis 63 Zeichen lang sein (Buchstaben, Ziffern, Sonderzeichen ohne Umlaute) oder leer für ein offenes WLAN');
+  }
+  return { wifi_enabled, wifi_ssid, wifi_password };
 }
 
 // Memorial names: one per line (string) or array; trimmed, without duplicates
