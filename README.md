@@ -2,7 +2,7 @@
 
 Ein vollständiges Turnierverwaltungssystem mit Event-basiertem Meisterschafts-Punktesystem, entwickelt mit [brackets-manager](https://www.npmjs.com/package/brackets-manager).
 
-**Version:** 0.26.0-beta
+**Version:** 0.27.0-beta
 
 ---
 
@@ -74,6 +74,8 @@ Ein vollständiges Turnierverwaltungssystem mit Event-basiertem Meisterschafts-P
 - Eigene Bestellungen lassen sich ändern oder stornieren, solange sie noch nicht gedruckt sind (der Browser merkt sich die Bestellung; ein über die IP erkanntes Gerät darf auch so). Höchstens 3 offene Bestellungen je Teilnehmer
 - Admins: Liste aller Bestellungen mit Zusammenfassung für den Grill (z. B. „5× Patty Fleisch, 2× Cheddar …“), Schalter „Bestellung offen“, Zutaten bearbeiten (eigene Kategorien und Zutaten mit Kurzform fürs Etikett, Farbe und Form für die Zeichnung, „da“ zum Ausschalten, wenn etwas aus ist)
 - Etiketten für den DYMO LabelWriter 450 (DYMO 11354, 57 × 32 mm): „Neue drucken“ druckt alle noch nicht gedruckten Bestellungen — Nummer, Name, Kurzfassung („Einfach, Fleisch, Blauschimmel, Zwiebeln, Bacon, extra viel Burgersauce“) und Anmerkung. Gedruckte werden nicht noch einmal gedruckt; einzeln nachdrucken oder zurück in die Warteschlange geht über die Liste. Mit „Neue automatisch drucken“ druckt der Grill-PC neue Bestellungen von selbst (ganz ohne Druckdialog mit Chrome `--kiosk-printing`)
+- Ausgabe wählbar: Bestellungen gehen an den **Etikettendrucker**, an die **Tablet-Anzeige** oder an beides (Schalter in der Bestellliste)
+- Tablet-Anzeige für den Grill: Vollbild mit den Spalten „Neu“ und „In Arbeit“, große Karten mit Nummer, Name, gezeichnetem Burger, Kurzfassung und Anmerkung; „Zubereiten“ → „Fertig“ (rückgängig über „Zuletzt fertig“). Ton bei neuen Bestellungen, länger als 20 Minuten wartende werden rot, der Bildschirm bleibt an. Das Tablet merkt sich die Anzeige und öffnet sie beim nächsten Aufruf von selbst. Teilnehmer sehen „beim Grill“ bzw. „fertig“
 
 ### 🏅 Punktesystem & Rankings
 Platzierungsbasierte Punkte, gleich für alle Turniere. Unter „Turniere“ › „Punktesystem“ lassen sich die Punkte für Platz 1–10 und „ab Platz 11“ anpassen (nur Admin). Unter jedem Feld steht der Standardwert, „Standardwerte eintragen“ setzt alle zurück. Die Punkte werden bei jedem Abruf einer Rangliste aus der Platzierung berechnet. Eine Änderung gilt deshalb sofort für alle Turniere, auch für laufende und abgeschlossene.
@@ -332,13 +334,14 @@ Ist `ADMIN_PASSWORD` gesetzt, sind alle Anfragen außer GET/HEAD (und `GET /api/
 | PUT    | `/api/matches/:id` | Match-Ergebnis setzen/ändern: `{ opponent1, opponent2, resetFollowing? }`. Gibt es schon Folgeergebnisse, ist `resetFollowing: true` nötig (sonst `409`); sie werden dann zurückgesetzt |
 | GET    | `/api/events/:id/timetable` | Zeitplan: `{ entries: [{ id, days: ["YYYY-MM-DD"], start: "HH:MM", end: "HH:MM" \| null, title, info, category }], notes: [{ id, title, text }], tournament_rounds: [{ ends_at, title, rounds: [{ stage_name, label }] }] }` (Zeiten = Ortszeit des Events) |
 | PUT    | `/api/events/:id/timetable` | Zeitplan speichern: `{ entries, notes }` (immer vollständig; `category`: meal, program, tournament, other) |
-| GET    | `/api/burger/menu` | Burger-Speisekarte: `{ open, categories: [{ id, name, visual, multiple, extra, empty_label, options: [{ id, name, short, color, shape, count, available }] }], defaults }` |
+| GET    | `/api/burger/menu` | Burger-Speisekarte: `{ open, print_labels, kitchen_display, categories: [{ id, name, visual, multiple, extra, empty_label, options: [{ id, name, short, color, shape, count, available }] }], defaults }` |
 | PUT    | `/api/burger/menu` | Speisekarte speichern (Admin, immer vollständig) |
-| GET    | `/api/events/:id/burger-orders` | Bestellungen eines Events: `{ orders: [{ id, number, attendee_id, name, choices, extra, note, summary, created_at, printed_at }], me }` |
+| GET    | `/api/events/:id/burger-orders` | Bestellungen eines Events: `{ orders: [{ id, number, attendee_id, name, choices, extra, note, summary, created_at, printed_at, started_at, done_at }], me }` |
 | POST   | `/api/events/:id/burger-orders` | Bestellen (öffentlich, solange offen): `{ attendee_id, choices: { <kategorie>: [<zutat>] }, extra: [<zutat>], note }`; Admins alternativ `{ name }`. Antwort enthält einmalig `token` |
-| PUT/DELETE | `/api/burger-orders/:id` | Eigene Bestellung ändern/stornieren bis zum Druck (Header `X-Burger-Token` oder per IP erkanntes Gerät), Admins immer |
+| PUT/DELETE | `/api/burger-orders/:id` | Eigene Bestellung ändern/stornieren bis zum Druck bzw. zur Zubereitung (Header `X-Burger-Token` oder per IP erkanntes Gerät), Admins immer |
 | POST   | `/api/events/:id/burger-orders/print` | Admin: `{ ids? }` — ohne `ids` alle noch nicht gedruckten, markiert sie als gedruckt und liefert sie fürs Etikett |
 | POST   | `/api/burger-orders/:id/unprint` | Admin: zurück in die Warteschlange |
+| POST   | `/api/burger-orders/:id/kitchen` | Admin (Tablet-Anzeige): `{ state: waiting \| started \| done }` |
 | GET    | `/api/events/:id/schedule` | Gemeinsame Zeiten aller Turniere eines Events: `{ slots: [{ slot, ends_at, mixed, rounds: [{ stage_id, stage_name, label }] }], finals: [{ stage_id, stage_name, group, round, label, starts_at }] }` |
 | PUT    | `/api/events/:id/schedule` | `{ slots: [{ slot, ends_at }], finals: [{ stage_id, group, round, starts_at }] }`: jede Runde mit Spielzeit (SE, Winner Bracket) aller Turniere bekommt die Zeit ihrer Spielrunde, die Spiele um Platz 1–3 ihren Beginn; nicht genannte bleiben unverändert. Antwort `{ slots, finals, decided }` |
 | PUT    | `/api/stages/:id/settings` | Nachträglich änderbare Einstellungen: `{ consolationFinal: boolean }` (Spiel um Platz 3, nur Single Elimination) oder `{ grandFinalDouble: boolean }` (Grand Final mit Rückspiel, nur Double Elimination); Neuaufbau mit gleicher Auslosung. Antwort `{ stage_id, dropped }` |

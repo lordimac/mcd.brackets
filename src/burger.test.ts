@@ -101,7 +101,7 @@ test('orders get numbers per event, can be changed until printed and are printed
   assert.equal(reprint[0].printed_at, printed[1].printed_at, 'a reprint keeps the first print time');
 
   const printedFirst = (await burger.getOrder(first.id))!;
-  await assert.rejects(() => burger.updateOrder(printedFirst, { choices: order }), /schon gedruckt/);
+  await assert.rejects(() => burger.updateOrder(printedFirst, { choices: order }), /schon beim Grill/);
 
   await burger.unmarkPrinted((await burger.getOrder(second.id))!);
   assert.deepEqual((await burger.claimForPrint(event.id)).map(o => o.id), [second.id], 'back in the queue');
@@ -128,4 +128,37 @@ test('stored menus get the current default colours, own colours stay', () => {
   const result = burger.withCurrentColors(menu).categories.find(c => c.id === 'patty')!.options;
   assert.equal(result.find(o => o.id === 'veggie')!.color, '#022c12');
   assert.equal(result.find(o => o.id === 'meat')!.color, '#123456');
+});
+
+test('the tablet display moves orders from waiting to started to done and locks them', async () => {
+  await ensureAppTables();
+  const event = await store.createEvent({ name: 'Küchen-LAN' });
+  const created = await burger.createOrder(event.id, { attendee_id: null, name: 'Gast' }, { choices: order });
+  assert.equal(burger.isLocked(created), false);
+
+  const started = await burger.setKitchenState(created, 'started', new Date('2026-10-31T18:00:00Z'));
+  assert.equal(started.started_at, '2026-10-31T18:00:00.000Z');
+  assert.equal(started.done_at, null);
+  assert.equal(burger.isLocked(started), true, 'being prepared = no more changes by the orderer');
+  await assert.rejects(() => burger.updateOrder(started, { choices: order }), /schon beim Grill/);
+
+  const done = await burger.setKitchenState(started, 'done', new Date('2026-10-31T18:05:00Z'));
+  assert.equal(done.started_at, started.started_at, 'the start time stays');
+  assert.equal(done.done_at, '2026-10-31T18:05:00.000Z');
+
+  const directlyDone = await burger.setKitchenState(created, 'done', new Date('2026-10-31T18:07:00Z'));
+  assert.equal(directlyDone.started_at, directlyDone.done_at, 'done implies started');
+
+  const back = await burger.setKitchenState(done, 'waiting');
+  assert.deepEqual([back.started_at, back.done_at], [null, null]);
+  assert.equal(burger.isLocked(back), false);
+  await assert.rejects(() => burger.setKitchenState(back, 'eaten'), ValidationError);
+});
+
+test('menus saved before the output switches print labels and have no tablet display', () => {
+  const { print_labels: _p, kitchen_display: _k, ...old } = DEFAULT_MENU;
+  const menu = validateMenu(old);
+  assert.equal(menu.print_labels, true);
+  assert.equal(menu.kitchen_display, false);
+  assert.equal(validateMenu({ ...old, print_labels: false, kitchen_display: true }).print_labels, false);
 });

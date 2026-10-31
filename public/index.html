@@ -150,32 +150,73 @@
                     </div>
                     <div class="section-actions">
                         <label class="toggle" title="Teilnehmer dürfen bestellen">
-                            <input type="checkbox" id="burgerOpenToggle" onchange="toggleBurgerOpen(this.checked)">
+                            <input type="checkbox" id="burgerOpenToggle" onchange="setBurgerMenuSwitch('open', this.checked)">
                             <span>Bestellung offen</span>
                         </label>
                         <button class="btn btn-ghost btn-sm" onclick="openBurgerMenuModal()">
                             <svg class="icon"><use href="#i-settings"/></svg><span>Zutaten</span>
                         </button>
-                        <button class="btn btn-primary btn-sm" id="burgerPrintNew" onclick="printBurgerOrders()" title="Alle noch nicht gedruckten Bestellungen als DYMO-Etiketten drucken">
+                        <button class="btn btn-ghost btn-sm" id="burgerKitchenOpen" onclick="openBurgerKitchen()" title="Bestellungen groß auf diesem Gerät anzeigen (z.B. Tablet am Grill)" hidden>
+                            <svg class="icon"><use href="#i-image"/></svg><span>Tablet-Anzeige öffnen</span>
+                        </button>
+                        <button class="btn btn-primary btn-sm burger-print-only" id="burgerPrintNew" onclick="printBurgerOrders()" title="Alle noch nicht gedruckten Bestellungen als DYMO-Etiketten drucken">
                             <svg class="icon"><use href="#i-file"/></svg><span class="btn-label">Neue drucken</span>
                         </button>
                     </div>
                 </div>
+                <div class="burger-print-options burger-output">
+                    <span class="burger-output-label">Bestellungen gehen an:</span>
+                    <label class="toggle" title="Bestellungen als DYMO-Etiketten drucken">
+                        <input type="checkbox" id="burgerPrintToggle" onchange="setBurgerMenuSwitch('print_labels', this.checked)">
+                        <span>Etikettendrucker</span>
+                    </label>
+                    <label class="toggle" title="Bestellungen auf einem Tablet anzeigen, dort als „in Arbeit“ und „fertig“ markieren">
+                        <input type="checkbox" id="burgerDisplayToggle" onchange="setBurgerMenuSwitch('kitchen_display', this.checked)">
+                        <span>Tablet-Anzeige</span>
+                    </label>
+                </div>
                 <div class="burger-print-options">
-                    <label class="toggle">
+                    <label class="toggle burger-print-only">
                         <input type="checkbox" id="burgerAutoPrint">
                         <span>Neue automatisch drucken</span>
                     </label>
                     <label class="toggle">
                         <input type="checkbox" id="burgerShowAll" onchange="toggleBurgerShowAll(this.checked)">
-                        <span>Gedruckte anzeigen</span>
+                        <span>Erledigte anzeigen</span>
                     </label>
-                    <a class="btn btn-ghost btn-sm" id="burgerLastPdf" target="_blank" rel="noopener" hidden><svg class="icon"><use href="#i-external"/></svg><span>Letzten Druck als PDF</span></a>
+                    <a class="btn btn-ghost btn-sm burger-print-only" id="burgerLastPdf" target="_blank" rel="noopener" hidden><svg class="icon"><use href="#i-external"/></svg><span>Letzten Druck als PDF</span></a>
                 </div>
-                <p class="field-hint">Etiketten: DYMO 11354 (57 × 32 mm). Im Druckdialog den LabelWriter, Papier „11354“, Querformat, Ränder „Keine“ und Skalierung 100 % wählen. Was gedruckt wurde, wird nicht noch einmal gedruckt. Für den Druck ganz ohne Dialog Chrome mit <code>--kiosk-printing</code> starten (LabelWriter als Standarddrucker).</p>
+                <p class="field-hint burger-print-only">Etiketten: DYMO 11354 (57 × 32 mm). Im Druckdialog den LabelWriter, Papier „11354“, Querformat, Ränder „Keine“ und Skalierung 100 % wählen. Was gedruckt wurde, wird nicht noch einmal gedruckt. Für den Druck ganz ohne Dialog Chrome mit <code>--kiosk-printing</code> starten (LabelWriter als Standarddrucker).</p>
+                <p class="field-hint" id="burgerDisplayHint">Tablet-Anzeige: auf dem Tablet als Admin anmelden (oder Admin per IP), diese Seite öffnen und „Tablet-Anzeige öffnen“ tippen — das Tablet merkt sich das und öffnet die Anzeige beim nächsten Mal von selbst. Was schon zubereitet wird, können Teilnehmer nicht mehr ändern oder stornieren.</p>
                 <div class="burger-totals" id="burgerTotals"></div>
                 <div class="burger-orders" id="burgerOrderList"></div>
             </section>
+
+            <div class="burger-kitchen" id="burgerKitchen" hidden>
+                <header class="kitchen-bar">
+                    <h2><svg class="icon"><use href="#i-burger"/></svg>Burger <span id="burgerKitchenEvent"></span></h2>
+                    <label class="toggle toggle-sm" title="Ton bei neuen Bestellungen">
+                        <input type="checkbox" id="burgerKitchenSound">
+                        <span>Ton</span>
+                    </label>
+                    <button class="btn btn-ghost btn-sm" id="burgerKitchenFullscreen" onclick="toggleKitchenFullscreen()"><svg class="icon"><use href="#i-external"/></svg><span class="btn-label">Vollbild</span></button>
+                    <button class="btn btn-ghost btn-sm" onclick="closeBurgerKitchen(true)"><svg class="icon"><use href="#i-x"/></svg><span>Schließen</span></button>
+                </header>
+                <div class="kitchen-columns">
+                    <section class="kitchen-column">
+                        <h3>Neu <span class="kitchen-count" id="burgerKitchenWaitingCount">0</span></h3>
+                        <div class="kitchen-cards" id="burgerKitchenWaiting"></div>
+                    </section>
+                    <section class="kitchen-column is-started">
+                        <h3>In Arbeit <span class="kitchen-count" id="burgerKitchenStartedCount">0</span></h3>
+                        <div class="kitchen-cards" id="burgerKitchenStarted"></div>
+                    </section>
+                </div>
+                <footer class="kitchen-done">
+                    <span class="kitchen-done-label">Zuletzt fertig</span>
+                    <div class="kitchen-done-list" id="burgerKitchenDone"></div>
+                </footer>
+            </div>
         </main>
 
         <!-- Timetable of an event: own entries, tournament rounds from the deadlines, notes -->

@@ -5,7 +5,9 @@ import { ValidationError } from './lan';
 // Burger designer: a global menu (categories with options, editable by admins) and the orders
 // of an event. Every order stores its printed summary ("Einfach, Fleisch, Bacon, extra viel
 // Burgersauce"), so later menu changes don't alter it. Orders are printed on DYMO labels by the
-// browser (public/burger-labels.js); printed_at keeps them from being printed twice.
+// browser (public/burger-labels.js); printed_at keeps them from being printed twice. On the tablet
+// display (kitchen) an order goes waiting → started → done (started_at, done_at). Printed or started
+// orders can't be changed by the orderer any more.
 
 // How the frontend draws a category (public/burger.js); 'none' = only listed, not drawn
 export const VISUALS = ['size', 'patty', 'cheese', 'topping', 'sauce', 'bun', 'none'] as const;
@@ -37,6 +39,8 @@ export interface BurgerCategory {
 
 export interface BurgerMenu {
   open: boolean; // attendees may order (admins always)
+  print_labels: boolean;    // orders are printed on DYMO labels
+  kitchen_display: boolean; // orders are shown on the tablet display (kitchen)
   categories: BurgerCategory[];
 }
 
@@ -52,6 +56,8 @@ export interface BurgerOrder {
   summary: string;
   created_at: string;
   printed_at: string | null;
+  started_at: string | null;   // tablet display: being prepared (missing in old orders = null)
+  done_at: string | null;      // tablet display: ready
   token: string;               // lets the orderer's browser change or cancel it until printed
 }
 
@@ -62,6 +68,8 @@ const opt = (id: string, name: string, short: string, color: string, extra: Part
 
 export const DEFAULT_MENU: BurgerMenu = {
   open: true,
+  print_labels: true,
+  kitchen_display: false,
   categories: [
     { id: 'size', name: 'Größe', visual: 'size', multiple: false, extra: false, empty_label: '', options: [
       opt('single', 'Single (ein Patty)', 'Einfach', '#5b3420', { count: 1 }),
@@ -126,7 +134,7 @@ function makeId(value: unknown, name: string, taken: Set<string>): string {
 
 // The whole menu as sent by the editor. Option IDs are unique across the menu, because an
 // order lists its "extra viel" options by ID alone.
-export function validateMenu(input: { open?: unknown; categories?: unknown }): BurgerMenu {
+export function validateMenu(input: { open?: unknown; print_labels?: unknown; kitchen_display?: unknown; categories?: unknown }): BurgerMenu {
   if (!Array.isArray(input.categories) || input.categories.length === 0) throw new ValidationError('Mindestens eine Kategorie anlegen');
   if (input.categories.length > MAX_CATEGORIES) throw new ValidationError(`Höchstens ${MAX_CATEGORIES} Kategorien`);
   const categoryIds = new Set<string>();
@@ -163,7 +171,8 @@ export function validateMenu(input: { open?: unknown; categories?: unknown }): B
       options,
     };
   });
-  return { open: input.open !== false, categories };
+  // Missing in menus saved before the switches existed: printing only
+  return { open: input.open !== false, print_labels: input.print_labels !== false, kitchen_display: input.kitchen_display === true, categories };
 }
 
 // Choices of an order against the menu: single categories need exactly one available option,
@@ -228,7 +237,7 @@ export async function getMenu(): Promise<BurgerMenu> {
   }
 }
 
-export async function saveMenu(input: { open?: unknown; categories?: unknown }): Promise<BurgerMenu> {
+export async function saveMenu(input: Parameters<typeof validateMenu>[0]): Promise<BurgerMenu> {
   const menu = validateMenu(input);
   const record = ((await getAppStore().select('burger_menu')) ?? [])[0];
   if (record) await getAppStore().update('burger_menu', record.id, { ...menu, id: record.id });
@@ -259,14 +268,20 @@ export async function createOrder(eventId: number, who: { attendee_id: number | 
     summary: summarizeOrder(menu, picked),
     created_at: now.toISOString(),
     printed_at: null,
+    started_at: null,
+    done_at: null,
     token: crypto.randomBytes(18).toString('base64url'),
   };
   const id = await getAppStore().insert('burger_order', order);
   return { ...order, id };
 }
 
+// Printed or being prepared: the orderer can't change or cancel it any more
+export const isLocked = (order: BurgerOrder): boolean => !!(order.printed_at || order.started_at);
+export const LOCKED_MESSAGE = 'Die Bestellung liegt schon beim Grill — bitte dort Bescheid sagen';
+
 export async function updateOrder(order: BurgerOrder, input: { choices?: unknown; extra?: unknown; note?: unknown }): Promise<BurgerOrder> {
-  if (order.printed_at) throw new ValidationError('Die Bestellung ist schon gedruckt und liegt beim Grill — bitte dort Bescheid sagen');
+  if (isLocked(order)) throw new ValidationError(LOCKED_MESSAGE);
   const menu = await getMenu();
   const picked = validateChoices(menu, input);
   const updated: BurgerOrder = { ...order, ...picked, note: text(input.note, 'Anmerkung', MAX_NOTE), summary: summarizeOrder(menu, picked) };
@@ -290,6 +305,23 @@ export async function claimForPrint(eventId: number, ids?: number[], now = new D
 // Back into the queue (e.g. the label roll ran out)
 export async function unmarkPrinted(order: BurgerOrder): Promise<BurgerOrder> {
   const updated = { ...order, printed_at: null };
+  await getAppStore().update('burger_order', order.id, updated);
+  return updated;
+}
+
+export const KITCHEN_STATES = ['waiting', 'started', 'done'] as const;
+export type KitchenState = typeof KITCHEN_STATES[number];
+
+// Tablet display: waiting (back to the start), started (being prepared), done (ready). Done
+// implies started; a time already set is kept, so going back and forth doesn't reset it.
+export async function setKitchenState(order: BurgerOrder, state: unknown, now = new Date()): Promise<BurgerOrder> {
+  if (!KITCHEN_STATES.includes(state as KitchenState)) throw new ValidationError('Unbekannter Status');
+  const at = now.toISOString();
+  const updated: BurgerOrder = {
+    ...order,
+    started_at: state === 'waiting' ? null : order.started_at ?? at,
+    done_at: state === 'done' ? order.done_at ?? at : null,
+  };
   await getAppStore().update('burger_order', order.id, updated);
   return updated;
 }

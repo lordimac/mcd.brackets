@@ -7,7 +7,7 @@ import { displayName, ValidationError, type Attendee, type LanEvent } from './la
 import { getEvent } from './lan-store';
 import { clientIPv4, identify } from './welcome';
 import {
-  claimForPrint, createOrder, DEFAULT_MENU, getMenu, getOrder, listOrders, orderView, saveMenu, unmarkPrinted, updateOrder, type BurgerOrder,
+  claimForPrint, createOrder, DEFAULT_MENU, getMenu, getOrder, isLocked, listOrders, LOCKED_MESSAGE, orderView, saveMenu, setKitchenState, unmarkPrinted, updateOrder, type BurgerOrder,
 } from './burger';
 
 // Burger designer. Reading is public. Ordering, changing and cancelling an own order is public too
@@ -93,7 +93,7 @@ burgerRouter.post('/events/:id/burger-orders', async (req: Request<IdParams>, re
       who = { attendee_id: null, name };
     }
     if (!admin && who.attendee_id != null) {
-      const open = (await listOrders(event.id)).filter(o => o.attendee_id === who.attendee_id && !o.printed_at).length;
+      const open = (await listOrders(event.id)).filter(o => o.attendee_id === who.attendee_id && !isLocked(o)).length;
       if (open >= MAX_OPEN_ORDERS) throw new ValidationError(`${who.name} hat schon ${open} Burger in der Warteschlange`);
     }
     return createOrder(event.id, who, req.body ?? {});
@@ -110,12 +110,12 @@ burgerRouter.put('/burger-orders/:id', async (req: Request<IdParams>, res: Respo
   res.json(orderView(updated));
 });
 
-// The orderer can cancel until the order is printed, admins always
+// The orderer can cancel until the order is printed or being prepared, admins always
 burgerRouter.delete('/burger-orders/:id', async (req: Request<IdParams>, res: Response) => {
   await withLock(async () => {
     const order = await findOrder(idParam(req));
     await requireOwner(req, order);
-    if (order.printed_at && !isAdmin(req)) throw new ValidationError('Die Bestellung ist schon gedruckt und liegt beim Grill — bitte dort Bescheid sagen');
+    if (isLocked(order) && !isAdmin(req)) throw new ValidationError(LOCKED_MESSAGE);
     await getAppStore().delete('burger_order', { id: order.id });
   });
   res.status(204).send();
@@ -134,5 +134,12 @@ burgerRouter.post('/events/:id/burger-orders/print', async (req: Request<IdParam
 burgerRouter.post('/burger-orders/:id/unprint', async (req: Request<IdParams>, res: Response) => {
   requireAdmin(req);
   const order = await withLock(async () => unmarkPrinted(await findOrder(idParam(req))));
+  res.json(orderView(order));
+});
+
+// Tablet display: body { state: 'waiting' | 'started' | 'done' }
+burgerRouter.post('/burger-orders/:id/kitchen', async (req: Request<IdParams>, res: Response) => {
+  requireAdmin(req);
+  const order = await withLock(async () => setKitchenState(await findOrder(idParam(req)), req.body?.state));
   res.json(orderView(order));
 });

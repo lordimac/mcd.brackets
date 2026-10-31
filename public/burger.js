@@ -1,11 +1,16 @@
 // Burger designer (#burger): everyone puts their burger together (drawn live as SVG) and orders it;
-// admins see all orders, print them on DYMO labels (burger-labels.js) and edit the menu.
+// admins see all orders, print them on DYMO labels (burger-labels.js) and/or show them on the
+// tablet display (kitchen: waiting → started → done), and edit the menu.
 // Server: src/burger.ts. Shares currentEventId/ensureCurrentEvent with lan.js; uses apiFetch,
 // escapeHtml, icon, openModal/closeModal, setButtonLabel and isAdmin from app.js, `me` from welcome.js.
 
 const BURGER_POLL_MS = 15000;
 const BURGER_TOKENS_KEY = 'mcd.burgerTokens';
 const BURGER_AUTO_PRINT_KEY = 'mcd.burgerAutoPrint';
+const BURGER_KITCHEN_KEY = 'mcd.burgerKitchen';      // this device shows the tablet display
+const BURGER_KITCHEN_SOUND_KEY = 'mcd.burgerKitchenSound';
+const BURGER_KITCHEN_POLL_MS = 5000;
+const BURGER_KITCHEN_LATE_MIN = 20; // waiting longer: marked
 
 const BURGER_VISUALS = {
     size: 'Größe (Anzahl Patties)',
@@ -39,6 +44,10 @@ let burgerPollTimer = null;
 let burgerPrinting = false;
 let burgerMenuDraft = null;
 let burgerShowAll = false;
+let burgerKitchenTimer = null;
+let burgerKitchenSeen = null;    // order ids already on the display (null = first render)
+let burgerKitchenBusy = new Set();
+let burgerWakeLock = null;
 
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('burgerOrderForm').addEventListener('submit', submitBurgerOrder);
@@ -49,6 +58,15 @@ document.addEventListener('DOMContentLoaded', () => {
         try { localStorage.setItem(BURGER_AUTO_PRINT_KEY, auto.checked ? '1' : '0'); } catch { /* storage unavailable */ }
         if (auto.checked) autoPrintBurgers();
     });
+    const sound = document.getElementById('burgerKitchenSound');
+    try { sound.checked = localStorage.getItem(BURGER_KITCHEN_SOUND_KEY) !== '0'; } catch { /* storage unavailable */ }
+    sound.addEventListener('change', () => {
+        try { localStorage.setItem(BURGER_KITCHEN_SOUND_KEY, sound.checked ? '1' : '0'); } catch { /* storage unavailable */ }
+    });
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden && burgerKitchenTimer) requestBurgerWakeLock();
+    });
+    document.addEventListener('fullscreenchange', updateKitchenFullscreenButton);
 });
 
 // Called by showView() in app.js whenever the burger tab opens
@@ -66,6 +84,7 @@ async function showBurgerView() {
     await loadBurgerEventData();
     clearInterval(burgerPollTimer);
     burgerPollTimer = setInterval(pollBurgerOrders, BURGER_POLL_MS);
+    if (!burgerKitchenTimer && burgerKitchenRemembered()) openBurgerKitchen();
 }
 
 async function selectBurgerEvent(id) {
@@ -93,6 +112,7 @@ async function loadBurgerOrders() {
     burgerMeId = data.me;
     renderMyBurgerOrders();
     renderBurgerAdmin();
+    renderBurgerKitchen();
     return true;
 }
 
@@ -422,8 +442,18 @@ function isOwnBurgerOrder(order) {
 
 const burgerTime = iso => new Date(iso).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
 
+// Printed or being prepared: the orderer can't change it any more (same as isLocked in burger.ts)
+const isBurgerLocked = order => !!(order.printed_at || order.started_at);
+
+// Nothing left to do for the admin list: printed (if labels are on) and done (if the display is on)
+function isBurgerHandled(order) {
+    if (!burgerMenu?.print_labels && !burgerMenu?.kitchen_display) return false;
+    return (!burgerMenu.print_labels || !!order.printed_at) && (!burgerMenu.kitchen_display || !!order.done_at);
+}
+
 function burgerStatus(order) {
-    return order.printed_at
+    if (order.done_at) return `<span class="info-badge burger-status is-done">${icon('check')}fertig</span>`;
+    return isBurgerLocked(order)
         ? `<span class="info-badge burger-status is-printed">${icon('check')}beim Grill</span>`
         : '<span class="info-badge burger-status">in der Warteschlange</span>';
 }
@@ -439,7 +469,7 @@ function renderMyBurgerOrders() {
                 <p>${escapeHtml(order.summary)}</p>
                 ${order.note ? `<p class="burger-note">${escapeHtml(order.note)}</p>` : ''}
             </div>
-            ${order.printed_at ? '' : `
+            ${isBurgerLocked(order) ? '' : `
                 <div class="burger-mine-actions">
                     <button class="btn btn-ghost btn-sm" data-id="${order.id}" onclick="editBurgerOrder(Number(this.dataset.id))">${icon('edit')}<span>Ändern</span></button>
                     <button class="btn btn-ghost btn-sm" data-id="${order.id}" onclick="cancelBurgerOrder(Number(this.dataset.id))">${icon('x')}<span>Stornieren</span></button>
@@ -487,20 +517,31 @@ async function cancelBurgerOrder(id) {
    ========================================================================== */
 
 function renderBurgerAdmin() {
-    const open = burgerOrders.filter(o => !o.printed_at);
+    const printing = !!burgerMenu?.print_labels;
+    const display = !!burgerMenu?.kitchen_display;
+    const unprinted = burgerOrders.filter(o => !o.printed_at);
     const button = document.getElementById('burgerPrintNew');
-    setButtonLabel(button, open.length ? `Neue drucken (${open.length})` : 'Keine neuen');
-    button.disabled = !open.length || burgerPrinting;
+    setButtonLabel(button, unprinted.length ? `Neue drucken (${unprinted.length})` : 'Keine neuen');
+    button.disabled = !unprinted.length || burgerPrinting;
+    document.querySelectorAll('.burger-print-only').forEach(el => { el.hidden = !printing; });
+    document.getElementById('burgerKitchenOpen').hidden = !display;
+    document.getElementById('burgerDisplayHint').hidden = !display;
     document.getElementById('burgerOpenToggle').checked = !!burgerMenu?.open;
+    document.getElementById('burgerPrintToggle').checked = printing;
+    document.getElementById('burgerDisplayToggle').checked = display;
     document.getElementById('burgerShowAll').checked = burgerShowAll;
+    const open = burgerOrders.filter(o => !isBurgerHandled(o));
+    const parts = [`${open.length} offen`];
+    if (printing) parts.push(`${burgerOrders.length - unprinted.length} gedruckt`);
+    if (display) parts.push(`${burgerOrders.filter(o => o.done_at).length} fertig`);
     document.getElementById('burgerCounts').textContent = burgerOrders.length
-        ? `${burgerOrders.length} Bestellung${burgerOrders.length === 1 ? '' : 'en'} · ${open.length} offen · ${burgerOrders.length - open.length} gedruckt`
+        ? `${burgerOrders.length} Bestellung${burgerOrders.length === 1 ? '' : 'en'} · ${parts.join(' · ')}`
         : 'Noch keine Bestellungen';
     renderBurgerTotals();
 
     const shown = burgerShowAll ? burgerOrders : open;
     document.getElementById('burgerOrderList').innerHTML = shown.length ? shown.map(order => `
-        <div class="burger-order${order.printed_at ? ' is-printed' : ''}">
+        <div class="burger-order${isBurgerHandled(order) ? ' is-printed' : ''}">
             <span class="burger-order-no">#${order.number}</span>
             <div class="burger-order-body">
                 <div class="burger-mine-head"><strong>${escapeHtml(order.name)}</strong><span class="burger-order-time">${escapeHtml(burgerTime(order.created_at))}</span>${burgerStatus(order)}</div>
@@ -508,12 +549,13 @@ function renderBurgerAdmin() {
                 ${order.note ? `<p class="burger-note">${escapeHtml(order.note)}</p>` : ''}
             </div>
             <div class="burger-order-actions">
-                <button class="btn btn-ghost btn-icon" data-id="${order.id}" onclick="printBurgerOrders([Number(this.dataset.id)])" title="${order.printed_at ? 'Erneut drucken' : 'Jetzt drucken'}" aria-label="Drucken">${icon('file')}</button>
-                ${order.printed_at ? `<button class="btn btn-ghost btn-icon" data-id="${order.id}" onclick="requeueBurgerOrder(Number(this.dataset.id))" title="Zurück in die Warteschlange (wird beim nächsten Druck mitgedruckt)" aria-label="Zurück in die Warteschlange">${icon('refresh')}</button>` : ''}
+                ${display ? `<button class="btn btn-ghost btn-icon" data-id="${order.id}" data-state="${order.done_at ? 'started' : 'done'}" onclick="setBurgerKitchenState(Number(this.dataset.id), this.dataset.state)" title="${order.done_at ? 'Doch nicht fertig (zurück auf die Anzeige)' : 'Als fertig markieren'}" aria-label="Fertig">${icon(order.done_at ? 'refresh' : 'check')}</button>` : ''}
+                ${printing ? `<button class="btn btn-ghost btn-icon" data-id="${order.id}" onclick="printBurgerOrders([Number(this.dataset.id)])" title="${order.printed_at ? 'Erneut drucken' : 'Jetzt drucken'}" aria-label="Drucken">${icon('file')}</button>` : ''}
+                ${printing && order.printed_at ? `<button class="btn btn-ghost btn-icon" data-id="${order.id}" onclick="requeueBurgerOrder(Number(this.dataset.id))" title="Zurück in die Warteschlange (wird beim nächsten Druck mitgedruckt)" aria-label="Zurück in die Warteschlange">${icon('refresh')}</button>` : ''}
                 <button class="btn btn-ghost btn-icon" data-id="${order.id}" onclick="deleteBurgerOrder(Number(this.dataset.id))" title="Löschen" aria-label="Löschen">${icon('trash')}</button>
             </div>
         </div>
-    `).join('') : `<p class="empty-state">${burgerOrders.length ? 'Alles gedruckt.' : 'Noch keine Bestellungen.'}</p>`;
+    `).join('') : `<p class="empty-state">${burgerOrders.length ? 'Alles erledigt.' : 'Noch keine Bestellungen.'}</p>`;
 }
 
 // What the grill needs: patties per kind (size × patty) and how often each option was chosen
@@ -562,7 +604,7 @@ async function printBurgerOrders(ids) {
 
 // The print PC keeps the page open: new orders come out by themselves
 function autoPrintBurgers() {
-    if (!isAdmin || burgerPrinting || !document.getElementById('burgerAutoPrint').checked) return;
+    if (!isAdmin || burgerPrinting || !burgerMenu?.print_labels || !document.getElementById('burgerAutoPrint').checked) return;
     if (burgerOrders.some(o => !o.printed_at)) printBurgerOrders();
 }
 
@@ -587,14 +629,17 @@ async function deleteBurgerOrder(id) {
 }
 
 async function storeBurgerMenu(menu) {
-    burgerMenu = await apiFetch('/burger/menu', { method: 'PUT', body: JSON.stringify({ open: menu.open, categories: menu.categories }) });
+    const { open, print_labels, kitchen_display, categories } = menu;
+    burgerMenu = await apiFetch('/burger/menu', { method: 'PUT', body: JSON.stringify({ open, print_labels, kitchen_display, categories }) });
     renderBurgerDesigner();
     renderBurgerAdmin();
+    if (!burgerMenu.kitchen_display) closeBurgerKitchen();
 }
 
-async function toggleBurgerOpen(open) {
+// key: open, print_labels or kitchen_display
+async function setBurgerMenuSwitch(key, value) {
     try {
-        await storeBurgerMenu({ ...burgerMenu, open });
+        await storeBurgerMenu({ ...burgerMenu, [key]: value });
     } catch (error) {
         alert('❌ ' + error.message);
         renderBurgerAdmin();
@@ -606,7 +651,8 @@ async function toggleBurgerOpen(open) {
 
 function openBurgerMenuModal() {
     if (!burgerMenu) return;
-    burgerMenuDraft = structuredClone({ open: burgerMenu.open, categories: burgerMenu.categories });
+    const { open, print_labels, kitchen_display, categories } = burgerMenu;
+    burgerMenuDraft = structuredClone({ open, print_labels, kitchen_display, categories });
     renderBurgerMenuEditor();
     openModal('burgerMenuModal');
 }
@@ -711,5 +757,155 @@ async function saveBurgerMenu(e) {
         closeModal('burgerMenuModal');
     } catch (error) {
         alert('❌ ' + error.message);
+    }
+}
+
+/* Tablet display (kitchen): full screen over the page, columns "Neu" and "In Arbeit"
+   ========================================================================== */
+
+function burgerKitchenRemembered() {
+    try { return localStorage.getItem(BURGER_KITCHEN_KEY) === '1'; } catch { return false; }
+}
+
+function rememberBurgerKitchen(on) {
+    try { localStorage.setItem(BURGER_KITCHEN_KEY, on ? '1' : '0'); } catch { /* storage unavailable */ }
+}
+
+function openBurgerKitchen() {
+    if (!isAdmin || !burgerMenu?.kitchen_display) return;
+    rememberBurgerKitchen(true);
+    burgerKitchenSeen = null;
+    document.getElementById('burgerKitchen').hidden = false;
+    document.body.classList.add('burger-kitchen-open');
+    renderBurgerKitchen();
+    clearInterval(burgerKitchenTimer);
+    burgerKitchenTimer = setInterval(pollBurgerKitchen, BURGER_KITCHEN_POLL_MS);
+    requestBurgerWakeLock();
+    updateKitchenFullscreenButton();
+}
+
+// leave: the user closed it (forget it on this device); otherwise only hidden (menu switch, logout)
+function closeBurgerKitchen(leave = false) {
+    if (leave) rememberBurgerKitchen(false);
+    clearInterval(burgerKitchenTimer);
+    burgerKitchenTimer = null;
+    document.getElementById('burgerKitchen').hidden = true;
+    document.body.classList.remove('burger-kitchen-open');
+    burgerWakeLock?.release().catch(() => {});
+    burgerWakeLock = null;
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+}
+
+async function pollBurgerKitchen() {
+    if (document.body.dataset.view !== 'burger' || !isAdmin) {
+        closeBurgerKitchen();
+        return;
+    }
+    if (!document.hidden) await loadBurgerOrders();
+}
+
+// The tablet shouldn't go dark while the display is open
+async function requestBurgerWakeLock() {
+    try {
+        burgerWakeLock = await navigator.wakeLock?.request('screen') ?? null;
+    } catch {
+        burgerWakeLock = null; // not supported or not allowed: the display still works
+    }
+}
+
+function toggleKitchenFullscreen() {
+    const page = document.documentElement;
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    else page.requestFullscreen?.().catch(() => {});
+}
+
+function updateKitchenFullscreenButton() {
+    const button = document.getElementById('burgerKitchenFullscreen');
+    button.hidden = !document.documentElement.requestFullscreen;
+    setButtonLabel(button, document.fullscreenElement ? 'Vollbild beenden' : 'Vollbild');
+}
+
+// Short double beep for new orders (only after the display was opened by a tap — browsers
+// don't play sound before that)
+function burgerKitchenBeep() {
+    if (!document.getElementById('burgerKitchenSound').checked) return;
+    try {
+        const audio = burgerKitchenBeep.context ??= new AudioContext();
+        for (const start of [0, 0.22]) {
+            const tone = audio.createOscillator();
+            const gain = audio.createGain();
+            tone.frequency.value = 880;
+            gain.gain.setValueAtTime(0.25, audio.currentTime + start);
+            gain.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + start + 0.18);
+            tone.connect(gain).connect(audio.destination);
+            tone.start(audio.currentTime + start);
+            tone.stop(audio.currentTime + start + 0.2);
+        }
+    } catch { /* no audio */ }
+}
+
+const burgerAge = iso => Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 60000));
+
+function kitchenCard(order) {
+    const started = !!order.started_at;
+    const age = burgerAge(order.created_at);
+    const busy = burgerKitchenBusy.has(order.id);
+    const isNew = burgerKitchenSeen && !burgerKitchenSeen.has(order.id);
+    const classes = ['kitchen-card', started ? 'is-started' : '', !started && age >= BURGER_KITCHEN_LATE_MIN ? 'is-late' : '', isNew ? 'is-new' : ''];
+    return `
+        <article class="${classes.filter(Boolean).join(' ')}">
+            <header class="kitchen-card-head">
+                <span class="kitchen-no">#${order.number}</span>
+                <strong class="kitchen-name">${escapeHtml(order.name)}</strong>
+                <span class="kitchen-age" title="bestellt um ${escapeHtml(burgerTime(order.created_at))} Uhr">${age < 1 ? 'gerade eben' : `vor ${age} min`}${order.printed_at ? ` · ${icon('file')}` : ''}</span>
+            </header>
+            <div class="kitchen-card-body">
+                ${burgerSvg(order.choices, new Set(order.extra), { className: 'kitchen-burger' })}
+                <div>
+                    <p class="kitchen-summary">${escapeHtml(order.summary)}</p>
+                    ${order.note ? `<p class="kitchen-note">${icon('alert')}${escapeHtml(order.note)}</p>` : ''}
+                </div>
+            </div>
+            <footer class="kitchen-card-actions">
+                ${started ? `<button class="btn btn-ghost" data-id="${order.id}" onclick="setBurgerKitchenState(Number(this.dataset.id), 'waiting')" title="Zurück zu „Neu“" aria-label="Zurück zu Neu"${busy ? ' disabled' : ''}>${icon('refresh')}</button>` : ''}
+                <button class="btn ${started ? 'btn-success' : 'btn-primary'} kitchen-main-action" data-id="${order.id}" data-state="${started ? 'done' : 'started'}" onclick="setBurgerKitchenState(Number(this.dataset.id), this.dataset.state)"${busy ? ' disabled' : ''}>
+                    ${icon(started ? 'check' : 'burger')}<span>${started ? 'Fertig' : 'Zubereiten'}</span>
+                </button>
+            </footer>
+        </article>`;
+}
+
+function renderBurgerKitchen() {
+    const box = document.getElementById('burgerKitchen');
+    if (box.hidden) return;
+    const event = lanEvents.find(e => e.id === currentEventId);
+    document.getElementById('burgerKitchenEvent').textContent = event ? event.name : '';
+    const active = burgerOrders.filter(o => !o.done_at);
+    const waiting = active.filter(o => !o.started_at);
+    const started = active.filter(o => o.started_at);
+    const done = burgerOrders.filter(o => o.done_at).sort((a, b) => b.done_at.localeCompare(a.done_at)).slice(0, 8);
+    if (burgerKitchenSeen && waiting.some(o => !burgerKitchenSeen.has(o.id))) burgerKitchenBeep();
+
+    document.getElementById('burgerKitchenWaitingCount').textContent = waiting.length;
+    document.getElementById('burgerKitchenStartedCount').textContent = started.length;
+    document.getElementById('burgerKitchenWaiting').innerHTML = waiting.map(kitchenCard).join('') || '<p class="kitchen-empty">Keine neuen Bestellungen.</p>';
+    document.getElementById('burgerKitchenStarted').innerHTML = started.map(kitchenCard).join('') || '<p class="kitchen-empty">Gerade wird nichts zubereitet.</p>';
+    document.getElementById('burgerKitchenDone').innerHTML = done.length
+        ? done.map(o => `<button class="kitchen-done-item" data-id="${o.id}" onclick="setBurgerKitchenState(Number(this.dataset.id), 'started')" title="Doch nicht fertig: zurück zu „In Arbeit“"><strong>#${o.number}</strong> ${escapeHtml(o.name)}</button>`).join('')
+        : '<span class="kitchen-empty">noch nichts</span>';
+    burgerKitchenSeen = new Set(active.map(o => o.id));
+}
+
+async function setBurgerKitchenState(id, state) {
+    if (burgerKitchenBusy.has(id)) return;
+    burgerKitchenBusy.add(id);
+    renderBurgerKitchen();
+    try {
+        await apiFetch(`/burger-orders/${id}/kitchen`, { method: 'POST', body: JSON.stringify({ state }) });
+    } catch (error) {
+        alert('❌ ' + error.message);
+    } finally {
+        burgerKitchenBusy.delete(id);
+        await loadBurgerOrders();
     }
 }
