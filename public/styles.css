@@ -419,7 +419,7 @@ body[data-view="tournaments"] .view-title .tape { --tape-bg: var(--primary-color
 
 .points-grid .points-default {
     margin-top: 0.3rem;
-    font-size: 0.75rem;
+    font-size: 0.8rem;
     color: var(--text-faint);
 }
 
@@ -507,7 +507,7 @@ body[data-view="tournaments"] .view-title .tape { --tape-bg: var(--primary-color
     background: transparent;
     border: 1px dashed var(--border-strong);
     color: var(--text-faint);
-    font-size: 0.75rem;
+    font-size: 0.8rem;
     text-align: center;
 }
 
@@ -885,13 +885,21 @@ textarea {
     cursor: progress;
 }
 
+/* A disabled main action reads as "nothing to do", not as a faded error */
+.btn-primary:disabled {
+    opacity: 1;
+    background: var(--surface-3);
+    border-color: var(--border-color);
+    color: var(--text-secondary);
+}
+
 .btn-primary {
     background: var(--primary-color);
     border-color: var(--on-primary);
     color: var(--on-primary);
 }
 
-.btn-primary:hover {
+.btn-primary:hover:not(:disabled) {
     background: var(--primary-hover);
 }
 
@@ -1359,9 +1367,9 @@ textarea {
     border-radius: var(--radius-sm);
     font-family: var(--font-display);
     font-weight: 700;
-    letter-spacing: 0.02em;
     color: var(--clan-color);
-    background: var(--clan-soft);
+    background: transparent;
+    border: 1px solid var(--clan-color);
 }
 
 .clan-c0 { --clan-color: var(--primary-text); --clan-soft: var(--primary-soft); }
@@ -1390,7 +1398,7 @@ textarea {
 
 .attendee-table .dns {
     display: block;
-    font-size: 0.75rem;
+    font-size: 0.8rem;
     color: var(--secondary-color);
 }
 
@@ -1606,12 +1614,14 @@ textarea {
     overflow-x: auto;
 }
 
+/* One dense table: zebra rows, the place is the loudest column; medals only on the badge */
 .rankings-table {
     --rank-columns: 64px minmax(160px, 1fr) 80px repeat(5, 84px);
     display: flex;
     flex-direction: column;
-    gap: 0.35rem;
     min-width: 720px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
     font-variant-numeric: tabular-nums;
 }
 
@@ -1625,84 +1635,75 @@ textarea {
     display: grid;
     grid-template-columns: var(--rank-columns);
     gap: 0.5rem;
-    padding: 0.6rem 0.75rem;
+    padding: 0.5rem 0.75rem;
     align-items: center;
-    border-radius: var(--radius-sm);
 }
 
 .rankings-header {
     color: var(--text-secondary);
     font-family: var(--font-display);
-    font-size: 0.85rem;
+    font-size: 0.9rem;
     font-weight: 600;
-    padding-top: 0;
-    padding-bottom: 0.4rem;
-    border-bottom: 1px solid var(--border-color);
-    border-radius: 0;
-    margin-bottom: 0.25rem;
+    background: var(--surface);
+    border-bottom: 1px solid var(--text-secondary);
 }
 
 .rankings-row {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.rankings-row:nth-child(odd) {
     background: var(--surface-2);
-    border: 1px solid var(--border-color);
-    transition: border-color 0.15s;
+}
+
+.rankings-row:last-child {
+    border-bottom: 0;
 }
 
 .rankings-row:hover {
-    border-color: var(--border-strong);
+    background: var(--surface-3);
 }
 
-.rankings-row.top-1 {
-    background: rgba(255, 210, 63, 0.1);
-    border-color: rgba(255, 210, 63, 0.35);
-    border-left: 4px solid var(--gold);
-}
-
-.rankings-row.top-2 {
-    background: rgba(201, 206, 216, 0.08);
-    border-color: rgba(201, 206, 216, 0.3);
-    border-left: 4px solid var(--silver);
-}
-
-.rankings-row.top-3 {
-    background: rgba(217, 137, 74, 0.1);
-    border-color: rgba(217, 137, 74, 0.35);
-    border-left: 4px solid var(--bronze);
+.rankings-note {
+    margin: 0 0 0.75rem;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
 }
 
 .rank-cell {
     display: flex;
-    justify-content: center;
+    justify-content: flex-start;
 }
 
 .rank-badge {
-    width: 30px;
-    height: 30px;
+    min-width: 40px;
+    height: 34px;
+    padding: 0 0.35rem;
     border-radius: var(--radius-sm);
     display: grid;
     place-items: center;
-    font-family: var(--font-display);
+    font-family: var(--font-title);
     font-weight: 700;
-    font-size: 1rem;
-    color: var(--text-secondary);
+    font-size: 1.4rem;
+    line-height: 1;
+    color: var(--text-color);
     background: var(--surface-3);
 }
 
 .rank-badge.is-shared {
-    width: auto;
-    min-width: 30px;
-    padding: 0 0.4rem;
-    font-size: 0.85rem;
+    font-size: 1.1rem;
 }
 
 .rank-badge.rank-open {
-    color: var(--text-faint);
+    color: var(--text-secondary);
     background: transparent;
     border: 1px dashed var(--border-strong);
+    font-size: 1.1rem;
 }
 
-.rank-badge.rank-1 { background: var(--gold); color: #3a2a00; }
-.rank-badge.rank-2 { background: var(--silver); color: #23272f; }
+.rank-badge.rank-1 { background: var(--gold); color: #2e2300; }
+.rank-badge.rank-2 { background: var(--silver); color: #1d2023; }
 .rank-badge.rank-3 { background: var(--bronze); color: #2e1606; }
 
 .name-cell {
@@ -1717,10 +1718,6 @@ textarea {
     color: var(--text-secondary);
 }
 
-.rankings-header .stat-cell {
-    color: var(--text-faint);
-}
-
 .stat-cell.points {
     color: var(--primary-text);
     font-family: var(--font-display);
@@ -1729,15 +1726,49 @@ textarea {
 }
 
 .stat-cell.points.is-open {
-    color: var(--text-faint);
+    color: var(--text-secondary);
 }
 
+.rankings-header .label-short {
+    display: none;
+}
+
+/* Only real wins and losses get colour, zeros stay neutral */
 .stat-cell.wins {
     color: var(--success-color);
+    font-weight: 600;
 }
 
 .stat-cell.losses {
     color: var(--danger-color);
+}
+
+/* Phones: place, name, points, wins, losses; the rest is in the PDF */
+@media (max-width: 640px) {
+    .rankings-table,
+    .rankings-table.with-tournaments {
+        --rank-columns: 48px minmax(0, 1fr) 56px 40px 40px;
+        min-width: 0;
+    }
+
+    .rankings-header .label-long {
+        display: none;
+    }
+
+    .rankings-header .label-short {
+        display: inline;
+    }
+
+    .rankings-header > :nth-child(n + 6),
+    .rankings-row > :nth-child(n + 6) {
+        display: none;
+    }
+
+    .rankings-header,
+    .rankings-row {
+        gap: 0.35rem;
+        padding: 0.5rem;
+    }
 }
 
 /* Modal
@@ -1769,7 +1800,6 @@ textarea {
     max-height: calc(100vh - 2rem);
     overflow-y: auto;
     border: 1px solid var(--border-strong);
-    border-top: 3px solid var(--view-color);
     box-shadow: var(--shadow-lg);
     animation: slideUp 0.2s ease-out;
 }
@@ -1855,7 +1885,7 @@ textarea {
 .tt-outside {
     margin-left: 0.6rem;
     font-family: var(--font);
-    font-size: 0.75rem;
+    font-size: 0.8rem;
     font-weight: 400;
     color: var(--warning-color);
 }
@@ -1904,7 +1934,7 @@ textarea {
 
 .tt-category {
     margin-left: 0.5rem;
-    font-size: 0.75rem;
+    font-size: 0.8rem;
     font-weight: 400;
     color: var(--tt-color);
 }
@@ -1917,7 +1947,7 @@ textarea {
 .tt-repeat {
     margin-left: 0.5rem;
     padding: 0 0.4rem;
-    font-size: 0.7rem;
+    font-size: 0.8rem;
     font-weight: 600;
     border-radius: var(--radius-sm);
     background: var(--surface-3);
@@ -1974,7 +2004,7 @@ textarea {
 }
 
 .tt-auto {
-    font-size: 0.75rem;
+    font-size: 0.8rem;
     color: var(--text-faint);
 }
 
@@ -2083,7 +2113,7 @@ body:not(.read-only) .read-only-only {
 .schedule-section small {
     display: block;
     font-family: var(--font);
-    font-size: 0.75rem;
+    font-size: 0.8rem;
     font-weight: 400;
     color: var(--text-faint);
 }
@@ -2156,7 +2186,7 @@ input[type="time"] {
 .schedule-label small {
     display: block;
     margin-top: 0.15rem;
-    font-size: 0.75rem;
+    font-size: 0.8rem;
     color: var(--text-faint);
 }
 
@@ -2438,13 +2468,9 @@ input[type="time"] {
         grid-template-columns: minmax(0, 1fr);
     }
 
-    /* Bracket + Rangliste on the first line, icon actions below */
-    .stage-actions {
-        flex-wrap: wrap;
-    }
-
+    /* Bracket and Rangliste share the line, the action menu stays at its end */
     .stage-actions .btn-sm {
-        flex: 1 1 calc(50% - 0.2rem);
+        flex: 1 1 0;
     }
 
     .stage-actions .spacer {
@@ -2454,6 +2480,37 @@ input[type="time"] {
     .winner-selection {
         grid-template-columns: 1fr;
     }
+}
+
+/* Tournament detail pages (#turniere/bracket/3 …): only the opened bracket, ranking or match
+   list is shown, with a way back to the overview
+   ========================================================================== */
+
+body.tournament-detail #view-tournaments > section:not(.tournament-detail-section) {
+    display: none;
+}
+
+body:not(.tournament-detail) .detail-back {
+    display: none;
+}
+
+.detail-back {
+    margin: -0.4rem 0 0.75rem -0.6rem;
+}
+
+.icon-back {
+    transform: rotate(90deg);
+}
+
+/* The own open match: orange frame, "Zu meinem Match" scrolls to it */
+.brackets-viewer .match.is-my-match .opponents {
+    border-color: var(--primary-color);
+    outline: 2px solid var(--primary-color);
+    outline-offset: 1px;
+}
+
+#myMatchBtn[hidden] {
+    display: none;
 }
 
 /* Paper variant for the bracket and rankings PDFs (app.js, .export-paper): same layout,
@@ -2737,7 +2794,7 @@ input[type="time"] {
 .brackets-viewer .opponents > span {
     position: absolute;
     top: -9px;
-    font-size: 0.8em;
+    font-size: 0.85em;
     padding: 0 5px;
     color: var(--label-color);
     background: var(--primary-background);
@@ -2873,7 +2930,7 @@ input[type="time"] {
     right: 8px;
     padding: 0 5px;
     font-family: var(--font-display);
-    font-size: 0.75rem;
+    font-size: 0.8rem;
     font-weight: 600;
     line-height: 16px;
     border: 1px solid var(--warning-color);
@@ -2914,7 +2971,7 @@ input[type="time"] {
     color: var(--text-secondary) !important;
     padding: 0.5rem;
     text-align: center;
-    font-size: 0.75rem;
+    font-size: 0.8rem;
 }
 
 /* Scrollbars */
@@ -3036,7 +3093,7 @@ input[type="time"] {
     border-radius: 999px;
     background: var(--surface-3);
     color: var(--text-secondary);
-    font-size: 0.65rem;
+    font-size: 0.8rem;
     font-weight: 700;
     letter-spacing: 0.03em;
 }
@@ -3046,9 +3103,8 @@ input[type="time"] {
 }
 
 .room-tab-count {
-    font-size: 0.75rem;
+    font-size: 0.8rem;
     font-weight: 500;
-    opacity: 0.8;
 }
 
 .room-config {
@@ -3160,7 +3216,7 @@ input[type="time"] {
 
 .tools-label {
     align-self: center;
-    font-size: 0.75rem;
+    font-size: 0.8rem;
     font-weight: 700;
     letter-spacing: 0.06em;
     color: var(--text-secondary);
@@ -3176,7 +3232,7 @@ input[type="time"] {
     display: flex;
     flex-direction: column;
     gap: 0.2rem;
-    font-size: 0.72rem;
+    font-size: 0.8rem;
     font-weight: 600;
     color: var(--text-secondary);
 }
@@ -3200,7 +3256,7 @@ input[type="time"] {
 }
 
 .selection-name .muted {
-    font-size: 0.75rem;
+    font-size: 0.8rem;
     font-weight: 500;
 }
 
@@ -3219,7 +3275,7 @@ input[type="time"] {
     padding: 0 0.3rem;
     border: 1px solid var(--border-strong);
     border-radius: 3px;
-    font-size: 0.72rem;
+    font-size: 0.8rem;
     font-family: inherit;
 }
 
@@ -3286,7 +3342,7 @@ input[type="time"] {
     flex-wrap: wrap;
     gap: 0.3rem 1.1rem;
     margin-top: 0.5rem;
-    font-size: 0.75rem;
+    font-size: 0.8rem;
     color: var(--text-secondary);
 }
 
@@ -3522,7 +3578,7 @@ input[type="time"] {
 }
 
 .seat-tooltip .tip-place {
-    font-size: 0.7rem;
+    font-size: 0.8rem;
     font-weight: 700;
     letter-spacing: 0.04em;
     color: var(--primary-text);
@@ -3706,7 +3762,7 @@ body:not(.read-only) #seatPlanCard:not(.is-layout) .cell-seat:hover::before {
 }
 
 .unseated-item .muted {
-    font-size: 0.75rem;
+    font-size: 0.8rem;
 }
 
 .unseated-item:hover {
@@ -3973,6 +4029,10 @@ body:not(.read-only) #seatPlanCard:not(.is-layout) .cell-seat:hover::before {
     font-size: 2rem;
 }
 
+.welcome-hero.is-identified .muted {
+    color: var(--text-secondary);
+}
+
 .welcome-identity {
     display: flex;
     align-items: center;
@@ -4159,7 +4219,7 @@ body:not(.read-only) #seatPlanCard:not(.is-layout) .cell-seat:hover::before {
 .welcome-addresses .dns {
     display: block;
     font-family: var(--font-mono);
-    font-size: 0.75rem;
+    font-size: 0.8rem;
     color: var(--secondary-color);
 }
 
@@ -4170,7 +4230,7 @@ body:not(.read-only) #seatPlanCard:not(.is-layout) .cell-seat:hover::before {
 
 .current-badge {
     display: block;
-    font-size: 0.75rem;
+    font-size: 0.8rem;
     color: var(--yellow);
 }
 
@@ -4256,7 +4316,7 @@ body:not(.read-only) #seatPlanCard:not(.is-layout) .cell-seat:hover::before {
     border-radius: var(--radius-sm);
     font-family: var(--font-display);
     font-weight: 600;
-    font-size: 0.75rem;
+    font-size: 0.8rem;
 }
 
 .me-chip[hidden] {
@@ -4323,7 +4383,7 @@ body:not(.read-only) #seatPlanCard:not(.is-layout) .cell-seat:hover::before {
     border-radius: 2px;
     color: var(--yellow);
     font-family: var(--font-display);
-    font-size: 0.7rem;
+    font-size: 0.8rem;
     font-weight: 600;
     vertical-align: 0.1em;
 }
@@ -4433,7 +4493,7 @@ body:not(.read-only) #seatPlanCard:not(.is-layout) .cell-seat:hover::before {
 
 .burger-step-hint {
     font-family: var(--font);
-    font-size: 0.75rem;
+    font-size: 0.8rem;
     font-weight: 400;
     color: var(--text-faint);
 }
@@ -4470,9 +4530,10 @@ body:not(.read-only) #seatPlanCard:not(.is-layout) .cell-seat:hover::before {
 }
 
 .burger-chip.is-active {
-    background: var(--violet-soft);
-    border-color: var(--view-color);
-    box-shadow: inset 0 -3px 0 var(--view-color);
+    background: var(--band-brown);
+    border-color: var(--text-brown);
+    color: #f7f8f5;
+    font-weight: 700;
 }
 
 .burger-chip:disabled {
@@ -4491,8 +4552,12 @@ body:not(.read-only) #seatPlanCard:not(.is-layout) .cell-seat:hover::before {
     color: var(--text-secondary);
 }
 
+.burger-chip-none.is-active {
+    color: #f7f8f5;
+}
+
 .burger-chip-off {
-    font-size: 0.7rem;
+    font-size: 0.8rem;
     color: var(--danger-color);
 }
 
@@ -4507,7 +4572,7 @@ body:not(.read-only) #seatPlanCard:not(.is-layout) .cell-seat:hover::before {
     border-top-left-radius: 0;
     border-bottom-left-radius: 0;
     font-family: var(--font-display);
-    font-size: 0.78rem;
+    font-size: 0.8rem;
     font-weight: 600;
     color: var(--text-secondary);
 }
@@ -4665,7 +4730,7 @@ body:not(.read-only) #seatPlanCard:not(.is-layout) .cell-seat:hover::before {
 .burger-total {
     padding: 0.15rem 0.55rem;
     border-radius: var(--radius-sm);
-    background: var(--surface-3);
+    background: var(--surface-2);
     font-size: 0.85rem;
 }
 
@@ -4756,7 +4821,7 @@ body:not(.read-only) #seatPlanCard:not(.is-layout) .cell-seat:hover::before {
 }
 
 .burger-edit-labels {
-    font-size: 0.75rem;
+    font-size: 0.8rem;
     color: var(--text-faint);
 }
 
@@ -5199,7 +5264,7 @@ body.burger-kitchen-open {
 
 .share-main .dns {
     font-family: var(--font-mono);
-    font-size: 0.75rem;
+    font-size: 0.8rem;
     color: var(--secondary-color);
 }
 
@@ -5260,7 +5325,7 @@ body.burger-kitchen-open {
     background: transparent;
     color: var(--view-color);
     font-family: var(--font-display);
-    font-size: 0.72rem;
+    font-size: 0.8rem;
     font-weight: 600;
     cursor: pointer;
 }
@@ -5337,4 +5402,207 @@ body.burger-kitchen-open {
 
 .welcome-subhead-row .welcome-subhead {
     margin-bottom: 0;
+}
+
+/* Touch screens: every control at least 44 px tall (iOS HIG), toggles at full size
+   ========================================================================== */
+
+@media (pointer: coarse) {
+    .btn,
+    .btn-sm,
+    .burger-chip,
+    .burger-extra,
+    .room-tab,
+    .segmented button,
+    .collapsible-header,
+    .toggle {
+        min-height: 44px;
+    }
+
+    .btn-icon,
+    .btn-copy {
+        width: 44px;
+        height: 44px;
+    }
+
+    .toggle-sm input {
+        transform: none;
+    }
+}
+
+/* Phones: the bars stop eating the screen. The topbar scrolls away with the page and the
+   footer sits at the end of the content instead of being fixed to the bottom. */
+@media (max-width: 640px) {
+    .topbar {
+        position: relative;
+    }
+
+    .container {
+        padding-bottom: 0;
+    }
+
+    .site-footer {
+        position: static;
+        margin: 2.5rem -1rem 0;
+    }
+
+    /* The event logo is in the topbar already; on the badge it would cost a whole screen */
+    .welcome-hero .welcome-logo {
+        display: none;
+    }
+}
+
+/* Action menu (app.js actionMenu): labelled entries for rare and destructive actions
+   ========================================================================== */
+
+.action-menu {
+    position: relative;
+    display: inline-block;
+}
+
+.action-menu > summary {
+    list-style: none;
+}
+
+.action-menu > summary::-webkit-details-marker {
+    display: none;
+}
+
+.action-menu[open] > summary {
+    background: var(--surface-3);
+    color: var(--text-color);
+}
+
+.action-menu-list {
+    position: fixed;
+    z-index: 900;
+    min-width: 200px;
+    padding: 0.3rem;
+    background: var(--surface-3);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
+.action-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    width: 100%;
+    min-height: 40px;
+    padding: 0 0.75rem;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-color);
+    font: inherit;
+    font-family: var(--font-display);
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+}
+
+.action-menu-item:hover,
+.action-menu-item:focus-visible {
+    background: var(--surface-2);
+    outline: none;
+}
+
+/* Destructive entries sit last, in red, behind a rule */
+.action-menu-item.is-danger {
+    color: var(--danger-color);
+    margin-top: 0.3rem;
+    border-top: 1px solid var(--border-color);
+    border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+}
+
+body.read-only .action-menu-item.admin-only {
+    display: none;
+}
+
+@media (pointer: coarse) {
+    .action-menu-item {
+        min-height: 48px;
+    }
+}
+
+/* Confirmation dialog (app.js confirmDialog) */
+.confirm-modal {
+    max-width: 440px;
+}
+
+.confirm-modal h2 {
+    font-family: var(--font-title);
+    font-size: 1.6rem;
+    margin-bottom: 0.5rem;
+}
+
+.confirm-message {
+    color: var(--text-secondary);
+    white-space: pre-line;
+    margin-bottom: 1.25rem;
+}
+
+/* Messages (app.js notify): bottom right, above the footer; errors stay until closed */
+.toast-stack {
+    position: fixed;
+    right: 1rem;
+    bottom: calc(var(--footer-height, 2.5rem) + 1rem);
+    z-index: 1100;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    width: min(420px, calc(100vw - 2rem));
+}
+
+.toast {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.25rem 0.65rem;
+    align-items: start;
+    padding: 0.75rem 0.5rem 0.5rem 0.85rem;
+    background: var(--surface-3);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+    animation: toast-in 0.2s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.toast > .icon {
+    margin-top: 0.15rem;
+}
+
+.toast p {
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+}
+
+.toast.is-error { border-color: var(--danger-color); }
+.toast.is-error > .icon { color: var(--danger-color); }
+.toast.is-success > .icon { color: var(--success-color); }
+.toast.is-warning > .icon { color: var(--warning-color); }
+.toast.is-info > .icon { color: var(--text-blue); }
+
+.toast-actions {
+    grid-column: 2;
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.25rem;
+}
+
+@keyframes toast-in {
+    from { opacity: 0; transform: translateY(8px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .toast { animation: none; }
+}
+
+@media (max-width: 640px) {
+    .toast-stack {
+        right: 0.75rem;
+        left: 0.75rem;
+        bottom: 0.75rem;
+        width: auto;
+    }
 }

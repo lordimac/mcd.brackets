@@ -81,13 +81,13 @@ async function openOpnsenseSync() {
     const event = currentEvent();
     if (!event) return;
     if (!opnsenseSettings?.configured) {
-        alert('OPNsense ist noch nicht eingerichtet: unter „Konfiguration“ Adresse, API-Key und Secret eintragen.');
+        notify('OPNsense ist noch nicht eingerichtet: unter „Konfiguration“ Adresse, API-Key und Secret eintragen.');
         toggleSection('eventConfigSection', true);
         document.getElementById('opnsenseUrl').focus();
         return;
     }
     if (!event.domain) {
-        alert('Für OPNsense muss beim Event zuerst eine Domain eingetragen werden (Konfiguration → Allgemein).');
+        notify('Für OPNsense muss beim Event zuerst eine Domain eingetragen werden (Konfiguration → Allgemein).');
         return;
     }
     opnsenseMode = 'sync';
@@ -168,7 +168,7 @@ async function previewOpnsense() {
 
 async function applyOpnsense() {
     const button = document.getElementById('opnsenseApplyBtn');
-    if (opnsenseMode === 'remove' && !confirm('Alle Einträge dieses Events in OPNsense löschen?')) return;
+    if (opnsenseMode === 'remove' && !(await confirmDialog('Alle Einträge dieses Events in OPNsense löschen?', { title: 'Einträge in OPNsense löschen?' }))) return;
     button.disabled = true;
     setButtonLabel(button, 'Übertrage…');
     try {
@@ -179,10 +179,10 @@ async function applyOpnsense() {
         if (result.reconfigured) lines.push('Unbound wurde neu geladen.');
         if (result.conflicts) lines.push(`${result.conflicts} Konflikt(e) wurden übersprungen.`);
         if (result.errors.length) lines.push('', 'Fehler:', ...result.errors.map(e => `${e.name}: ${e.error}`));
-        alert(lines.join('\n'));
+        notify(lines.join('\n'));
         await previewOpnsense();
     } catch (error) {
-        alert('❌ ' + error.message);
+        notify('❌ ' + error.message);
         await previewOpnsense();
     }
 }

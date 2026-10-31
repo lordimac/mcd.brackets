@@ -168,7 +168,7 @@ async function saveEventSettings(e) {
         await loadStages(); // event name may have changed on tournaments
         await reportBracketChanges(result.bracket_changes); // e.g. changed memorial names
     } catch (error) {
-        alert('❌ ' + error.message);
+        notify('❌ ' + error.message);
     }
 }
 
@@ -189,27 +189,27 @@ async function createLanEvent(e) {
         await loadEvents();
         await selectLanEvent(event.id);
     } catch (error) {
-        alert('❌ ' + error.message);
+        notify('❌ ' + error.message);
     }
 }
 
 async function deleteLanEvent() {
     const event = currentEvent();
     if (!event) return;
-    if (!confirm(`Event „${event.name}“ mit allen ${event.attendee_count} Teilnehmern löschen?`)) return;
+    if (!(await confirmDialog(`Event „${event.name}“ mit allen ${event.attendee_count} Teilnehmern löschen?`, { title: 'Event löschen?' }))) return;
     try {
         await apiFetch(`/events/${event.id}`, { method: 'DELETE' });
         currentEventId = null;
         await showAttendeeView();
     } catch (error) {
-        alert('❌ ' + error.message);
+        notify('❌ ' + error.message);
     }
 }
 
 async function importFromEvent() {
     const fromEventId = Number(document.getElementById('importSourceSelect').value);
     const source = lanEvents.find(e => e.id === fromEventId);
-    if (!source || !confirm(`Teilnehmer aus „${source.name}“ übernehmen?`)) return;
+    if (!source || !(await confirmDialog(`Teilnehmer aus „${source.name}“ übernehmen?`, { title: 'Teilnehmer übernehmen?', confirmLabel: 'Übernehmen', danger: false }))) return;
     try {
         const result = await apiFetch(`/events/${currentEventId}/attendees/import`, {
             method: 'POST',
@@ -220,9 +220,9 @@ async function importFromEvent() {
         await loadAttendees();
         const skipped = result.skipped.length ? `\nÜbersprungen (schon vorhanden oder kein Platz): ${result.skipped.join(', ')}` : '';
         const brackets = await applyBracketChanges(result.bracket_changes);
-        alert(`✅ ${result.added} Teilnehmer übernommen.${skipped}${brackets ? `\n\n${brackets}` : ''}`);
+        notify(`✅ ${result.added} Teilnehmer übernommen.${skipped}${brackets ? `\n\n${brackets}` : ''}`);
     } catch (error) {
-        alert('❌ ' + error.message);
+        notify('❌ ' + error.message);
     }
 }
 
@@ -348,10 +348,12 @@ function renderAttendees() {
                     ${shareChipHtml(a, i)}
                 </td>`).join('')}
             <td class="col-actions admin-only">
-                <button class="btn btn-ghost btn-icon admin-only" onclick="openShareEditor('attendee', ${a.id})" title="SMB-Shares bearbeiten" aria-label="SMB-Shares bearbeiten">${icon('folder')}</button>
-                <button class="btn btn-ghost btn-icon admin-only" onclick="exportSlip(${a.id})" title="IP-Zettel (PDF)" aria-label="IP-Zettel als PDF">${icon('file')}</button>
-                <button class="btn btn-ghost btn-icon admin-only" onclick="editAttendee(${a.id})" title="Bearbeiten" aria-label="Bearbeiten">${icon('edit')}</button>
-                <button class="btn btn-danger btn-icon admin-only" onclick="deleteAttendee(${a.id})" title="Löschen" aria-label="Löschen">${icon('trash')}</button>
+                <button class="btn btn-ghost btn-icon admin-only" onclick="editAttendee(${a.id})" title="${escapeHtml(a.nickname)} bearbeiten" aria-label="${escapeHtml(a.nickname)} bearbeiten">${icon('edit')}</button>
+                ${actionMenu([
+                    { icon: 'folder', label: 'SMB-Shares', onclick: `openShareEditor('attendee', ${a.id})`, adminOnly: true },
+                    { icon: 'file', label: 'IP-Zettel (PDF)', onclick: `exportSlip(${a.id})`, adminOnly: true },
+                    { icon: 'trash', label: 'Löschen', onclick: `deleteAttendee(${a.id})`, adminOnly: true, danger: true },
+                ], `Weitere Aktionen für ${escapeHtml(a.nickname)}`)}
             </td>
         </tr>
     `).join('');
@@ -397,7 +399,7 @@ async function applyBracketChanges(changes) {
 
 async function reportBracketChanges(changes) {
     const message = await applyBracketChanges(changes);
-    if (message) alert(message);
+    if (message) notify(message);
 }
 
 async function addAttendee(e) {
@@ -415,7 +417,7 @@ async function addAttendee(e) {
         await loadAttendees();
         await reportBracketChanges(result.bracket_changes);
     } catch (error) {
-        alert('❌ ' + error.message);
+        notify('❌ ' + error.message);
     }
 }
 
@@ -453,13 +455,13 @@ async function saveAttendee(e) {
         await loadParticipants(); // nickname may have changed in tournaments
         await reportBracketChanges(result.bracket_changes);
     } catch (error) {
-        alert('❌ ' + error.message);
+        notify('❌ ' + error.message);
     }
 }
 
 async function deleteAttendee(id) {
     const attendee = attendees.find(a => a.id === id);
-    if (!attendee || !confirm(`Teilnehmer „${attendee.display_name}“ löschen? Die IP-Adressen werden wieder frei.\n\nIn allen Turnieren des Events wird der Platz frei (BYE). Ergebnisse, an denen der Teilnehmer schon beteiligt war, und was darauf aufbaute, werden verworfen.`)) return;
+    if (!attendee || !(await confirmDialog(`Teilnehmer „${attendee.display_name}“ löschen? Die IP-Adressen werden wieder frei.\n\nIn allen Turnieren des Events wird der Platz frei (BYE). Ergebnisse, an denen der Teilnehmer schon beteiligt war, und was darauf aufbaute, werden verworfen.`, { title: 'Teilnehmer löschen?' }))) return;
     try {
         const result = await apiFetch(`/attendees/${id}`, { method: 'DELETE' });
         await loadEvents();
@@ -467,7 +469,7 @@ async function deleteAttendee(id) {
         await loadAttendees();
         await reportBracketChanges(result?.bracket_changes);
     } catch (error) {
-        alert('❌ ' + error.message);
+        notify('❌ ' + error.message);
     }
 }
 
@@ -533,7 +535,7 @@ async function previewBulkImport() {
         button.disabled = valid === 0;
         button.textContent = valid ? `${valid} importieren` : 'Importieren';
     } catch (error) {
-        alert('❌ ' + error.message);
+        notify('❌ ' + error.message);
     }
 }
 
@@ -549,9 +551,9 @@ async function runBulkImport() {
             ? `\n\nÜbersprungen:\n${failed.map(r => `Zeile ${r.line}: ${r.error}`).join('\n')}`
             : '';
         const brackets = await applyBracketChanges(bracket_changes);
-        alert(`✅ ${added} Teilnehmer importiert.${details}${brackets ? `\n\n${brackets}` : ''}`);
+        notify(`✅ ${added} Teilnehmer importiert.${details}${brackets ? `\n\n${brackets}` : ''}`);
     } catch (error) {
-        alert('❌ ' + error.message);
+        notify('❌ ' + error.message);
     }
 }
 
@@ -603,15 +605,15 @@ async function uploadLogo(input) {
     try {
         await saveLogo(await imageFileToPng(file));
     } catch (error) {
-        alert('❌ ' + error.message);
+        notify('❌ ' + error.message);
     }
 }
 
 async function removeLogo() {
-    if (!confirm('Logo entfernen?')) return;
+    if (!(await confirmDialog('Logo entfernen?', { title: 'Logo entfernen?', confirmLabel: 'Entfernen' }))) return;
     try {
         await saveLogo('');
     } catch (error) {
-        alert('❌ ' + error.message);
+        notify('❌ ' + error.message);
     }
 }

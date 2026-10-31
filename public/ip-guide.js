@@ -528,6 +528,6 @@ function exportIpGuide() {
     try {
         buildGuidePdf(event).save(`anleitung-feste-ip-${slipFileSlug(event.name)}.pdf`);
     } catch (error) {
-        alert('❌ Fehler beim Erzeugen des PDFs: ' + error.message);
+        notify('❌ Fehler beim Erzeugen des PDFs: ' + error.message);
     }
 }

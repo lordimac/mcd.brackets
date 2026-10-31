@@ -388,7 +388,7 @@ async function submitBurgerOrder(e) {
             cancelBurgerEdit();
         } else {
             if (!who) {
-                alert('Bitte auswählen, für wen der Burger ist.');
+                notify('Bitte auswählen, für wen der Burger ist.');
                 document.getElementById('burgerWho').focus();
                 return;
             }
@@ -402,7 +402,7 @@ async function submitBurgerOrder(e) {
         await loadBurgerOrders();
         autoPrintBurgers();
     } catch (error) {
-        alert('❌ ' + error.message);
+        notify('❌ ' + error.message);
     }
 }
 
@@ -503,13 +503,13 @@ function cancelBurgerEdit() {
 
 async function cancelBurgerOrder(id) {
     const order = burgerOrders.find(o => o.id === id);
-    if (!order || !confirm(`Bestellung #${order.number} (${order.name}) stornieren?`)) return;
+    if (!order || !(await confirmDialog(`Bestellung #${order.number} (${order.name}) stornieren?`, { title: 'Bestellung stornieren?', confirmLabel: 'Stornieren' }))) return;
     try {
         await apiFetch(`/burger-orders/${id}`, { method: 'DELETE', headers: burgerTokenHeader(id) });
         if (burgerEditingId === id) cancelBurgerEdit();
         await loadBurgerOrders();
     } catch (error) {
-        alert('❌ ' + error.message);
+        notify('❌ ' + error.message);
     }
 }
 
@@ -588,14 +588,14 @@ function toggleBurgerShowAll(checked) {
 async function printBurgerOrders(ids) {
     if (burgerPrinting || currentEventId == null) return;
     const reprint = ids && burgerOrders.filter(o => ids.includes(o.id) && o.printed_at);
-    if (reprint?.length && !confirm(`Bestellung #${reprint.map(o => o.number).join(', #')} wurde schon gedruckt. Trotzdem noch einmal drucken?`)) return;
+    if (reprint?.length && !(await confirmDialog(`Bestellung #${reprint.map(o => o.number).join(', #')} wurde schon gedruckt. Trotzdem noch einmal drucken?`, { title: 'Schon gedruckt', confirmLabel: 'Erneut drucken', danger: false }))) return;
     burgerPrinting = true;
     renderBurgerAdmin();
     try {
         const { orders } = await apiFetch(`/events/${currentEventId}/burger-orders/print`, { method: 'POST', body: JSON.stringify(ids ? { ids } : {}) });
         if (orders.length) printBurgerLabels(lanEvents.find(e => e.id === currentEventId), orders);
     } catch (error) {
-        alert('❌ ' + error.message);
+        notify('❌ ' + error.message);
     } finally {
         burgerPrinting = false;
         await loadBurgerOrders();
@@ -613,18 +613,18 @@ async function requeueBurgerOrder(id) {
         await apiFetch(`/burger-orders/${id}/unprint`, { method: 'POST', body: '{}' });
         await loadBurgerOrders();
     } catch (error) {
-        alert('❌ ' + error.message);
+        notify('❌ ' + error.message);
     }
 }
 
 async function deleteBurgerOrder(id) {
     const order = burgerOrders.find(o => o.id === id);
-    if (!order || !confirm(`Bestellung #${order.number} von ${order.name} löschen?`)) return;
+    if (!order || !(await confirmDialog(`Bestellung #${order.number} von ${order.name} löschen?`, { title: 'Bestellung löschen?' }))) return;
     try {
         await apiFetch(`/burger-orders/${id}`, { method: 'DELETE' });
         await loadBurgerOrders();
     } catch (error) {
-        alert('❌ ' + error.message);
+        notify('❌ ' + error.message);
     }
 }
 
@@ -641,7 +641,7 @@ async function setBurgerMenuSwitch(key, value) {
     try {
         await storeBurgerMenu({ ...burgerMenu, [key]: value });
     } catch (error) {
-        alert('❌ ' + error.message);
+        notify('❌ ' + error.message);
         renderBurgerAdmin();
     }
 }
@@ -657,8 +657,8 @@ function openBurgerMenuModal() {
     openModal('burgerMenuModal');
 }
 
-function resetBurgerMenuDraft() {
-    if (!confirm('Alle Kategorien und Zutaten auf den Standard zurücksetzen? Eigene Zutaten gehen dabei verloren (erst beim Speichern).')) return;
+async function resetBurgerMenuDraft() {
+    if (!(await confirmDialog('Alle Kategorien und Zutaten auf den Standard zurücksetzen? Eigene Zutaten gehen dabei verloren (erst beim Speichern).', { title: 'Speisekarte zurücksetzen?', confirmLabel: 'Zurücksetzen' }))) return;
     burgerMenuDraft = structuredClone({ open: burgerMenuDraft.open, categories: burgerMenu.defaults.categories });
     renderBurgerMenuEditor();
 }
@@ -728,9 +728,9 @@ function moveBurgerDraft(ci, oi) {
     renderBurgerMenuEditor();
 }
 
-function removeBurgerDraft(ci, oi) {
+async function removeBurgerDraft(ci, oi) {
     if (oi === undefined) {
-        if (!confirm(`Kategorie „${burgerMenuDraft.categories[ci].name}“ mit allen Zutaten entfernen?`)) return;
+        if (!(await confirmDialog(`Kategorie „${burgerMenuDraft.categories[ci].name}“ mit allen Zutaten entfernen?`, { title: 'Kategorie entfernen?', confirmLabel: 'Entfernen' }))) return;
         burgerMenuDraft.categories.splice(ci, 1);
     } else {
         burgerMenuDraft.categories[ci].options.splice(oi, 1);
@@ -756,7 +756,7 @@ async function saveBurgerMenu(e) {
         await storeBurgerMenu(burgerMenuDraft);
         closeModal('burgerMenuModal');
     } catch (error) {
-        alert('❌ ' + error.message);
+        notify('❌ ' + error.message);
     }
 }
 
@@ -903,7 +903,7 @@ async function setBurgerKitchenState(id, state) {
     try {
         await apiFetch(`/burger-orders/${id}/kitchen`, { method: 'POST', body: JSON.stringify({ state }) });
     } catch (error) {
-        alert('❌ ' + error.message);
+        notify('❌ ' + error.message);
     } finally {
         burgerKitchenBusy.delete(id);
         await loadBurgerOrders();

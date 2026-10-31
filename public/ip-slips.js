@@ -298,7 +298,7 @@ async function exportAllSlips() {
     const event = currentEvent();
     if (!event) return;
     if (attendees.length === 0) {
-        alert('Dieses Event hat noch keine Teilnehmer.');
+        notify('Dieses Event hat noch keine Teilnehmer.');
         return;
     }
     const button = document.getElementById('exportSlipsBtn');
@@ -311,7 +311,7 @@ async function exportAllSlips() {
         const sorted = [...attendees].sort((a, b) => a.slot - b.slot);
         buildSlipsPdf(event, sorted).save(`ip-zettel-${slipFileSlug(event.name)}.pdf`);
     } catch (error) {
-        alert('❌ Fehler beim Erzeugen des PDFs: ' + error.message);
+        notify('❌ Fehler beim Erzeugen des PDFs: ' + error.message);
     } finally {
         setButtonLabel(button, label);
         button.disabled = false;

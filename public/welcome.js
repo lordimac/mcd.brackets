@@ -295,8 +295,7 @@ function myTournamentHtml({ stage, participant, matches: stageMatches, rounds, n
 }
 
 function openWelcomeBracket(stageId) {
-    location.hash = '#turniere';
-    viewBracket(Number(stageId));
+    location.hash = `#turniere/bracket/${Number(stageId)}`;
 }
 
 // Brackets: the own entry (participant of the same event with the own display name)
@@ -307,6 +306,24 @@ function markOwnParticipant(stage, list) {
     if (!own) return;
     document.querySelectorAll(`.brackets-viewer .participant[data-participant-id="${Number(own.id)}"]`)
         .forEach(el => el.classList.add('is-me'));
+}
+
+// The own match that still has to be played: framed orange, "Zu meinem Match" jumps to it
+function markMyOpenMatch() {
+    const button = document.getElementById('myMatchBtn');
+    const open = [...document.querySelectorAll('.brackets-viewer .participant.is-me')]
+        .map(el => el.closest('.match'))
+        .find(match => match && !match.querySelector('.participant.win, .participant.loss'));
+    document.querySelectorAll('.brackets-viewer .match.is-my-match').forEach(el => el.classList.remove('is-my-match'));
+    open?.classList.add('is-my-match');
+    if (button) button.hidden = !open;
+}
+
+function scrollToMyMatch() {
+    const match = document.querySelector('.brackets-viewer .match.is-my-match');
+    if (!match) return;
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    match.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center', inline: 'center' });
 }
 
 function showMySeat() {
@@ -327,7 +344,7 @@ function exportWelcomeGuide() {
     try {
         buildGuidePdf(event).save(`anleitung-feste-ip-${slipFileSlug(event.name)}.pdf`);
     } catch (error) {
-        alert('❌ Fehler beim Erzeugen des PDFs: ' + error.message);
+        notify('❌ Fehler beim Erzeugen des PDFs: ' + error.message);
     }
 }
 

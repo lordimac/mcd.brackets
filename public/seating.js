@@ -590,7 +590,7 @@ async function addTemplate() {
         selectedDoors = new Set(updated.doors.filter(d => !before.has(d.id)).map(d => d.id));
         renderSeating();
     } catch (error) {
-        alert('❌ ' + error.message);
+        notify('❌ ' + error.message);
     }
 }
 
@@ -682,7 +682,7 @@ async function saveLayout(changes) {
     try {
         replaceRoom(await apiFetch(`/rooms/${currentRoomId}`, { method: 'PUT', body: JSON.stringify(changes) }));
     } catch (error) {
-        alert('❌ ' + error.message);
+        notify('❌ ' + error.message);
         await loadSeating();
         return;
     }
@@ -826,11 +826,11 @@ function duplicateSelection() {
     });
 }
 
-function deleteSelection() {
+async function deleteSelection() {
     const room = currentRoom();
     if (selectedGroups.size === 0 && selectedDoors.size === 0) return;
     const taken = room.layout.seats.filter(s => selectedGroups.has(s.group) && room.seats[s.key] !== undefined).length;
-    if (taken > 0 && !confirm(`${taken} vergebene Plätze werden frei. Trotzdem löschen?`)) return;
+    if (taken > 0 && !(await confirmDialog(`${taken} vergebene Plätze werden frei. Trotzdem löschen?`, { title: 'Gruppe löschen?' }))) return;
     const groupIds = new Set(selectedGroups), doorIds = new Set(selectedDoors);
     clearSelection();
     queueEdit(() => saveLayout({
@@ -859,7 +859,7 @@ async function sortGroups() {
         replaceRoom(await apiFetch(`/rooms/${currentRoomId}/sort`, { method: 'POST', body: '{}' }));
         renderSeating();
     } catch (error) {
-        alert('❌ ' + error.message);
+        notify('❌ ' + error.message);
     }
 }
 
@@ -1039,7 +1039,7 @@ async function assignSeat(key, attendeeId) {
         closeModal('seatModal');
         renderSeating();
     } catch (error) {
-        alert('❌ ' + error.message);
+        notify('❌ ' + error.message);
     }
 }
 
@@ -1047,15 +1047,15 @@ async function clearRoomSeats() {
     const room = currentRoom();
     const taken = Object.keys(room.seats).length;
     if (taken === 0) {
-        alert('In diesem Raum ist kein Platz vergeben.');
+        notify('In diesem Raum ist kein Platz vergeben.');
         return;
     }
-    if (!confirm(`Alle ${taken} vergebenen Plätze in „${room.name}“ freigeben?`)) return;
+    if (!(await confirmDialog(`Alle ${taken} vergebenen Plätze in „${room.name}“ freigeben?`, { title: 'Plätze freigeben?', confirmLabel: 'Freigeben' }))) return;
     try {
         seatRooms = await apiFetch(`/rooms/${room.id}/clear`, { method: 'POST', body: '{}' });
         renderSeating();
     } catch (error) {
-        alert('❌ ' + error.message);
+        notify('❌ ' + error.message);
     }
 }
 
@@ -1064,10 +1064,10 @@ async function autofillRoom() {
         const result = await apiFetch(`/rooms/${currentRoomId}/autofill`, { method: 'POST', body: '{}' });
         seatRooms = result.rooms;
         renderSeating();
-        if (result.seated === 0) alert(result.remaining ? 'Keine freien Plätze in diesem Raum.' : 'Alle Teilnehmer haben schon einen Platz.');
-        else if (result.remaining > 0) alert(`✅ ${result.seated} Teilnehmer gesetzt. ${result.remaining} haben noch keinen Platz — der Raum ist voll.`);
+        if (result.seated === 0) notify(result.remaining ? 'Keine freien Plätze in diesem Raum.' : 'Alle Teilnehmer haben schon einen Platz.');
+        else if (result.remaining > 0) notify(`✅ ${result.seated} Teilnehmer gesetzt. ${result.remaining} haben noch keinen Platz — der Raum ist voll.`);
     } catch (error) {
-        alert('❌ ' + error.message);
+        notify('❌ ' + error.message);
     }
 }
 
@@ -1097,7 +1097,7 @@ async function createRoom(e) {
         await loadSeating();
         setSeatMode('layout');
     } catch (error) {
-        alert('❌ ' + error.message);
+        notify('❌ ' + error.message);
     }
 }
 
@@ -1151,7 +1151,7 @@ async function duplicateRoom(e) {
         currentRoomId = copy.id;
         await loadSeating();
     } catch (error) {
-        alert('❌ ' + error.message);
+        notify('❌ ' + error.message);
     }
 }
 
@@ -1176,7 +1176,7 @@ async function saveRoomSettings(e) {
         const question = moved > 0
             ? `„${room.name}“ wird zum finalen Plan. ${moved} Teilnehmer sitzen auch in einem anderen finalen Raum und werden dort freigegeben. Fortfahren?`
             : `„${room.name}“ wird zum finalen Plan. Fortfahren?`;
-        if (!confirm(question)) return;
+        if (!(await confirmDialog(question, { title: 'Finaler Plan', confirmLabel: 'Fortfahren', danger: false }))) return;
     }
     try {
         await apiFetch(`/rooms/${currentRoomId}`, {
@@ -1191,7 +1191,7 @@ async function saveRoomSettings(e) {
         await loadSeating(); // other rooms may have changed too
         renderSeating();
     } catch (error) {
-        alert('❌ ' + error.message);
+        notify('❌ ' + error.message);
     }
 }
 
@@ -1199,12 +1199,12 @@ async function deleteRoom() {
     const room = currentRoom();
     if (!room) return;
     const taken = Object.keys(room.seats).length;
-    if (!confirm(`Raum „${room.name}“${taken ? ` mit ${taken} vergebenen Plätzen` : ''} löschen?`)) return;
+    if (!(await confirmDialog(`Raum „${room.name}“${taken ? ` mit ${taken} vergebenen Plätzen` : ''} löschen?`, { title: 'Raum löschen?' }))) return;
     try {
         await apiFetch(`/rooms/${room.id}`, { method: 'DELETE' });
         currentRoomId = null;
         await loadSeating();
     } catch (error) {
-        alert('❌ ' + error.message);
+        notify('❌ ' + error.message);
     }
 }

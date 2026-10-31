@@ -205,7 +205,7 @@ async function saveTimetableEntry(e) {
     const value = field => document.getElementById(field).value;
     const days = selectedDays();
     if (days.length === 0) {
-        alert('Bitte mindestens einen Tag wählen.');
+        notify('Bitte mindestens einen Tag wählen.');
         return;
     }
     const entry = {
@@ -222,19 +222,19 @@ async function saveTimetableEntry(e) {
         await storeTimetable(entries, ttData.notes);
         closeModal('ttEntryModal');
     } catch (error) {
-        alert('❌ ' + error.message);
+        notify('❌ ' + error.message);
     }
 }
 
 async function deleteTimetableEntry() {
     const id = document.getElementById('ttEntryId').value;
     const entry = ttData.entries.find(e => e.id === id);
-    if (!entry || !confirm(`„${entry.title}“ aus dem Zeitplan löschen?`)) return;
+    if (!entry || !(await confirmDialog(`„${entry.title}“ aus dem Zeitplan löschen?`, { title: 'Eintrag löschen?' }))) return;
     try {
         await storeTimetable(ttData.entries.filter(e => e.id !== id), ttData.notes);
         closeModal('ttEntryModal');
     } catch (error) {
-        alert('❌ ' + error.message);
+        notify('❌ ' + error.message);
     }
 }
 
@@ -261,17 +261,17 @@ async function saveTimetableNote(e) {
         await storeTimetable(ttData.entries, notes);
         closeModal('ttNoteModal');
     } catch (error) {
-        alert('❌ ' + error.message);
+        notify('❌ ' + error.message);
     }
 }
 
 async function deleteTimetableNote() {
     const id = document.getElementById('ttNoteId').value;
-    if (!confirm('Diesen Hinweis löschen?')) return;
+    if (!(await confirmDialog('Diesen Hinweis löschen?', { title: 'Hinweis löschen?' }))) return;
     try {
         await storeTimetable(ttData.entries, ttData.notes.filter(n => n.id !== id));
         closeModal('ttNoteModal');
     } catch (error) {
-        alert('❌ ' + error.message);
+        notify('❌ ' + error.message);
     }
 }

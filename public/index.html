@@ -41,6 +41,7 @@
         <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3 2 20h20zM12 10v4M12 17h.01"/></symbol>
         <symbol id="i-info" viewBox="0 0 24 24"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 11v6M12 7.5h.01"/></symbol>
         <symbol id="i-burger" viewBox="0 0 24 24"><path d="M4 10.5C4 6.4 7.6 4 12 4s8 2.4 8 6.5zM3 14c1.5 0 1.5-1 3-1s1.5 1 3 1 1.5-1 3-1 1.5 1 3 1 1.5-1 3-1 1.5 1 3 1M4 17.5h16V18a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 18z"/></symbol>
+        <symbol id="i-more" viewBox="0 0 24 24"><path d="M5 12h.01M12 12h.01M19 12h.01" stroke-width="3"/></symbol>
         <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/></symbol>
     </svg>
 
@@ -264,6 +265,37 @@
 
         <main class="layout view" id="view-tournaments">
             <h1 class="view-title"><span class="tape-wrap"><span class="tape">Turniere</span></span></h1>
+            <!-- Events List Section -->
+            <section class="card">
+                <div class="section-header">
+                    <h2><svg class="icon icon-accent"><use href="#i-flag"/></svg>Events</h2>
+                    <button class="btn btn-ghost btn-icon" onclick="loadStages()" title="Aktualisieren" aria-label="Aktualisieren">
+                        <svg class="icon"><use href="#i-refresh"/></svg>
+                    </button>
+                </div>
+                <div id="eventsList" class="events-list">
+                    <p class="loading">Lade Events...</p>
+                </div>
+            </section>
+
+            <!-- Tournament List Section -->
+            <section class="card">
+                <div class="section-header">
+                    <h2><svg class="icon icon-accent"><use href="#i-trophy"/></svg>Turniere</h2>
+                    <div class="section-actions">
+                        <select id="eventFilter" class="select-sm" onchange="filterStages()" aria-label="Nach Event filtern">
+                            <option value="">Alle Events</option>
+                        </select>
+                        <button class="btn btn-ghost btn-icon" onclick="loadStages()" title="Aktualisieren" aria-label="Aktualisieren">
+                            <svg class="icon"><use href="#i-refresh"/></svg>
+                        </button>
+                    </div>
+                </div>
+                <div id="stagesList" class="stages-list">
+                    <p class="loading">Lade Turniere...</p>
+                </div>
+            </section>
+
             <!-- Create Tournament (collapsible) -->
             <section class="card admin-only">
                 <div class="section-header collapsible-header" onclick="toggleSection('createTournamentSection')">
@@ -336,53 +368,25 @@
                 </div>
             </section>
 
-            <!-- Events List Section -->
-            <section class="card">
-                <div class="section-header">
-                    <h2><svg class="icon icon-accent"><use href="#i-flag"/></svg>Events</h2>
-                    <button class="btn btn-ghost btn-icon" onclick="loadStages()" title="Aktualisieren" aria-label="Aktualisieren">
-                        <svg class="icon"><use href="#i-refresh"/></svg>
-                    </button>
-                </div>
-                <div id="eventsList" class="events-list">
-                    <p class="loading">Lade Events...</p>
-                </div>
-            </section>
-
-            <!-- Tournament List Section -->
-            <section class="card">
-                <div class="section-header">
-                    <h2><svg class="icon icon-accent"><use href="#i-trophy"/></svg>Turniere</h2>
-                    <div class="section-actions">
-                        <select id="eventFilter" class="select-sm" onchange="filterStages()" aria-label="Nach Event filtern">
-                            <option value="">Alle Events</option>
-                        </select>
-                        <button class="btn btn-ghost btn-icon" onclick="loadStages()" title="Aktualisieren" aria-label="Aktualisieren">
-                            <svg class="icon"><use href="#i-refresh"/></svg>
-                        </button>
-                    </div>
-                </div>
-                <div id="stagesList" class="stages-list">
-                    <p class="loading">Lade Turniere...</p>
-                </div>
-            </section>
-
             <!-- Bracket Viewer Section -->
-            <section class="card card-wide" id="bracketViewerSection" style="display: none;">
+            <section class="card card-wide tournament-detail-section" id="bracketViewerSection" style="display: none;">
+                <button class="btn btn-ghost btn-sm detail-back" onclick="leaveTournamentDetail()">
+                    <svg class="icon icon-back"><use href="#i-chevron"/></svg><span>Alle Turniere</span>
+                </button>
                 <div class="section-header">
                     <div>
                         <h2><svg class="icon icon-accent"><use href="#i-bracket"/></svg>Bracket</h2>
                         <p class="section-subtitle" id="bracketEventName"></p>
                     </div>
                     <div class="section-actions">
+                        <button class="btn btn-primary btn-sm" id="myMatchBtn" onclick="scrollToMyMatch()" hidden>
+                            <svg class="icon"><use href="#i-search"/></svg><span>Zu meinem Match</span>
+                        </button>
                         <button class="btn btn-secondary btn-sm" id="exportBracketBtn" onclick="exportBracketAsImage()">
                             <svg class="icon"><use href="#i-image"/></svg><span class="btn-label">JPG</span>
                         </button>
                         <button class="btn btn-secondary btn-sm" id="exportBracketPdfBtn" onclick="exportBracketAsPdf()">
                             <svg class="icon"><use href="#i-file"/></svg><span class="btn-label">PDF</span>
-                        </button>
-                        <button class="btn btn-ghost btn-icon" onclick="closeBracketViewer()" title="Schließen" aria-label="Schließen">
-                            <svg class="icon"><use href="#i-x"/></svg>
                         </button>
                     </div>
                 </div>
@@ -392,7 +396,10 @@
             </section>
 
             <!-- Rankings Section -->
-            <section class="card card-wide" id="rankingsSection" style="display: none;">
+            <section class="card card-wide tournament-detail-section" id="rankingsSection" style="display: none;">
+                <button class="btn btn-ghost btn-sm detail-back" onclick="leaveTournamentDetail()">
+                    <svg class="icon icon-back"><use href="#i-chevron"/></svg><span>Alle Turniere</span>
+                </button>
                 <div class="section-header">
                     <div>
                         <h2><svg class="icon icon-accent"><use href="#i-chart"/></svg>Rangliste</h2>
@@ -405,21 +412,18 @@
                         <button class="btn btn-secondary btn-sm" id="exportRankingsPdfBtn" onclick="exportRankingsAsPdf()">
                             <svg class="icon"><use href="#i-file"/></svg><span class="btn-label">PDF</span>
                         </button>
-                        <button class="btn btn-ghost btn-icon" onclick="closeRankings()" title="Schließen" aria-label="Schließen">
-                            <svg class="icon"><use href="#i-x"/></svg>
-                        </button>
                     </div>
                 </div>
                 <div id="rankingsList" class="rankings-list"></div>
             </section>
 
             <!-- Matches Section -->
-            <section class="card card-wide" id="matchesSection" style="display: none;">
+            <section class="card card-wide tournament-detail-section" id="matchesSection" style="display: none;">
+                <button class="btn btn-ghost btn-sm detail-back" onclick="leaveTournamentDetail()">
+                    <svg class="icon icon-back"><use href="#i-chevron"/></svg><span>Alle Turniere</span>
+                </button>
                 <div class="section-header">
                     <h2><svg class="icon icon-accent"><use href="#i-list"/></svg>Matches</h2>
-                    <button class="btn btn-ghost btn-icon" onclick="closeMatchesSection()" title="Schließen" aria-label="Schließen">
-                        <svg class="icon"><use href="#i-x"/></svg>
-                    </button>
                 </div>
                 <div class="filters">
                     <select id="stageFilter" class="select-sm" onchange="filterMatches()" aria-label="Nach Turnier filtern">
@@ -827,6 +831,21 @@
                 </div>
             </section>
         </main>
+
+        <!-- Confirmation instead of confirm(): app.js confirmDialog() -->
+        <div class="modal" id="confirmModal" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+            <div class="modal-content confirm-modal">
+                <h2 id="confirmTitle">Bist du sicher?</h2>
+                <p id="confirmMessage" class="confirm-message"></p>
+                <div class="form-actions form-actions-end">
+                    <button type="button" class="btn btn-secondary" id="confirmCancel" onclick="answerConfirm(false)">Abbrechen</button>
+                    <button type="button" class="btn btn-danger-solid" id="confirmOk" onclick="answerConfirm(true)">Löschen</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Messages instead of alert(): app.js notify() -->
+        <div class="toast-stack" id="toastStack" aria-live="polite"></div>
 
         <!-- Version and links; {{…}} is filled in by the server -->
         <footer class="site-footer">

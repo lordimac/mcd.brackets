@@ -246,7 +246,7 @@ async function saveShares(e) {
         }
         if (document.body.dataset.view === 'welcome') renderWelcome();
     } catch (error) {
-        alert('❌ ' + error.message);
+        notify('❌ ' + error.message);
     }
 }
 

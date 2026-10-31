@@ -94,6 +94,130 @@ function closeModal(id) {
     document.getElementById(id).classList.remove('show');
 }
 
+/* Action menu: rarely used and destructive actions with a label instead of loose icons.
+   items: [{ icon, label, onclick, danger, adminOnly }], onclick is inline JS (numbers only). */
+function actionMenu(items, label = 'Weitere Aktionen') {
+    const visible = items.filter(Boolean);
+    if (!visible.length) return '';
+    const adminOnly = visible.every(item => item.adminOnly) ? ' admin-only' : '';
+    return `<details class="action-menu${adminOnly}">
+        <summary class="btn btn-ghost btn-icon" title="${label}" aria-label="${label}">${icon('more')}</summary>
+        <div class="action-menu-list">
+            ${visible.map(item => `<button type="button" class="action-menu-item${item.danger ? ' is-danger' : ''}${item.adminOnly ? ' admin-only' : ''}" onclick="this.closest('details').open = false; ${item.onclick}">${icon(item.icon)}<span>${item.label}</span></button>`).join('')}
+        </div>
+    </details>`;
+}
+
+// The list is fixed to the window, so table scroll boxes do not cut it off; it opens upwards
+// when there is no room below
+function placeActionMenu(menu) {
+    const list = menu.querySelector('.action-menu-list');
+    const anchor = menu.querySelector('summary').getBoundingClientRect();
+    const footer = document.querySelector('.site-footer');
+    const bottomEdge = footer && getComputedStyle(footer).position === 'fixed'
+        ? window.innerHeight - footer.offsetHeight
+        : window.innerHeight;
+    list.style.right = `${Math.max(8, window.innerWidth - anchor.right)}px`;
+    const below = bottomEdge - anchor.bottom;
+    if (below < list.offsetHeight + 12 && anchor.top > below) {
+        list.style.top = '';
+        list.style.bottom = `${window.innerHeight - anchor.top + 4}px`;
+    } else {
+        list.style.bottom = '';
+        list.style.top = `${anchor.bottom + 4}px`;
+    }
+}
+
+document.addEventListener('toggle', event => {
+    const menu = event.target;
+    if (menu instanceof HTMLDetailsElement && menu.classList.contains('action-menu') && menu.open) placeActionMenu(menu);
+}, true);
+window.addEventListener('scroll', () => {
+    document.querySelectorAll('details.action-menu[open]').forEach(placeActionMenu);
+}, { passive: true, capture: true });
+
+// Only one menu open at a time; a click elsewhere or Esc closes it
+document.addEventListener('click', event => {
+    for (const menu of document.querySelectorAll('details.action-menu[open]')) {
+        if (!menu.contains(event.target)) menu.open = false;
+    }
+});
+document.addEventListener('keydown', event => {
+    if (event.key !== 'Escape') return;
+    if (confirmResolve) {
+        answerConfirm(false);
+        return;
+    }
+    const menu = document.querySelector('details.action-menu[open]');
+    if (!menu) return;
+    menu.open = false;
+    menu.querySelector('summary').focus();
+});
+
+/* Confirmation dialog instead of the browser's confirm dialog: names the consequence, the safe
+   choice has the focus. Resolves to true when confirmed. */
+let confirmResolve = null;
+
+function confirmDialog(message, { title = 'Bist du sicher?', confirmLabel = 'Löschen', danger = true } = {}) {
+    if (confirmResolve) confirmResolve(false);
+    document.getElementById('confirmTitle').textContent = title;
+    document.getElementById('confirmMessage').textContent = message;
+    const ok = document.getElementById('confirmOk');
+    ok.textContent = confirmLabel;
+    ok.className = `btn ${danger ? 'btn-danger-solid' : 'btn-primary'}`;
+    openModal('confirmModal');
+    document.getElementById('confirmCancel').focus();
+    return new Promise(resolve => { confirmResolve = resolve; });
+}
+
+function answerConfirm(value) {
+    closeModal('confirmModal');
+    const resolve = confirmResolve;
+    confirmResolve = null;
+    resolve?.(value);
+}
+
+/* Messages instead of the browser's alert dialog: a note at the bottom of the screen, announced to screen readers.
+   Errors stay until closed and can offer "Erneut versuchen"; others disappear after a while.
+   A leading emoji from older messages (❌ ✅ ⚠️) only decides the kind and is dropped. */
+function notify(message, { retry } = {}) {
+    let text = String(message);
+    let kind = 'info';
+    const marks = [['❌', 'error'], ['✅', 'success'], ['⚠️', 'warning']];
+    for (const [mark, type] of marks) {
+        if (text.startsWith(mark)) {
+            kind = type;
+            text = text.slice(mark.length).trim();
+        }
+    }
+    if (kind === 'info' && /^fehler|fehlgeschlagen|nicht möglich/i.test(text)) kind = 'error';
+
+    const stack = document.getElementById('toastStack');
+    const toast = document.createElement('div');
+    toast.className = `toast is-${kind}`;
+    toast.setAttribute('role', kind === 'error' ? 'alert' : 'status');
+    toast.innerHTML = `${icon(kind === 'success' ? 'check' : kind === 'info' ? 'info' : 'alert')}<p></p><div class="toast-actions"></div>`;
+    toast.querySelector('p').textContent = text;
+    const actions = toast.querySelector('.toast-actions');
+    if (retry) {
+        const again = document.createElement('button');
+        again.type = 'button';
+        again.className = 'btn btn-secondary btn-sm';
+        again.textContent = 'Erneut versuchen';
+        again.onclick = () => { toast.remove(); retry(); };
+        actions.append(again);
+    }
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'btn btn-ghost btn-icon';
+    close.setAttribute('aria-label', 'Hinweis schließen');
+    close.innerHTML = icon('x');
+    close.onclick = () => toast.remove();
+    actions.append(close);
+    stack.append(toast);
+    if (kind !== 'error') setTimeout(() => toast.remove(), 6000);
+}
+
 // State
 let stages = [];
 let matches = [];
@@ -117,10 +241,10 @@ async function importBackup(input) {
         });
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || 'Fehler beim Import');
-        statusEl.textContent = '✅ ' + result.message;
+        statusEl.textContent = result.message;
         setTimeout(() => location.reload(), 1500);
     } catch (err) {
-        statusEl.textContent = '❌ ' + err.message;
+        statusEl.textContent = `Backup nicht eingelesen: ${err.message}`;
     }
     input.value = '';
 }
@@ -136,6 +260,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadStages();
     await loadParticipants();
     await loadMatches();
+    // A detail page in the address (reload, shared link) needs the tournaments loaded first
+    tournamentDataReady = true;
+    if (location.hash.startsWith('#turniere/')) showView();
 });
 
 function setupEventListeners() {
@@ -154,7 +281,9 @@ function setupEventListeners() {
 const VIEWS = { '#turniere': 'tournaments', '#teilnehmer': 'attendees', '#sitzplan': 'seating', '#zeitplan': 'timetable', '#burger': 'burger' };
 
 function showView() {
-    const view = VIEWS[location.hash] ?? 'welcome';
+    // "#turniere/bracket/3": tournaments view with a detail page (bracket, ranking, match list)
+    const [base, detailKind, detailKey] = location.hash.split('/');
+    const view = VIEWS[base] ?? 'welcome';
     document.getElementById('view-welcome').style.display = view === 'welcome' ? '' : 'none';
     document.getElementById('view-tournaments').style.display = view === 'tournaments' ? '' : 'none';
     document.getElementById('view-attendees').style.display = view === 'attendees' ? '' : 'none';
@@ -168,6 +297,60 @@ function showView() {
     if (view === 'timetable' && typeof showTimetableView === 'function') showTimetableView();
     if (view === 'burger' && typeof showBurgerView === 'function') showBurgerView();
     if (view === 'welcome' && typeof showWelcomeView === 'function') showWelcomeView();
+    if (view === 'tournaments') routeTournamentDetail(detailKind, detailKey === undefined ? undefined : decodeURIComponent(detailKey));
+    else closeTournamentDetail();
+}
+
+/* Tournament detail pages: bracket, ranking and match list replace the overview (cards, events,
+   settings) instead of opening far below it. The hash keeps the page, so back and reload work. */
+
+const TOURNAMENT_DETAILS = { bracket: 'bracketViewerSection', rangliste: 'rankingsSection', gesamtwertung: 'rankingsSection', matches: 'matchesSection' };
+let tournamentDetailHash = null;
+let tournamentDataReady = false;
+
+// Called by viewBracket & co. when a detail page opens (not on a refresh)
+function openTournamentDetail(kind, key) {
+    const hash = `#turniere/${kind}/${encodeURIComponent(key)}`;
+    const sectionId = TOURNAMENT_DETAILS[kind];
+    for (const id of new Set(Object.values(TOURNAMENT_DETAILS))) {
+        if (id !== sectionId) document.getElementById(id).style.display = 'none';
+    }
+    if (sectionId !== 'bracketViewerSection') {
+        cancelCorrection();
+        scheduleBracketRefresh(null, false);
+    }
+    document.body.classList.add('tournament-detail');
+    tournamentDetailHash = hash;
+    if (location.hash !== hash) history.pushState(null, '', hash);
+    window.scrollTo(0, 0);
+}
+
+// From the hash (reload, back/forward, links): open the page unless it is already shown
+function routeTournamentDetail(kind, key) {
+    if (!kind || !TOURNAMENT_DETAILS[kind] || key === undefined) {
+        closeTournamentDetail();
+        return;
+    }
+    if (tournamentDetailHash === location.hash || !tournamentDataReady) return;
+    if (kind === 'bracket') viewBracket(Number(key));
+    else if (kind === 'rangliste') viewRankings(Number(key));
+    else if (kind === 'gesamtwertung') viewEventRankings(key);
+    else if (kind === 'matches') viewStageMatches(Number(key));
+}
+
+function closeTournamentDetail() {
+    if (!document.body.classList.contains('tournament-detail')) return;
+    document.body.classList.remove('tournament-detail');
+    tournamentDetailHash = null;
+    for (const id of new Set(Object.values(TOURNAMENT_DETAILS))) document.getElementById(id).style.display = 'none';
+    cancelCorrection();
+    scheduleBracketRefresh(null, false);
+}
+
+// "Zurück zu den Turnieren" and the close buttons of the detail pages
+function leaveTournamentDetail() {
+    if (location.hash.startsWith('#turniere/')) location.hash = '#turniere';
+    else closeTournamentDetail();
 }
 
 /* Footer: short statistics and the hint on a newer version (GET /api/info) */
@@ -334,7 +517,7 @@ async function loadStages() {
     } catch (error) {
         console.error('Error loading stages:', error);
         document.getElementById('stagesList').innerHTML = 
-            '<p class="empty-state">❌ Fehler beim Laden der Turniere</p>';
+            '<p class="empty-state">Die Turniere konnten nicht geladen werden. <button type="button" class="btn btn-secondary btn-sm" onclick="loadStages()">Erneut versuchen</button></p>';
     }
 }
 
@@ -348,7 +531,7 @@ async function loadMatches() {
     } catch (error) {
         console.error('Error loading matches:', error);
         document.getElementById('matchesList').innerHTML = 
-            '<p class="empty-state">❌ Fehler beim Laden der Matches</p>';
+            '<p class="empty-state">Die Matches konnten nicht geladen werden. <button type="button" class="btn btn-secondary btn-sm" onclick="loadMatches()">Erneut versuchen</button></p>';
     }
 }
 
@@ -417,20 +600,12 @@ function displayStages() {
                     ${icon('chart')}<span>Rangliste</span>
                 </button>
                 <span class="spacer"></span>
-                <button class="btn btn-ghost btn-icon" onclick="viewStageMatches(${stage.id})" title="Matches anzeigen" aria-label="Matches anzeigen">
-                    ${icon('list')}
-                </button>
-                ${stage.type !== 'round_robin' ? `
-                    <button class="btn btn-ghost btn-icon admin-only" onclick="openScheduleModal(${stage.id})" title="Spielzeiten: bis wann jede Runde gespielt sein muss" aria-label="Spielzeiten">
-                        ${icon('clock')}
-                    </button>
-                ` : ''}
-                <button class="btn btn-ghost btn-icon admin-only" onclick="resetBracket(${stage.id})" title="Neu auslosen (mit allen aktuellen Teilnehmern)" aria-label="Neu auslosen">
-                    ${icon('shuffle')}
-                </button>
-                <button class="btn btn-danger btn-icon admin-only" onclick="deleteStage(${stage.id})" title="Turnier löschen" aria-label="Turnier löschen">
-                    ${icon('trash')}
-                </button>
+                ${actionMenu([
+                    { icon: 'list', label: 'Matches anzeigen', onclick: `viewStageMatches(${stage.id})` },
+                    stage.type !== 'round_robin' && { icon: 'clock', label: 'Spielzeiten', onclick: `openScheduleModal(${stage.id})`, adminOnly: true },
+                    { icon: 'shuffle', label: 'Neu auslosen', onclick: `resetBracket(${stage.id})`, adminOnly: true },
+                    { icon: 'trash', label: 'Turnier löschen', onclick: `deleteStage(${stage.id})`, adminOnly: true, danger: true },
+                ], `Weitere Aktionen für ${escapeHtml(stage.name)}`)}
             </div>
         </div>
     `;
@@ -471,7 +646,7 @@ function displayEvents() {
                 <button class="btn btn-ghost btn-sm admin-only" data-event="${escapeHtml(event.name)}" onclick="openEventScheduleModal(this.dataset.event)" title="Spielzeiten für alle Turniere dieses Events">
                     ${icon('clock')}<span>Spielzeiten</span>
                 </button>
-                <button class="btn btn-secondary btn-sm" data-event="${escapeHtml(event.name)}" onclick="viewEventRankings(this.dataset.event)">
+                <button class="btn btn-primary btn-sm" data-event="${escapeHtml(event.name)}" onclick="viewEventRankings(this.dataset.event)">
                     ${icon('trophy')}<span>Gesamtwertung</span>
                 </button>
             </div>
@@ -570,11 +745,11 @@ async function createTournament(e) {
     const eventName = document.getElementById('eventName').value;
     const event = lanEvents.find(ev => ev.name === eventName);
     if (!event) {
-        alert('❌ Bitte ein Event auswählen. Events werden unter „Teilnehmer“ angelegt.');
+        notify('❌ Bitte ein Event auswählen. Events werden unter „Teilnehmer“ angelegt.');
         return;
     }
     if (event.attendee_count < 2) {
-        alert(`❌ Das Event „${eventName}“ hat erst ${event.attendee_count} Teilnehmer — mindestens 2 nötig.`);
+        notify(`❌ Das Event „${eventName}“ hat erst ${event.attendee_count} Teilnehmer — mindestens 2 nötig.`);
         return;
     }
 
@@ -598,7 +773,7 @@ async function createTournament(e) {
             body: JSON.stringify({ name, type, settings, eventName })
         });
 
-        alert('✅ Turnier erfolgreich erstellt!');
+        notify('✅ Turnier erfolgreich erstellt!');
         document.getElementById('createTournamentForm').reset();
         updateTypeSettings();
         await loadEvents();
@@ -606,7 +781,7 @@ async function createTournament(e) {
         await loadMatches();
         await loadParticipants();
     } catch (error) {
-        alert('❌ Fehler beim Erstellen: ' + error.message);
+        notify('❌ Fehler beim Erstellen: ' + error.message);
         console.error('Error creating tournament:', error);
     }
 }
@@ -631,15 +806,15 @@ async function regenerateStage(stageId) {
 
 // Reset bracket
 async function resetBracket(stageId) {
-    if (!confirm('⚠️ Bracket neu auslosen? Es spielen alle aktuellen Teilnehmer des Events mit, bisherige Ergebnisse gehen verloren!')) {
+    if (!(await confirmDialog('Bracket neu auslosen? Es spielen alle aktuellen Teilnehmer des Events mit, bisherige Ergebnisse gehen verloren!', { title: 'Neu auslosen?', confirmLabel: 'Neu auslosen' }))) {
         return;
     }
 
     try {
         await regenerateStage(stageId);
-        alert('✅ Bracket erfolgreich neu erzeugt!');
+        notify('✅ Bracket erfolgreich neu erzeugt!');
     } catch (error) {
-        alert('❌ Fehler beim Neu-Erzeugen: ' + error.message);
+        notify('❌ Fehler beim Neu-Erzeugen: ' + error.message);
         console.error('Error resetting bracket:', error);
     }
 }
@@ -647,7 +822,7 @@ async function resetBracket(stageId) {
 // Delete a tournament; the server removes its participants and matches as well
 async function deleteStage(stageId) {
     const stage = stages.find(s => s.id === stageId);
-    if (!confirm(`Turnier „${stage?.name ?? stageId}“ mit allen Ergebnissen löschen?`)) return;
+    if (!(await confirmDialog(`Turnier „${stage?.name ?? stageId}“ mit allen Ergebnissen löschen?`, { title: 'Turnier löschen?' }))) return;
 
     try {
         await apiFetch(`/stages/${stageId}`, { method: 'DELETE' });
@@ -658,7 +833,7 @@ async function deleteStage(stageId) {
         await loadStages();
         await loadMatches();
     } catch (error) {
-        alert('❌ Fehler beim Löschen: ' + error.message);
+        notify('❌ Fehler beim Löschen: ' + error.message);
         console.error('Error deleting stage:', error);
     }
 }
@@ -676,7 +851,7 @@ function updateTypeSettings() {
 // of the removed match)
 async function changeStageSetting(stageId, setting, enabled, input, matchName) {
     const stage = stages.find(s => s.id === stageId);
-    if (!enabled && !confirm(`${matchName} bei „${stage?.name ?? ''}“ entfernen? Ein schon eingetragenes Ergebnis dieses Spiels geht verloren.`)) {
+    if (!enabled && !(await confirmDialog(`${matchName} bei „${stage?.name ?? ''}“ entfernen? Ein schon eingetragenes Ergebnis dieses Spiels geht verloren.`, { title: 'Spiel entfernen?', confirmLabel: 'Entfernen' }))) {
         input.checked = true;
         return;
     }
@@ -688,10 +863,10 @@ async function changeStageSetting(stageId, setting, enabled, input, matchName) {
         if (document.getElementById('bracketViewerSection').style.display !== 'none' && currentBracketStageId === stageId) {
             await viewBracket(stage_id, true);
         }
-        if (dropped > 0) alert(`Das Ergebnis von „${matchName}“ wurde verworfen.`);
+        if (dropped > 0) notify(`Das Ergebnis von „${matchName}“ wurde verworfen.`);
     } catch (error) {
         input.checked = !enabled;
-        alert('❌ ' + error.message);
+        notify('❌ ' + error.message);
     }
 }
 
@@ -709,11 +884,11 @@ function viewStageMatches(stageId) {
     section.style.display = 'block';
     document.getElementById('stageFilter').value = stageId;
     filterMatches();
-    section.scrollIntoView({ behavior: 'smooth' });
+    openTournamentDetail('matches', stageId);
 }
 
 function closeMatchesSection() {
-    document.getElementById('matchesSection').style.display = 'none';
+    leaveTournamentDetail();
 }
 
 // View bracket visualization
@@ -737,20 +912,21 @@ async function viewBracket(stageId, preserveScroll = false) {
             eventNameElement.style.display = stage?.name ? 'block' : 'none';
         }
         
-        // Show the bracket viewer section
+        // Show the bracket as its own page (refreshes keep the page and the scroll position)
         const section = document.getElementById('bracketViewerSection');
-        const wasHidden = section.style.display === 'none';
         section.style.display = 'block';
-        
-        // Only scroll into view if the section was previously hidden
-        if (wasHidden && !preserveScroll) {
-            section.scrollIntoView({ behavior: 'smooth' });
+        if (!preserveScroll) openTournamentDetail('bracket', stageId);
+        else if (document.body.classList.contains('tournament-detail')) {
+            // A rebuild changes the stage id: keep the address in step
+            tournamentDetailHash = `#turniere/bracket/${stageId}`;
+            history.replaceState(null, '', tournamentDetailHash);
         }
         
         // Save current scroll position if preserving
         const scrollY = preserveScroll ? window.scrollY : null;
         
-        // Render the bracket
+        // Render the bracket (German labels, see BRACKET_LOCALE_DE)
+        await ensureBracketLocale();
         window.bracketsViewer.render({
             stages: data.stage,
             matches: data.match,
@@ -759,7 +935,7 @@ async function viewBracket(stageId, preserveScroll = false) {
         }, {
             clear: true,
             participantOriginPlacement: 'before',
-            customRoundName: grandFinalRoundName,
+            customRoundName: bracketRoundName,
             onMatchClick: (match) => {
                 // Entering results needs the admin login
                 if (!isAdmin) return;
@@ -771,6 +947,7 @@ async function viewBracket(stageId, preserveScroll = false) {
         markDrawnMatches(data.match);
         markMemorialByes(data.memorial_byes ?? []);
         if (typeof markOwnParticipant === 'function') markOwnParticipant(stage, data.participant);
+        if (typeof markMyOpenMatch === 'function') markMyOpenMatch();
         scheduleBracketRefresh(stageId, Object.keys(data.round_deadlines ?? {}).length > 0);
 
         // A correction prepared for another tournament no longer applies
@@ -784,15 +961,13 @@ async function viewBracket(stageId, preserveScroll = false) {
             window.scrollTo(0, scrollY);
         }
     } catch (error) {
-        alert('❌ Fehler beim Laden des Brackets: ' + error.message);
+        notify(`❌ Das Bracket konnte nicht geladen werden (${error.message}).`, { retry: () => viewBracket(stageId, preserveScroll) });
         console.error('Error loading bracket:', error);
     }
 }
 
 function closeBracketViewer() {
-    document.getElementById('bracketViewerSection').style.display = 'none';
-    cancelCorrection();
-    scheduleBracketRefresh(null, false);
+    leaveTournamentDetail();
 }
 
 /* Deadlines per round (src/schedule.ts): after a deadline the server decides open matches of the
@@ -845,11 +1020,81 @@ function markDeadlines(deadlines, starts = {}) {
     }
 }
 
-// Grand final headings: "Grand Final" and, when it is played, "Rückspiel" (instead of "GF Round 1/2");
-// all other rounds keep the names of brackets-viewer
-function grandFinalRoundName(info) {
-    if (info.groupType !== 'final-group' || info.finalType !== 'grand-final') return '';
-    return info.roundNumber === 1 ? 'Grand Final' : 'Rückspiel';
+// German texts for brackets-viewer (round names, origin hints like "Verlierer aus W 2.8",
+// "Freilos" instead of "BYE"). Registered under "en" as well, so the language the library
+// detects from the browser does not matter.
+const BRACKET_LOCALE_DE = {
+    'origin-hint': {
+        'seed': 'Setzplatz {{position}}',
+        'winner-bracket': 'Verlierer aus W {{round}}.{{position}}',
+        'winner-bracket-semi-final': 'Verlierer W-Halbfinale {{position}}',
+        'winner-bracket-final': 'Verlierer W-Finale',
+        'consolation-final': 'Verlierer Halbfinale {{position}}',
+        'grand-final': 'Sieger L-Finale',
+        'double-elimination-consolation-final-opponent-1': 'Verlierer L-Halbfinale 1',
+        'double-elimination-consolation-final-opponent-2': 'Verlierer L-Finale',
+    },
+    'match-label': {
+        'default': 'Match {{matchNumber}}',
+        'winner-bracket': 'W',
+        'loser-bracket': 'L',
+        'standard-bracket': 'M',
+        'standard-bracket-semi-final': 'Halbfinale {{matchNumber}}',
+        'standard-bracket-final': 'Finale',
+        'double-elimination': '{{matchPrefix}} {{roundNumber}}.{{matchNumber}}',
+        'double-elimination-semi-final': '{{matchPrefix}} Halbfinale {{matchNumber}}',
+        'double-elimination-final': '{{matchPrefix}} Finale',
+        'consolation-final': 'Spiel um Platz 3',
+        'grand-final-single': 'Grand Final',
+        'grand-final': 'Grand Final, Spiel {{roundNumber}}',
+        'match-game': 'Spiel {{gameNumber}}',
+    },
+    'match-status': {
+        locked: 'Gesperrt', waiting: 'Wartet', ready: 'Bereit', running: 'Läuft', completed: 'Beendet', archived: 'Archiviert',
+    },
+    abbreviations: {
+        win: 'S', loss: 'N', forfeit: 'K', position: 'P', seed: '#',
+        'winner-bracket': 'W', 'loser-bracket': 'L', match: 'M', 'grand-final': 'GF',
+    },
+    common: {
+        'bye': 'Freilos',
+        'best-of-x': 'Bo{{x}}',
+        'consolation': 'Trostrunde',
+        'group-name': 'Gruppe {{groupNumber}}',
+        'group-name-winner-bracket': 'Winner Bracket',
+        'group-name-loser-bracket': 'Loser Bracket',
+        'round-name': 'Runde {{roundNumber}}',
+        'round-name-final': 'Finale',
+        'round-name-winner-bracket': 'Runde {{roundNumber}}',
+        'round-name-winner-bracket-final': 'Finale',
+        'round-name-loser-bracket': 'Runde {{roundNumber}}',
+        'round-name-loser-bracket-final': 'Finale (Platz 3)',
+    },
+};
+
+let bracketLocalePromise = null;
+function ensureBracketLocale() {
+    bracketLocalePromise ??= Promise.all([
+        window.bracketsViewer.addLocale('en', BRACKET_LOCALE_DE),
+        window.bracketsViewer.addLocale('de', BRACKET_LOCALE_DE),
+    ]).catch(error => console.error('Bracket-Texte nicht geladen:', error));
+    return bracketLocalePromise;
+}
+
+// Round headings: knockout rounds of a single elimination by their usual names (Viertelfinale,
+// Halbfinale, Finale), the grand final as "Grand Final" and "Rückspiel"; everything else comes
+// from BRACKET_LOCALE_DE
+function bracketRoundName(info) {
+    if (info.groupType === 'final-group') {
+        if (info.finalType === 'grand-final') return info.roundNumber === 1 ? 'Grand Final' : 'Rückspiel';
+        return 'Spiel um Platz 3';
+    }
+    if (info.groupType === 'single-bracket') {
+        if (info.fractionOfFinal === 1) return 'Finale';
+        if (info.fractionOfFinal === 1 / 2) return 'Halbfinale';
+        if (info.fractionOfFinal === 1 / 4) return 'Viertelfinale';
+    }
+    return '';
 }
 
 // Memorial entries in elimination brackets are BYEs with a name: show the name instead of "BYE"
@@ -1007,7 +1252,7 @@ async function openScheduleModal(stageId) {
         ).join('');
         openModal('scheduleModal');
     } catch (error) {
-        alert('❌ Fehler beim Laden der Spielzeiten: ' + error.message);
+        notify('❌ Fehler beim Laden der Spielzeiten: ' + error.message);
     }
 }
 
@@ -1032,7 +1277,7 @@ async function openEventScheduleModal(eventName) {
         ` : '');
         openModal('scheduleModal');
     } catch (error) {
-        alert('❌ Fehler beim Laden der Spielzeiten: ' + error.message);
+        notify('❌ Fehler beim Laden der Spielzeiten: ' + error.message);
     }
 }
 
@@ -1055,11 +1300,11 @@ async function saveSchedule(e) {
             : rows.map(round);
         finals = isEvent ? rows.filter(row => row.dataset.stage).map(row => ({ stage_id: Number(row.dataset.stage), ...round(row) })) : [];
     } catch (error) {
-        alert('❌ ' + error.message);
+        notify('❌ ' + error.message);
         return;
     }
     const past = entries.filter(r => r.ends_at && Date.parse(r.ends_at) <= Date.now());
-    if (past.length && !confirm('Mindestens eine Runde ist damit schon geschlossen. Ihre offenen Matches werden sofort per Los entschieden. Fortfahren?')) return;
+    if (past.length && !(await confirmDialog('Mindestens eine Runde ist damit schon geschlossen. Ihre offenen Matches werden sofort per Los entschieden. Fortfahren?', { title: 'Runde schon geschlossen', confirmLabel: 'Trotzdem speichern' }))) return;
 
     try {
         const { decided } = isEvent
@@ -1071,9 +1316,9 @@ async function saveSchedule(e) {
         if (document.getElementById('bracketViewerSection').style.display !== 'none' && currentBracketStageId != null) {
             await viewBracket(currentBracketStageId, true);
         }
-        if (decided > 0) alert(`🎲 ${decided} Match(es) per Los entschieden.`);
+        if (decided > 0) notify(`🎲 ${decided} Match(es) per Los entschieden.`);
     } catch (error) {
-        alert('❌ Fehler beim Speichern der Spielzeiten: ' + error.message);
+        notify('❌ Fehler beim Speichern der Spielzeiten: ' + error.message);
     }
 }
 
@@ -1138,9 +1383,9 @@ async function savePoints(e) {
         });
         renderPoints();
         await refreshOpenRankings();
-        alert('✅ Punkte gespeichert. Alle Ranglisten werden mit den neuen Werten berechnet.');
+        notify('✅ Punkte gespeichert. Alle Ranglisten werden mit den neuen Werten berechnet.');
     } catch (error) {
-        alert('❌ Fehler beim Speichern: ' + error.message);
+        notify('❌ Fehler beim Speichern: ' + error.message);
     }
 }
 
@@ -1172,6 +1417,15 @@ function formatWinRate(wins, losses) {
     return wins + losses > 0 ? (wins / (wins + losses) * 100).toFixed(1) : 0;
 }
 
+// Win rate for display: German number format ("66,7 %"), "–" before the first game
+const PERCENT_DE = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 1 });
+function winRateLabel(wins, losses) {
+    return wins + losses > 0 ? `${PERCENT_DE.format(wins / (wins + losses) * 100)} %` : '–';
+}
+
+// Which ranking is shown (detail page hash): one tournament or the overall ranking of an event
+let rankingsDetail = { kind: 'rangliste', key: '' };
+
 // Show the rankings section with a title and a table; showTournaments adds the "Turniere" column
 function showRankings(title, rankings, showTournaments = false) {
     const section = document.getElementById('rankingsSection');
@@ -1182,14 +1436,17 @@ function showRankings(title, rankings, showTournaments = false) {
     if (rankings.length === 0) {
         container.innerHTML = '<p class="empty-state">Keine Rangliste verfügbar</p>';
     } else {
-        container.innerHTML = `
+        const openNote = rankings.some(r => r.placement == null)
+            ? '<p class="rankings-note">„–“ heißt: Der Platz steht noch nicht fest, der Spieler ist noch im Turnier.</p>'
+            : '';
+        container.innerHTML = `${openNote}
             <div class="rankings-table${showTournaments ? ' with-tournaments' : ''}">
                 <div class="rankings-header">
                     <div class="rank-cell">Platz</div>
                     <div class="name-cell">Teilnehmer</div>
-                    <div class="stat-cell">Punkte</div>
-                    <div class="stat-cell">Siege</div>
-                    <div class="stat-cell">Niederlagen</div>
+                    <div class="stat-cell"><span class="label-long">Punkte</span><span class="label-short" title="Punkte">Pkt.</span></div>
+                    <div class="stat-cell"><span class="label-long">Siege</span><span class="label-short" title="Siege">S</span></div>
+                    <div class="stat-cell"><span class="label-long">Niederlagen</span><span class="label-short" title="Niederlagen">N</span></div>
                     <div class="stat-cell">Gespielt</div>
                     <div class="stat-cell">Ausstehend</div>
                     ${showTournaments ? '<div class="stat-cell">Turniere</div>' : ''}
@@ -1200,19 +1457,19 @@ function showRankings(title, rankings, showTournaments = false) {
                         <div class="rank-cell">${rankBadge(r)}</div>
                         <div class="name-cell">${escapeHtml(r.name)}</div>
                         <div class="stat-cell points${r.placement == null ? ' is-open' : ''}">${r.placement == null ? '–' : r.points}</div>
-                        <div class="stat-cell wins">${r.wins}</div>
-                        <div class="stat-cell losses">${r.losses}</div>
+                        <div class="stat-cell${r.wins ? ' wins' : ''}">${r.wins}</div>
+                        <div class="stat-cell${r.losses ? ' losses' : ''}">${r.losses}</div>
                         <div class="stat-cell">${r.wins + r.losses}</div>
                         <div class="stat-cell">${r.pending}</div>
                         ${showTournaments ? `<div class="stat-cell">${r.tournaments}</div>` : ''}
-                        <div class="stat-cell">${formatWinRate(r.wins, r.losses)}%</div>
+                        <div class="stat-cell">${winRateLabel(r.wins, r.losses)}</div>
                     </div>
                 `).join('')}
             </div>
         `;
     }
 
-    if (!rankingsRefreshing) section.scrollIntoView({ behavior: 'smooth' });
+    if (!rankingsRefreshing) openTournamentDetail(rankingsDetail.kind, rankingsDetail.key);
 }
 
 // Place as badge: "5" or shared "5–6"; an open place (player still in the tournament) as "–"
@@ -1229,7 +1486,7 @@ async function viewRankings(stageId) {
     try {
         const stage = stages.find(s => s.id === stageId);
         if (!stage) {
-            alert('❌ Stage nicht gefunden!');
+            notify('❌ Stage nicht gefunden!');
             return;
         }
 
@@ -1245,16 +1502,17 @@ async function viewRankings(stageId) {
         }));
 
         const title = stage.event_name ? `${stage.event_name} · ${stage.name}` : stage.name;
+        rankingsDetail = { kind: 'rangliste', key: stageId };
         showRankings(title, rankings);
         reloadRankings = () => viewRankings(stageId);
     } catch (error) {
-        alert('❌ Fehler beim Laden der Rangliste: ' + error.message);
+        notify(`❌ Die Rangliste konnte nicht geladen werden (${error.message}).`, { retry: () => viewRankings(stageId) });
         console.error('Error loading rankings:', error);
     }
 }
 
 function closeRankings() {
-    document.getElementById('rankingsSection').style.display = 'none';
+    leaveTournamentDetail();
 }
 
 // View overall event rankings: sum up the points of all tournaments of the event per participant name
@@ -1262,7 +1520,7 @@ async function viewEventRankings(eventName) {
     try {
         const eventStages = stages.filter(s => s.event_name === eventName);
         if (eventStages.length === 0) {
-            alert('❌ Keine Turniere für dieses Event gefunden!');
+            notify('❌ Keine Turniere für dieses Event gefunden!');
             return;
         }
 
@@ -1310,10 +1568,11 @@ async function viewEventRankings(eventName) {
             r.placement_to = r.placement;
         });
 
+        rankingsDetail = { kind: 'gesamtwertung', key: eventName };
         showRankings(`${eventName} · Gesamtwertung`, rankings, true);
         reloadRankings = () => viewEventRankings(eventName);
     } catch (error) {
-        alert('❌ Fehler beim Laden der Event-Rangliste: ' + error.message);
+        notify('❌ Fehler beim Laden der Event-Rangliste: ' + error.message);
         console.error('Error loading event rankings:', error);
     }
 }
@@ -1327,7 +1586,7 @@ function showQuickWinnerSelection(match) {
     
     // Check if any opponent is completely null (BYE)
     if (match.opponent1 === null || match.opponent2 === null) {
-        alert('🚫 Dieses Match hat einen BYE und wird automatisch entschieden.');
+        notify('🚫 Dieses Match hat einen BYE und wird automatisch entschieden.');
         return;
     }
     
@@ -1335,7 +1594,7 @@ function showQuickWinnerSelection(match) {
     if (match.opponent1 === undefined || match.opponent2 === undefined ||
         match.opponent1.id === null || match.opponent2.id === null ||
         match.opponent1.id === undefined || match.opponent2.id === undefined) {
-        alert('⏳ Dieses Match ist noch nicht spielbar. Warte auf die vorherigen Matches.');
+        notify('⏳ Dieses Match ist noch nicht spielbar. Warte auf die vorherigen Matches.');
         return;
     }
     
@@ -1414,7 +1673,7 @@ async function prepareCorrection(match, winnerNum) {
         }
         document.getElementById('correctionPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
     } catch (error) {
-        alert('❌ Fehler beim Prüfen der Folgeergebnisse: ' + error.message);
+        notify('❌ Fehler beim Prüfen der Folgeergebnisse: ' + error.message);
     }
 }
 
@@ -1510,7 +1769,7 @@ async function updateMatchQuick(matchId, opponent1Wins, resetFollowing = false) 
         }
         await refreshOpenRankings(); // placements and points may have changed
     } catch (error) {
-        alert('❌ Fehler beim Aktualisieren: ' + error.message);
+        notify('❌ Fehler beim Aktualisieren: ' + error.message);
         console.error('Error updating match:', error);
     }
 }
@@ -1595,7 +1854,7 @@ async function exportBracketAsImage() {
     const eventName = document.getElementById('bracketEventName').textContent;
     
     if (!bracketContainer) {
-        alert('❌ Kein Bracket zum Exportieren vorhanden!');
+        notify('❌ Kein Bracket zum Exportieren vorhanden!');
         return;
     }
     
@@ -1673,7 +1932,7 @@ async function exportBracketAsImage() {
         }, 'image/jpeg', 0.95);
         
     } catch (error) {
-        alert('❌ Fehler beim Exportieren: ' + error.message);
+        notify('❌ Fehler beim Exportieren: ' + error.message);
         console.error('Export error:', error);
         // Restore button
         setButtonLabel(exportButton, 'JPG');
@@ -1688,7 +1947,7 @@ async function exportRankingsAsImage() {
     const eventName = document.getElementById('rankingsEventName').textContent;
     
     if (!rankingsContainer) {
-        alert('❌ Keine Rangliste zum Exportieren vorhanden!');
+        notify('❌ Keine Rangliste zum Exportieren vorhanden!');
         return;
     }
     
@@ -1738,7 +1997,7 @@ async function exportRankingsAsImage() {
         }, 'image/jpeg', 0.95);
         
     } catch (error) {
-        alert('❌ Fehler beim Exportieren: ' + error.message);
+        notify('❌ Fehler beim Exportieren: ' + error.message);
         console.error('Export error:', error);
         // Restore button
         setButtonLabel(exportButton, 'JPG');
@@ -1754,7 +2013,7 @@ async function exportBracketAsPdf() {
     const eventName = document.getElementById('bracketEventName').textContent;
     
     if (!bracketContainer) {
-        alert('❌ Kein Bracket zum Exportieren vorhanden!');
+        notify('❌ Kein Bracket zum Exportieren vorhanden!');
         return;
     }
     
@@ -1831,7 +2090,7 @@ async function exportBracketAsPdf() {
         exportButton.disabled = false;
         
     } catch (error) {
-        alert('❌ Fehler beim Exportieren: ' + error.message);
+        notify('❌ Fehler beim Exportieren: ' + error.message);
         console.error('Export error:', error);
         // Restore button
         setButtonLabel(exportButton, 'PDF');
@@ -1846,7 +2105,7 @@ async function exportRankingsAsPdf() {
     const eventName = document.getElementById('rankingsEventName').textContent;
     
     if (!rankingsContainer) {
-        alert('❌ Keine Rangliste zum Exportieren vorhanden!');
+        notify('❌ Keine Rangliste zum Exportieren vorhanden!');
         return;
     }
     
@@ -1895,7 +2154,7 @@ async function exportRankingsAsPdf() {
         exportButton.disabled = false;
         
     } catch (error) {
-        alert('❌ Fehler beim Exportieren: ' + error.message);
+        notify('❌ Fehler beim Exportieren: ' + error.message);
         console.error('Export error:', error);
         // Restore button
         setButtonLabel(exportButton, 'PDF');

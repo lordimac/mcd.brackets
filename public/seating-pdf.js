@@ -347,7 +347,7 @@ function exportSeatSignsPdf() {
     const event = lanEvents.find(e => e.id === currentEventId);
     if (!room || !event) return;
     if (room.layout.seats.length === 0) {
-        alert('Dieser Raum hat noch keine Plätze.');
+        notify('Dieser Raum hat noch keine Plätze.');
         return;
     }
     buildSeatSignsPdf(event, room).save(`platz-schilder-${slipFileSlug(event.name)}-${slipFileSlug(room.name)}.pdf`);

@@ -175,6 +175,6 @@ async function exportTimetablePdf() {
         const data = await apiFetch(`/events/${event.id}/timetable`);
         buildTimetablePdf(event, data).save(`zeitplan-${slipFileSlug(event.name)}.pdf`);
     } catch (error) {
-        alert('❌ Fehler beim Erzeugen des PDFs: ' + error.message);
+        notify('❌ Fehler beim Erzeugen des PDFs: ' + error.message);
     }
 }
