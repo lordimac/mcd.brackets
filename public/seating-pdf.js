@@ -119,8 +119,8 @@ function drawRoomPlan(doc, room, people, area) {
                 doc.setFont('helvetica', 'bold');
                 doc.setTextColor(...SLIP.muted);
                 const maxWidth = shape.w * unit - 2;
-                fitFontSize(doc, group.label.toUpperCase(), maxWidth, Math.min(11, unit * 0.8), 4);
-                const label = fitText(doc, group.label.toUpperCase(), maxWidth);
+                fitFontSize(doc, group.label, maxWidth, Math.min(11, unit * 0.8), 4);
+                const label = fitText(doc, group.label, maxWidth);
                 doc.text(label, gx + (shape.w * unit - doc.getTextWidth(label)) / 2, gy + shape.h * unit / 2 + doc.getFontSize() * 0.3528 * 0.35);
             }
             continue;
@@ -130,7 +130,7 @@ function drawRoomPlan(doc, room, people, area) {
             if (cell.kind === 'table') {
                 // Seating area: chairs facing their tables (same shapes as on screen)
                 for (const r of chairRects(chairDirections(cell, shape))) {
-                    doc.setFillColor(...(r.part === 'seat' ? [214, 219, 228] : [168, 177, 192]));
+                    doc.setFillColor(...(r.part === 'seat' ? SLIP.border : SLIP.faint));
                     const k = unit / 100;
                     doc.roundedRect(x + r.x * k, y + r.y * k, r.w * k, r.h * k, r.r * k, r.r * k, 'F');
                 }
@@ -139,13 +139,13 @@ function drawRoomPlan(doc, room, people, area) {
             const person = people.get(room.seats[cell.key]);
             doc.setLineWidth(0.25);
             // Numbered table: solid table top
-            doc.setDrawColor(...(person ? SLIP.accent : [178, 186, 200]));
-            doc.setFillColor(...(person ? SLIP.accentSoft : [233, 236, 241]));
-            doc.roundedRect(x + inset, y + inset, unit - 2 * inset, unit - 2 * inset, 0.6, 0.6, 'FD');
+            doc.setDrawColor(...(person ? SLIP.text : SLIP.faint));
+            doc.setFillColor(...(person ? [255, 255, 255] : SLIP.fill));
+            doc.roundedRect(x + inset, y + inset, unit - 2 * inset, unit - 2 * inset, 0.4, 0.4, 'FD');
 
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(numberSize);
-            doc.setTextColor(...(person ? SLIP.accent : SLIP.faint));
+            doc.setTextColor(...(person ? SLIP.muted : SLIP.faint));
             doc.text(fitText(doc, numbers.get(cell.key), unit - 2 * inset - 1), x + inset + 0.7, y + inset + numberSize * 0.3528 + 0.4);
 
             if (person) {
@@ -162,15 +162,19 @@ function drawRoomPlan(doc, room, people, area) {
 }
 
 function addPlanHeader(doc, event, room, pageW, subtitle) {
-    slipLabel(doc, subtitle, PLAN_MARGIN, PLAN_MARGIN + 3, SLIP.accent, 8);
+    // Subtitle on green tape (seating area), room name next to it
+    const tape = slipTape(doc, subtitle, PLAN_MARGIN, PLAN_MARGIN - 1.5, { color: SLIP.green, size: 10 });
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(16);
     doc.setTextColor(...SLIP.text);
-    doc.text(room.name, PLAN_MARGIN, PLAN_MARGIN + 10);
+    doc.text(room.name, PLAN_MARGIN + tape.w + 4, PLAN_MARGIN + 3.6);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(10);
     doc.setTextColor(...SLIP.muted);
-    doc.text(event.name, pageW - PLAN_MARGIN - doc.getTextWidth(event.name), PLAN_MARGIN + 10);
+    doc.text(event.name, pageW - PLAN_MARGIN - doc.getTextWidth(event.name), PLAN_MARGIN + 3.6);
+    doc.setDrawColor(...SLIP.text);
+    doc.setLineWidth(0.4);
+    doc.line(PLAN_MARGIN, PLAN_MARGIN + 8, pageW - PLAN_MARGIN, PLAN_MARGIN + 8);
 }
 
 function addPlanFooter(doc, pageW, pageH, createdAt) {
@@ -212,7 +216,7 @@ function addSeatList(doc, event, room, people, createdAt) {
 
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(9.5);
-        doc.setTextColor(...SLIP.accent);
+        doc.setTextColor(...SLIP.green);
         doc.text(place, x + colW - 4 - doc.getTextWidth(place), y);
 
         doc.setTextColor(...SLIP.text);
@@ -281,12 +285,12 @@ function drawSignFace(doc, fold, upper, { number, label, roomName, eventName }) 
     const left = SIGN.side;
     const contentW = SIGN.width - 2 * SIGN.side;
 
-    // Number tile
+    // Number tile in the brand orange, dark digits (white on orange is too weak)
     const tile = 34;
     doc.setFillColor(...SLIP.accent);
-    face.rect(left, 20, tile, tile, 'F', 3);
+    face.rect(left, 20, tile, tile, 'F');
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(255, 255, 255);
+    doc.setTextColor(...SLIP.onAccent);
     const numberText = String(number);
     fitFontSize(doc, numberText, tile - 6, 44, 18);
     face.text(numberText, left + (tile - doc.getTextWidth(numberText)) / 2, 20 + tile / 2 + doc.getFontSize() * 0.3528 * 0.36);

@@ -2,11 +2,12 @@
 // then the notes. Same style as the IP slips (SLIP, slipLabel, fitFontSize, logoBox, slipFileSlug
 // from ip-slips.js); days and times from timetable.js (timetableDays, ttTimeRange, ttDay).
 
+// Same categories as in the app: meals brown, programme green, tournaments orange, rest grey
 const TT_PDF_COLORS = {
-    meal: [104, 160, 18],
-    program: [18, 146, 186],
+    meal: SLIP.brown,
+    program: SLIP.green,
     tournament: SLIP.accent,
-    other: [128, 98, 222],
+    other: SLIP.faint,
 };
 const TT_PDF_BOTTOM = 276; // content ends above the footer line (282 mm)
 
@@ -19,21 +20,12 @@ function pdfText(value) {
 function ttPdfHeader(doc, event, first) {
     const { width, margin } = SLIP;
     const right = width - margin;
-    doc.setFillColor(...SLIP.accent);
-    doc.rect(margin, 10, width - 2 * margin, 2, 'F');
-    slipLabel(doc, 'MCD Brackets', margin, 20, SLIP.faint, 8);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(10);
-    doc.setTextColor(...SLIP.text);
-    doc.text(pdfText(event.name), right, 20, { align: 'right' });
-    doc.setDrawColor(...SLIP.border);
-    doc.setLineWidth(0.3);
-    doc.line(margin, 24, right, 24);
+    // Title on violet tape (timetable area), only on the first page
+    slipPageHeader(doc, pdfText(event.name), first ? 'Zeitplan' : '', SLIP.violet);
     if (!first) return 32;
 
     const logo = event.logo ? logoBox(doc, event.logo) : null;
     if (logo) doc.addImage(event.logo, right - logo.w, 30, logo.w, logo.h);
-    slipLabel(doc, 'Zeitplan', margin, 38, SLIP.accent, 9);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(fitFontSize(doc, pdfText(event.name), width - 2 * margin - (logo ? logo.w + 8 : 0), 28, 14));
     doc.setTextColor(...SLIP.text);
@@ -71,8 +63,15 @@ function buildTimetablePdf(event, data) {
 
     for (const { day, items } of days) {
         ensureSpace(20);
-        slipLabel(doc, pdfText(ttDay(day)), margin, y + 4, SLIP.accent, 9.5);
-        y += 8;
+        // Day: bold heading with a rule
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(13);
+        doc.setTextColor(...SLIP.text);
+        doc.text(pdfText(ttDay(day)), margin, y + 4.5);
+        doc.setDrawColor(...SLIP.text);
+        doc.setLineWidth(0.4);
+        doc.line(margin, y + 6.5, width - margin, y + 6.5);
+        y += 10;
 
         for (const item of items) {
             const category = item.kind === 'rounds' ? 'tournament' : item.entry.category;
@@ -91,14 +90,15 @@ function buildTimetablePdf(event, data) {
             ensureSpace(height);
 
             doc.setFillColor(...SLIP.fill);
-            doc.roundedRect(margin, y, contentWidth, height, 2, 2, 'F');
+            doc.roundedRect(margin, y, contentWidth, height, SLIP.radius, SLIP.radius, 'F');
+            // Category as a small square in its colour (like the nodes on screen)
             doc.setFillColor(...(TT_PDF_COLORS[category] ?? TT_PDF_COLORS.other));
-            doc.rect(margin, y, 1.6, height, 'F');
+            doc.rect(margin + 3, y + 4.4, 2.8, 2.8, 'F');
 
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(11.5);
             doc.setTextColor(...SLIP.text);
-            doc.text(pdfText(ttTimeRange(item)), margin + 5, y + 7);
+            doc.text(pdfText(ttTimeRange(item)), margin + 8, y + 7);
             doc.text(titleLines, textX, y + 7);
             if (infoLines.length) {
                 doc.setFont('helvetica', 'normal');
@@ -115,8 +115,14 @@ function buildTimetablePdf(event, data) {
     if (data.notes.length) {
         ensureSpace(24);
         y += 2;
-        slipLabel(doc, 'Hinweise', margin, y + 4, SLIP.accent, 9.5);
-        y += 8;
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(13);
+        doc.setTextColor(...SLIP.text);
+        doc.text('Hinweise', margin, y + 4.5);
+        doc.setDrawColor(...SLIP.text);
+        doc.setLineWidth(0.4);
+        doc.line(margin, y + 6.5, width - margin, y + 6.5);
+        y += 10;
         for (const note of data.notes) {
             doc.setFont('helvetica', 'normal');
             doc.setFontSize(10);
@@ -124,9 +130,9 @@ function buildTimetablePdf(event, data) {
             const height = (note.title ? 6 : 0) + lines.length * 4.6 + 8;
             ensureSpace(height);
             doc.setFillColor(...SLIP.accentSoft);
-            doc.roundedRect(margin, y, contentWidth, height, 2.5, 2.5, 'F');
-            doc.setFillColor(...SLIP.accent);
-            doc.rect(margin, y, 1.6, height, 'F');
+            doc.setDrawColor(...SLIP.accent);
+            doc.setLineWidth(0.3);
+            doc.roundedRect(margin, y, contentWidth, height, SLIP.radius, SLIP.radius, 'FD');
             let textY = y + 6.8;
             if (note.title) {
                 doc.setFont('helvetica', 'bold');
@@ -149,6 +155,7 @@ function buildTimetablePdf(event, data) {
     for (let page = 1; page <= pages; page++) {
         doc.setPage(page);
         doc.setDrawColor(...SLIP.border);
+        doc.setLineWidth(0.3);
         doc.line(margin, 282, width - margin, 282);
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(8);

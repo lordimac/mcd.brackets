@@ -50,7 +50,7 @@ function renderMeChip() {
     const identified = me?.status === 'identified';
     chip.hidden = !identified;
     if (!identified) return; // not recognised (or request failed): no attendee to show
-    chip.innerHTML = `${icon('users')}<span>${escapeHtml(me.attendee.display_name)}</span>${me.attendee.admin ? '<span class="me-chip-tag">Admin</span>' : ''}${me.tested ? '<span class="me-chip-test">Test</span>' : ''}`;
+    chip.innerHTML = `<span class="tape-wrap"><span class="tape tape-orange">${escapeHtml(me.attendee.nickname)}</span></span>${me.attendee.admin ? '<span class="me-chip-tag">Admin</span>' : ''}${me.tested ? '<span class="me-chip-test">Test</span>' : ''}`;
     chip.title = me.attendee.admin && !me.tested
         ? 'Über die IP-Adresse dieses Geräts erkannt und als Admin angemeldet'
         : 'Erkannt über die IP-Adresse dieses Geräts';
@@ -147,7 +147,7 @@ function heroHtml(event) {
         <div class="welcome-hero-main">
             ${kicker}
             <h2 class="welcome-title">Hallo ${escapeHtml(a.first_name || a.nickname)}!</h2>
-            <p class="welcome-identity">${a.clan ? clanTag(a.clan) : ''}<strong>${escapeHtml(a.nickname)}</strong>${fullName ? `<span class="muted">${escapeHtml(fullName)}</span>` : ''}</p>
+            <p class="welcome-identity"><span class="tape-wrap welcome-tape"><span class="tape-print"><span class="tape tape-white">${escapeHtml(a.display_name)}</span></span></span>${fullName ? `<span class="muted">${escapeHtml(fullName)}</span>` : ''}</p>
             <p class="welcome-lead">Dieses Gerät: <strong>${escapeHtml(RANGE_LABELS[me.range_index])}</strong></p>
             ${test}
         </div>

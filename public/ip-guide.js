@@ -28,31 +28,21 @@ function guideFont(doc, size, style = 'normal', color = SLIP.text) {
     setColor(doc, 'text', color);
 }
 
-// Orange numbered circle linking a mock-up element to a step
+// Orange numbered square linking a mock-up element to a step
 function guideMarker(doc, n, x, y, r = 2.6) {
     setColor(doc, 'fill', SLIP.accent);
-    doc.circle(x, y, r, 'F');
-    guideFont(doc, r * 3.2, 'bold', [255, 255, 255]);
+    doc.rect(x - r, y - r, 2 * r, 2 * r, 'F');
+    guideFont(doc, r * 3.2, 'bold', SLIP.onAccent);
     doc.text(String(n), x, y + r * 0.42, { align: 'center' });
 }
 
 function guideHeader(doc, event, title, subtitle) {
-    const { width, margin } = SLIP;
-    const right = width - margin;
-    setColor(doc, 'fill', SLIP.accent);
-    doc.rect(margin, 10, width - 2 * margin, 2, 'F');
-    slipLabel(doc, 'MCD Brackets', margin, 20, SLIP.faint, 8);
-    guideFont(doc, 10, 'bold');
-    doc.text(event.name, right, 20, { align: 'right' });
-    setColor(doc, 'draw', SLIP.border);
-    doc.setLineWidth(0.3);
-    doc.line(margin, 24, right, 24);
-
-    slipLabel(doc, 'Anleitung', margin, 34, SLIP.accent, 9);
+    const { margin } = SLIP;
+    slipPageHeader(doc, event.name, 'Anleitung', SLIP.blue);
     guideFont(doc, 22, 'bold');
-    doc.text(title, margin, 44);
+    doc.text(title, margin, 46.5);
     guideFont(doc, 10.5, 'normal', SLIP.muted);
-    doc.text(subtitle, margin, 51);
+    doc.text(subtitle, margin, 53);
 }
 
 // "Deine Werte": IP (from the slip), mask, gateway, DNS in one row
@@ -70,10 +60,10 @@ function guideValueBoxes(doc, values, y) {
         setColor(doc, 'fill', i === 0 ? SLIP.accentSoft : SLIP.fill);
         setColor(doc, 'draw', i === 0 ? SLIP.accent : SLIP.border);
         doc.setLineWidth(0.3);
-        doc.roundedRect(x, y, boxW, boxH, 2, 2, 'FD');
+        doc.roundedRect(x, y, boxW, boxH, SLIP.radius, SLIP.radius, 'FD');
         slipLabel(doc, label, x + 3.5, y + 5.5, SLIP.muted, 6.5);
         if (i === 0) {
-            guideFont(doc, 9, 'bold', SLIP.accent);
+            guideFont(doc, 9, 'bold', SLIP.text);
             doc.text('siehe IP-Zettel', x + 3.5, y + 11.3);
         } else if (value) {
             doc.setFont('courier', 'bold');
@@ -113,13 +103,13 @@ function guideTips(doc, tips, y) {
         const lines = doc.splitTextToSize(text, leftWidth - 8);
         const h = lines.length * 4 + 11;
         setColor(doc, 'fill', SLIP.accentSoft);
-        doc.roundedRect(left, y, leftWidth, h, 2, 2, 'F');
-        setColor(doc, 'fill', SLIP.accent);
-        doc.rect(left, y, 1.4, h, 'F');
+        setColor(doc, 'draw', SLIP.accent);
+        doc.setLineWidth(0.3);
+        doc.roundedRect(left, y, leftWidth, h, SLIP.radius, SLIP.radius, 'FD');
         guideFont(doc, 9, 'bold');
-        doc.text(title, left + 5, y + 5.8);
+        doc.text(title, left + 4, y + 5.8);
         guideFont(doc, 8.8);
-        doc.text(lines, left + 5, y + 10.6);
+        doc.text(lines, left + 4, y + 10.6);
         y += h + 4;
     });
     return y;

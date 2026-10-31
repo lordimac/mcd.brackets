@@ -2,17 +2,27 @@
 // Drawn as vector PDF with jsPDF (crisp when printed). Uses lanEvents/attendees/currentEventId
 // from lan.js and setButtonLabel from app.js.
 
+// Print version of the „Patchkabel & Etikett“ design (design-system/mcd-lan/MASTER.md):
+// white paper, rack greys, the wire colours as bands, titles on label tape, tiny radii.
 const SLIP = {
     width: 210,
     margin: 18,
+    radius: 0.8,
     accent: [255, 69, 0],
-    accentSoft: [255, 236, 229],
-    text: [20, 24, 33],
-    muted: [107, 114, 128],
-    faint: [156, 163, 175],
-    fill: [245, 246, 248],
-    border: [226, 229, 234],
-    link: [24, 110, 190],
+    accentSoft: [255, 233, 224],
+    onAccent: [29, 32, 35],
+    text: [29, 32, 35],
+    muted: [74, 81, 77],
+    faint: [141, 148, 144],
+    fill: [236, 238, 235],
+    border: [203, 208, 204],
+    link: [31, 95, 191],
+    tapeShadow: [170, 176, 172],
+    // Band colours of the areas (same as --band-* in styles.css)
+    blue: [31, 95, 191],
+    green: [46, 125, 56],
+    violet: [106, 79, 179],
+    brown: [122, 74, 38],
 };
 
 function slipFileSlug(value) {
@@ -21,14 +31,51 @@ function slipFileSlug(value) {
         .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'export';
 }
 
-// Small uppercase heading with letter spacing
+// Small bold heading in sentence case
 function slipLabel(doc, text, x, y, color = SLIP.muted, size = 8.5) {
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(size);
+    doc.setFontSize(size + 0.5);
     doc.setTextColor(...color);
-    doc.setCharSpace(0.6);
-    doc.text(text.toUpperCase(), x, y);
-    doc.setCharSpace(0);
+    doc.text(text, x, y);
+}
+
+// Label tape: coloured band with a slanted right edge and a hard offset shadow, text in
+// bold. top = upper edge of the band. Light text on dark bands, dark text on orange.
+// Returns the size of the band.
+function slipTape(doc, text, x, top, { color = SLIP.accent, size = 11 } = {}) {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(size);
+    const h = size * 0.3528 * 1.5;
+    const cut = h * 0.35;
+    const w = doc.getTextWidth(text) + h * 0.35 + h * 0.75;
+    const band = (bx, by) => doc.lines([[w, 0], [-cut, h], [-(w - cut), 0]], bx, by, [1, 1], 'F', true);
+    doc.setFillColor(...SLIP.tapeShadow);
+    band(x + 0.6, top + 0.6);
+    doc.setFillColor(...color);
+    band(x, top);
+    const dark = color === SLIP.accent;
+    doc.setTextColor(...(dark ? SLIP.onAccent : [255, 255, 255]));
+    doc.text(text, x + h * 0.35, top + h * 0.7);
+    return { w, h };
+}
+
+// Page header shared by slips, guide and timetable: event name and brand in one row, a rule,
+// then the title on tape in the colour of its area. The tape sits between 31 and 38 mm.
+function slipPageHeader(doc, eventName, title, color) {
+    const { width, margin } = SLIP;
+    const right = width - margin;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(...SLIP.text);
+    doc.text(eventName, margin, 20);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(...SLIP.faint);
+    doc.text('MCD Brackets', right, 20, { align: 'right' });
+    doc.setDrawColor(...SLIP.text);
+    doc.setLineWidth(0.4);
+    doc.line(margin, 24, right, 24);
+    if (title) slipTape(doc, title, margin, 30.5, { color, size: 11 });
 }
 
 // Largest font size (down to min) at which text fits into maxWidth
@@ -64,19 +111,9 @@ function addSlipPage(doc, event, attendee, createdAt) {
     const right = width - margin;
     const contentWidth = width - 2 * margin;
 
-    // Accent bar and header — everything stays well inside the 5 mm non-printable border
-    doc.setFillColor(...SLIP.accent);
-    doc.rect(margin, 10, contentWidth, 2, 'F');
-
-    slipLabel(doc, 'MCD Brackets', margin, 20, SLIP.faint, 8);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(10);
-    doc.setTextColor(...SLIP.text);
-    doc.text(event.name, right, 20, { align: 'right' });
-
-    doc.setDrawColor(...SLIP.border);
-    doc.setLineWidth(0.3);
-    doc.line(margin, 24, right, 24);
+    // Header with the title on blue tape (attendee area) — everything stays well inside
+    // the 5 mm non-printable border
+    slipPageHeader(doc, event.name, 'IP-Zettel', SLIP.blue);
 
     // Logo top right in its own aspect ratio (only when the event has a logo)
     const logo = event.logo ? { ...logoBox(doc, event.logo), gap: 8 } : null;
@@ -85,7 +122,6 @@ function addSlipPage(doc, event, attendee, createdAt) {
     }
 
     // Name: "Clan-" in accent color, nickname in text color
-    slipLabel(doc, 'IP-Zettel', margin, 38, SLIP.accent, 9);
     doc.setFont('helvetica', 'bold');
     const nameWidth = contentWidth - (logo ? logo.w + logo.gap : 0);
     const size = fitFontSize(doc, attendee.display_name, nameWidth, 30, 14);
@@ -117,15 +153,16 @@ function addSlipPage(doc, event, attendee, createdAt) {
     RANGE_LABELS.forEach((label, i) => {
         doc.setFillColor(...SLIP.fill);
         doc.setDrawColor(...SLIP.border);
-        doc.roundedRect(margin, y, contentWidth, cardH, 3, 3, 'FD');
+        doc.setLineWidth(0.3);
+        doc.roundedRect(margin, y, contentWidth, cardH, SLIP.radius, SLIP.radius, 'FD');
 
-        // Number circle
-        doc.setFillColor(...(i === 0 ? SLIP.accent : SLIP.muted));
-        doc.circle(margin + 12, y + cardH / 2, 6, 'F');
+        // Number square: the main PC in orange, the others in rack black
+        doc.setFillColor(...(i === 0 ? SLIP.accent : SLIP.text));
+        doc.rect(margin + 6, y + cardH / 2 - 6, 12, 12, 'F');
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(12);
-        doc.setTextColor(255, 255, 255);
-        doc.text(String(i + 1), margin + 12, y + cardH / 2 + 1.5, { align: 'center' });
+        doc.setFontSize(13);
+        doc.setTextColor(...(i === 0 ? SLIP.onAccent : [255, 255, 255]));
+        doc.text(String(i + 1), margin + 12, y + cardH / 2 + 1.6, { align: 'center' });
 
         const textX = margin + 25;
         slipLabel(doc, label, textX, y + 8.5);
@@ -173,14 +210,15 @@ function addSlipPage(doc, event, attendee, createdAt) {
     const lines = doc.splitTextToSize(hint, contentWidth - 12);
     const hintH = lines.length * 4.6 + 8;
     doc.setFillColor(...SLIP.accentSoft);
-    doc.roundedRect(margin, y, contentWidth, hintH, 2.5, 2.5, 'F');
-    doc.setFillColor(...SLIP.accent);
-    doc.rect(margin, y, 1.6, hintH, 'F');
+    doc.setDrawColor(...SLIP.accent);
+    doc.setLineWidth(0.3);
+    doc.roundedRect(margin, y, contentWidth, hintH, SLIP.radius, SLIP.radius, 'FD');
     doc.setTextColor(...SLIP.text);
-    doc.text(lines, margin + 7, y + 6.8);
+    doc.text(lines, margin + 6, y + 6.8);
 
     // Footer
     doc.setDrawColor(...SLIP.border);
+    doc.setLineWidth(0.3);
     doc.line(margin, 282, right, 282);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
@@ -212,7 +250,8 @@ function drawValueBoxes(doc, items, x, y, width) {
         const bx = x + i * (boxW + gap);
         doc.setFillColor(255, 255, 255);
         doc.setDrawColor(...SLIP.border);
-        doc.roundedRect(bx, y, boxW, boxH, 2.5, 2.5, 'FD');
+        doc.setLineWidth(0.3);
+        doc.roundedRect(bx, y, boxW, boxH, SLIP.radius, SLIP.radius, 'FD');
         slipLabel(doc, item.label, bx + 5, y + 6.5, SLIP.muted, 7);
 
         const { size, lines } = layouts[i];

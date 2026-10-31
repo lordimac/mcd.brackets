@@ -1546,7 +1546,9 @@ function formatType(type) {
 }
 
 // Background of exported images/PDFs (matches --bg-color)
-const EXPORT_BACKGROUND = '#141519';
+const EXPORT_BACKGROUND = '#2f3437';
+// PDFs are printed: bracket and rankings switch to the light paper variant (.export-paper)
+const PAPER_BACKGROUND = '#ffffff';
 
 // Printers can't print borderless: everything in PDFs stays this far from the paper edge
 const PRINT_MARGIN_MM = 5;
@@ -1781,6 +1783,7 @@ async function exportBracketAsPdf() {
         bracketContainer.style.outline = 'none';
         bracketContainer.style.padding = '2rem';
         bracketSection.style.overflow = 'visible';
+        bracketContainer.classList.add('export-paper');
         
         // Wait for layout to update
         await new Promise(resolve => setTimeout(resolve, 100));
@@ -1792,7 +1795,7 @@ async function exportBracketAsPdf() {
         
         // Create canvas from bracket
         const canvas = await html2canvas(bracketContainer, {
-            backgroundColor: EXPORT_BACKGROUND,
+            backgroundColor: PAPER_BACKGROUND,
             scale: 2,
             logging: false,
             allowTaint: true,
@@ -1812,6 +1815,7 @@ async function exportBracketAsPdf() {
         bracketContainer.style.outline = originalOutline;
         bracketContainer.style.padding = originalPadding;
         bracketSection.style.overflow = originalSectionOverflow;
+        bracketContainer.classList.remove('export-paper');
         
         // A4 landscape, whole bracket fitted onto one page inside the printable area
         const { jsPDF } = window.jspdf;
@@ -1854,11 +1858,12 @@ async function exportRankingsAsPdf() {
         
         // Create a wrapper with padding and title
         const exportWrapper = document.createElement('div');
-        exportWrapper.style.cssText = `background: ${EXPORT_BACKGROUND}; padding: 2rem; border-radius: 8px;`;
+        exportWrapper.className = 'export-paper';
+        exportWrapper.style.cssText = `background: ${PAPER_BACKGROUND}; padding: 2rem;`;
         
         const title = document.createElement('h2');
         title.textContent = eventName;
-        title.style.cssText = 'color: white; margin-bottom: 1.5rem; text-align: center;';
+        title.style.cssText = 'margin-bottom: 1.5rem; text-align: center;';
         
         exportWrapper.appendChild(title);
         exportWrapper.appendChild(rankingsContainer.cloneNode(true));
@@ -1866,7 +1871,7 @@ async function exportRankingsAsPdf() {
         
         // Create canvas from rankings
         const canvas = await html2canvas(exportWrapper, {
-            backgroundColor: EXPORT_BACKGROUND,
+            backgroundColor: PAPER_BACKGROUND,
             scale: 2,
             logging: false,
             allowTaint: true,
