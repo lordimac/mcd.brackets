@@ -10,8 +10,8 @@ process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'mcd-brackets-sched
 
 const { ensureAppTables, getStorage }: typeof import('./db') = require('./db');
 const store: typeof import('./lan-store') = require('./lan-store');
-const { createStage, findStage }: typeof import('./stages') = require('./stages');
-const { decideOverdueMatches, eventSchedule, saveEventSchedule, saveSchedule, stageRounds }: typeof import('./schedule') = require('./schedule');
+const { createStage, deleteStage, findStage }: typeof import('./stages') = require('./stages');
+const { decideOverdueMatches, findOverdueMatch, eventSchedule, saveEventSchedule, saveSchedule, stageRounds }: typeof import('./schedule') = require('./schedule');
 const { updateMatchResult }: typeof import('./results') = require('./results');
 const { syncEventStages }: typeof import('./stage-sync') = require('./stage-sync');
 const { HttpError }: typeof import('./http-error') = require('./http-error');
@@ -195,4 +195,15 @@ test('loser bracket and round robin rounds never get a time, also not from old d
   await getStorage().update('stage', rr.id, { ...stored, schedule: [{ group: 1, round: 1, label: 'Runde 1', ends_at: past }] } as typeof stored);
   assert.ok((await stageRounds(rr.id)).every(r => r.ends_at === null));
   assert.equal(await decideOverdueMatches(rr.id, NOW), 0);
+});
+
+test('a stage that no longer exists (rebuilt or deleted) is skipped without an error', async () => {
+  const se = await stage('single_elimination', 8);
+  await saveSchedule(se.id, [{ group: 1, round: 1, ends_at: future }]);
+  assert.equal(await findOverdueMatch(se.id, NOW), null, 'nothing due yet');
+  assert.ok(await findOverdueMatch(se.id, NOW + 7_200_000), 'due after the deadline');
+
+  await deleteStage(await findStage(se.id));
+  assert.equal(await findOverdueMatch(se.id, NOW + 7_200_000), null);
+  assert.equal(await decideOverdueMatches(se.id, NOW + 7_200_000), 0);
 });

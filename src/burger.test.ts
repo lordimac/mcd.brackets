@@ -162,3 +162,31 @@ test('menus saved before the output switches print labels and have no tablet dis
   assert.equal(menu.kitchen_display, false);
   assert.equal(validateMenu({ ...old, print_labels: false, kitchen_display: true }).print_labels, false);
 });
+
+test('orders of a deleted attendee belong to nobody; a new attendee with the same ID does not get them', async () => {
+  await ensureAppTables();
+  const event = await store.createEvent({ name: 'Lösch-LAN' });
+  const leaving = await store.addAttendee(event.id, { nickname: 'Weg' });
+  const created = await burger.createOrder(event.id, { attendee_id: leaving.id, name: 'Weg' }, { choices: order });
+
+  await store.deleteAttendee(leaving.id);
+  const detached = await burger.getOrder(created.id);
+  assert.equal(detached?.attendee_id, null);
+  assert.equal(detached?.name, 'Weg', 'the name stays for the kitchen');
+
+  const next = await store.addAttendee(event.id, { nickname: 'Neu' });
+  assert.equal(next.id, leaving.id, 'IDs are reused (max + 1)');
+  assert.ok((await burger.listOrders(event.id)).every(o => o.attendee_id !== next.id));
+});
+
+test('old orders of attendees that no longer exist are detached at startup', async () => {
+  await ensureAppTables();
+  const event = await store.createEvent({ name: 'Alt-LAN' });
+  const kept = await store.addAttendee(event.id, { nickname: 'Bleibt' });
+  const own = await burger.createOrder(event.id, { attendee_id: kept.id, name: 'Bleibt' }, { choices: order });
+  const orphan = await burger.createOrder(event.id, { attendee_id: 9999, name: 'Verschwunden' }, { choices: order });
+
+  assert.equal(await burger.detachOrphanedOrders(), 1);
+  assert.equal((await burger.getOrder(orphan.id))?.attendee_id, null);
+  assert.equal((await burger.getOrder(own.id))?.attendee_id, kept.id);
+});

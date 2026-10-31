@@ -41,6 +41,13 @@ const isRealResult = (m: Match) => m.status >= STATUS_RUNNING
 
 const sameList = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every((x, i) => x === b[i]);
 
+// brackets-json-db returns -1 instead of throwing when an insert fails
+async function insertParticipant(tournamentId: Id, name: string): Promise<Id> {
+  const id = await getStorage().insert('participant', { tournament_id: tournamentId, name });
+  if (typeof id !== 'number' || id < 0) throw new Error(`Spieler ${name} konnte nicht gespeichert werden`);
+  return id;
+}
+
 export async function syncEventStages(eventName: string): Promise<StageSyncReport[]> {
   const names = await playerNamesForEvent(eventName);
   if (!names) return [];
@@ -115,7 +122,7 @@ async function syncStage(stageId: Id, players: string[], memorial: string[]): Pr
 
   if (leavingPlayers.length || places.length || legacyWithdrawn) {
     for (const { name, index } of places) {
-      const id = await getStorage().insert('participant', { tournament_id: stage.tournament_id, name }) as Id;
+      const id = await insertParticipant(stage.tournament_id, name);
       if (index === null) seedingIds.push(id);
       else seedingIds[index] = id;
     }
@@ -229,7 +236,7 @@ async function syncNotStarted(stage: AppStage, participants: Participant[], play
     const nulls = kept.flatMap((id, i) => (id == null ? [i] : []));
     const free = [...shuffle(nulls.filter(i => !seats[i + 1])), ...shuffle(nulls.filter(i => seats[i + 1]))];
     for (const [i, name] of joining.entries()) {
-      kept[free[i]] = await getStorage().insert('participant', { tournament_id: stage.tournament_id, name }) as Id;
+      kept[free[i]] = await insertParticipant(stage.tournament_id, name);
     }
     const layout = seatLayout(stage.type, kept.length, stage.settings.seedOrdering);
     report.stage_id = (await rebuildStage(stage, kept, { ...fields, memorial_seats: assignMemorialSeats(kept, memorial, seats, layout) })).stageId;

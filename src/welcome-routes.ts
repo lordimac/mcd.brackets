@@ -1,6 +1,6 @@
 import { Router, NextFunction, Request, Response } from 'express';
 import { Resolver } from 'dns/promises';
-import { getAppStore } from './db';
+import { getAppStore, getRevision } from './db';
 import { authRequired, isAdmin, markIpAdmin } from './auth';
 import { HttpError } from './http-error';
 import { listRooms } from './seating-store';
@@ -10,13 +10,28 @@ import { clientIPv4, expectedSettings, identify, networkChecks, type DnsLookup, 
 // Welcome page (public): the client IP identifies the attendee of an event with IP identification
 export const welcomeRouter = Router();
 
+// Events and attendees for identify(), read again only after the database changed, because the
+// IP check runs for every API request. Shared between requests: read only, never modify.
+let identityCache: { revision: number; events: LanEvent[]; attendees: Attendee[] } | null = null;
+
+async function identityData(): Promise<{ events: LanEvent[]; attendees: Attendee[] }> {
+  const revision = getRevision();
+  if (identityCache?.revision !== revision) {
+    identityCache = {
+      revision,
+      events: (await getAppStore().select('event')) ?? [],
+      attendees: (await getAppStore().select('attendee')) ?? [],
+    };
+  }
+  return identityCache;
+}
+
 // Attendees with the admin flag are admins by IP address: the same identification as the welcome
 // page (only events with IP identification). Runs for every API request before the admin check.
 export async function resolveIpAdmin(req: Request, _res: Response, next: NextFunction): Promise<void> {
   const ip = authRequired() ? clientIPv4(req.ip) : null;
   if (ip) {
-    const events: LanEvent[] = (await getAppStore().select('event')) ?? [];
-    const attendees: Attendee[] = (await getAppStore().select('attendee')) ?? [];
+    const { events, attendees } = await identityData();
     if (identify(ip, events, attendees).attendee?.admin) markIpAdmin(req);
   }
   next();
@@ -25,8 +40,7 @@ export async function resolveIpAdmin(req: Request, _res: Response, next: NextFun
 // Attendee of this device by its IP address (same identification as the welcome page);
 // proves "own" for burger orders and SMB shares
 export async function ipAttendeeId(req: Request): Promise<number | null> {
-  const events: LanEvent[] = (await getAppStore().select('event')) ?? [];
-  const attendees: Attendee[] = (await getAppStore().select('attendee')) ?? [];
+  const { events, attendees } = await identityData();
   return identify(clientIPv4(req.ip), events, attendees).attendee?.id ?? null;
 }
 
@@ -63,8 +77,7 @@ welcomeRouter.get('/whoami', async (req: Request, res: Response) => {
   if (testIp && clientIPv4(testIp) === null) throw new HttpError(400, `Ungültige IPv4-Adresse: ${testIp}`);
 
   const ip = clientIPv4(testIp ?? req.ip);
-  const events: LanEvent[] = (await getAppStore().select('event')) ?? [];
-  const attendees: Attendee[] = (await getAppStore().select('attendee')) ?? [];
+  const { events, attendees } = await identityData();
   const id = identify(ip, events, attendees);
 
   res.setHeader('Cache-Control', 'no-store');

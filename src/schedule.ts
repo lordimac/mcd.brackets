@@ -220,15 +220,21 @@ export async function saveEventSchedule(eventName: string, slotsInput: unknown, 
 
 // Decides every playable open match whose round deadline has passed by lot.
 // Repeats, because a decision can make a match of a later (also overdue) round playable.
+// The next playable open match in a round whose deadline has passed; null also when the stage
+// no longer exists (rebuilt or deleted meanwhile)
+export async function findOverdueMatch(stageId: Id, now: number = Date.now()): Promise<Match | null> {
+  const stage = await getStorage().select('stage', stageId) as AppStage | null;
+  if (!stage?.schedule?.length) return null;
+  const due = new Set((await stageRounds(stageId)).filter(r => r.ends_at && Date.parse(r.ends_at) <= now).map(r => r.round_id));
+  if (due.size === 0) return null;
+  const matches: Match[] = (await getStorage().select('match', { stage_id: stageId })) ?? [];
+  return matches.find(m => m.status === STATUS_READY && due.has(m.round_id) && m.opponent1?.id != null && m.opponent2?.id != null) ?? null;
+}
+
 export async function decideOverdueMatches(stageId: Id, now: number = Date.now(), random: () => number = () => crypto.randomInt(2)): Promise<number> {
-  const stage = await findStage(stageId);
-  if (!stage.schedule?.length) return 0;
   let decided = 0;
   for (let step = 0; step < 1000; step++) {
-    const due = new Set((await stageRounds(stageId)).filter(r => r.ends_at && Date.parse(r.ends_at) <= now).map(r => r.round_id));
-    if (due.size === 0) return decided;
-    const matches: Match[] = (await getStorage().select('match', { stage_id: stageId })) ?? [];
-    const match = matches.find(m => m.status === STATUS_READY && due.has(m.round_id) && m.opponent1?.id != null && m.opponent2?.id != null);
+    const match = await findOverdueMatch(stageId, now);
     if (!match) return decided;
 
     const firstWins = random() === 0;
@@ -249,6 +255,8 @@ async function decideAllOverdue(): Promise<void> {
   const stages = ((await getStorage().select('stage')) ?? []) as AppStage[];
   for (const stage of stages.filter(s => s.schedule?.length)) {
     try {
+      // Read-only check first: lock and snapshot only when something is due
+      if (!(await findOverdueMatch(stage.id))) continue;
       const decided = await withLock(() => withRollback(() => decideOverdueMatches(stage.id)));
       if (decided > 0) console.log(`🎲 ${stage.name}: ${decided} Match(es) nach Rundenschluss per Los entschieden`);
     } catch (error) {

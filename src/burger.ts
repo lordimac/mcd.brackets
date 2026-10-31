@@ -251,6 +251,19 @@ export async function listOrders(eventId: number): Promise<BurgerOrder[]> {
   return ((await getAppStore().select('burger_order', { event_id: eventId })) ?? []).sort((a, b) => a.number - b.number);
 }
 
+// Orders of deleted attendees keep the name but belong to nobody any more: attendee IDs are
+// reused (max + 1), so a new attendee would otherwise own them. After a delete and at startup.
+export async function detachOrphanedOrders(): Promise<number> {
+  const attendeeIds = new Set(((await getAppStore().select('attendee')) ?? []).map(a => a.id));
+  let detached = 0;
+  for (const order of (await getAppStore().select('burger_order')) ?? []) {
+    if (order.attendee_id == null || attendeeIds.has(order.attendee_id)) continue;
+    await getAppStore().update('burger_order', order.id, { ...order, attendee_id: null });
+    detached++;
+  }
+  return detached;
+}
+
 export async function getOrder(id: number): Promise<BurgerOrder | null> {
   return getAppStore().select('burger_order', id);
 }

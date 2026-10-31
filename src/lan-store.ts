@@ -7,6 +7,7 @@ import {
   type Attendee, type AttendeeView, type LanEvent,
 } from './lan';
 import { HttpError } from './http-error';
+import { detachOrphanedOrders } from './burger';
 import { validateAttendeeShares, validateEventShares, type AttendeeShare, type EventShare } from './shares';
 
 type StageWithEvent = Stage & { event_name?: string };
@@ -214,6 +215,7 @@ export async function deleteAttendee(id: number): Promise<void> {
     const seats = Object.fromEntries(Object.entries(room.seats).filter(([, attendeeId]) => attendeeId !== id));
     if (Object.keys(seats).length !== Object.keys(room.seats).length) await getAppStore().update('room', room.id, { ...room, seats });
   }
+  await detachOrphanedOrders();
 }
 
 // Copies attendees (names, nickname) of another event; nicknames already present are skipped.

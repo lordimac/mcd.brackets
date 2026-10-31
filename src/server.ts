@@ -18,6 +18,7 @@ import { resolveIpAdmin, welcomeRouter } from './welcome-routes';
 import { loadPoints, pointsRouter } from './points-routes';
 import { migrateRooms } from './seating-store';
 import { OpnsenseError } from './opnsense';
+import { detachOrphanedOrders } from './burger';
 import { getStats, startUpdateChecks, updateFor } from './info';
 import { getEvent, playerNamesForEvent, syncEventsFromStages } from './lan-store';
 import { memorialByes, migrateMemorialStages, setConsolationFinal, setGrandFinalDouble } from './stage-sync';
@@ -294,31 +295,13 @@ app.put('/api/matches/:id', async (req: Request<{ id: string }>, res: Response) 
 
 // Delete a stage (including all participants for that tournament)
 app.delete('/api/stages/:id', async (req: Request<{ id: string }>, res: Response) => {
-  await withLock(async () => deleteStage(await findStage(parseInt(req.params.id))));
+  await withLock(() => withRollback(async () => deleteStage(await findStage(parseInt(req.params.id)))));
   res.status(204).send();
 });
 
-// Get participants
+// Players of all tournaments (they follow the event's attendees, stage-sync.ts)
 app.get('/api/participants', async (_req: Request, res: Response) => {
   res.json((await getStorage().select('participant')) ?? []);
-});
-
-// Create participant
-app.post('/api/participants', async (req: Request, res: Response) => {
-  const { tournamentId, name } = req.body ?? {};
-
-  if (tournamentId == null || !name) {
-    throw new HttpError(400, 'Missing required fields: tournamentId, name');
-  }
-
-  const participant = await withLock(() => getStorage().insert('participant', { tournament_id: tournamentId, name }));
-  res.status(201).json(participant);
-});
-
-// Delete participant
-app.delete('/api/participants/:id', async (req: Request<{ id: string }>, res: Response) => {
-  await withLock(() => getStorage().delete('participant', { id: parseInt(req.params.id) }));
-  res.status(204).send();
 });
 
 // Get complete tournament data for viewer
@@ -326,6 +309,7 @@ app.get('/api/viewer-data/:stageId', async (req: Request<{ stageId: string }>, r
   const stageId = parseInt(req.params.stageId);
   const stage = await findStage(stageId);
   const storage = getStorage();
+  const rounds = await stageRounds(stageId);
 
   res.json({
     stage: [stage],
@@ -333,8 +317,8 @@ app.get('/api/viewer-data/:stageId', async (req: Request<{ stageId: string }>, r
     match_game: (await storage.select('match_game', { stage_id: stageId })) ?? [],
     participant: (await storage.select('participant', { tournament_id: stage.tournament_id })) ?? [],
     // round_id → deadline / start time, shown under the round names
-    round_deadlines: Object.fromEntries((await stageRounds(stageId)).filter(r => r.ends_at).map(r => [r.round_id, r.ends_at])),
-    round_starts: Object.fromEntries((await stageRounds(stageId)).filter(r => r.starts_at).map(r => [r.round_id, r.starts_at])),
+    round_deadlines: Object.fromEntries(rounds.filter(r => r.ends_at).map(r => [r.round_id, r.ends_at])),
+    round_starts: Object.fromEntries(rounds.filter(r => r.starts_at).map(r => [r.round_id, r.starts_at])),
     // Memorial entries as named BYEs (elimination): [{ match_id, side, name }]
     memorial_byes: await memorialByes(stage),
   });
@@ -380,6 +364,7 @@ app.post('/api/restore', async (req: Request, res: Response) => {
     await replaceDatabase(parsed);
     await syncEventsFromStages();
     await migrateRooms();
+    await detachOrphanedOrders();
   });
   res.json({ ok: true, message: 'Datenbank wiederhergestellt. Bitte Seite neu laden.' });
 });
@@ -412,6 +397,7 @@ async function start(): Promise<void> {
   await ensureAppTables();
   await syncEventsFromStages();
   const migrated = await migrateRooms();
+  await detachOrphanedOrders();
   const memorialChanged = await withLock(() => migrateMemorialStages());
   if (memorialChanged.length) console.log(`🕯️  Gedenk-Einträge umgestellt in: ${memorialChanged.join(', ')}`);
   if (migrated > 0) console.log(`🪑 ${migrated} Sitzplan-Raum/Räume ins neue Format übernommen`);

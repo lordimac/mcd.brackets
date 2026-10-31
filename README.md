@@ -354,8 +354,7 @@ Ist `ADMIN_PASSWORD` gesetzt, sind alle Anfragen außer GET/HEAD (und `GET /api/
 ### Participants
 | Method | Endpoint | Beschreibung |
 |--------|----------|--------------|
-| GET    | `/api/participants` | Alle Teilnehmer abrufen |
-| DELETE | `/api/participants/:id` | Teilnehmer löschen |
+| GET    | `/api/participants` | Alle Spieler aller Turniere abrufen (angelegt und entfernt werden sie über die Teilnehmer des Events) |
 
 ### Viewer & Standings
 | Method | Endpoint | Beschreibung |
