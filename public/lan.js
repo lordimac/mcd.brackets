@@ -98,6 +98,7 @@ function fillEventSettings(event) {
     `).join('');
     updateCapacityHint();
     renderLogoPreview(event);
+    renderEventShares(event);
 
     for (const [id, format] of [['exportCsv', 'csv'], ['exportHosts', 'hosts'], ['exportZone', 'zone']]) {
         document.getElementById(id).href = `${API_URL}/events/${event.id}/export/${format}`;
@@ -319,7 +320,7 @@ function renderAttendees() {
     const clan = document.getElementById('clanFilter').value;
     const rows = attendees
         .filter(a => clan === '__all__' || a.clan === clan)
-        .filter(a => !query || [a.display_name, a.first_name, a.last_name, ...a.ips, ...a.dns_names]
+        .filter(a => !query || [a.display_name, a.first_name, a.last_name, ...a.ips, ...a.dns_names, ...a.shares.flatMap(sh => [sh.path, sh.label])]
             .some(value => value.toLowerCase().includes(query)))
         .sort(compareAttendees);
 
@@ -344,14 +345,28 @@ function renderAttendees() {
                 <td class="col-ip">
                     <span class="ip">${ip}</span>
                     <span class="dns">${dnsHtml(a.dns_names[i])}</span>
+                    ${shareChipHtml(a, i)}
                 </td>`).join('')}
             <td class="col-actions admin-only">
+                <button class="btn btn-ghost btn-icon admin-only" onclick="openShareEditor('attendee', ${a.id})" title="SMB-Shares bearbeiten" aria-label="SMB-Shares bearbeiten">${icon('folder')}</button>
                 <button class="btn btn-ghost btn-icon admin-only" onclick="exportSlip(${a.id})" title="IP-Zettel (PDF)" aria-label="IP-Zettel als PDF">${icon('file')}</button>
                 <button class="btn btn-ghost btn-icon admin-only" onclick="editAttendee(${a.id})" title="Bearbeiten" aria-label="Bearbeiten">${icon('edit')}</button>
                 <button class="btn btn-danger btn-icon admin-only" onclick="deleteAttendee(${a.id})" title="Löschen" aria-label="Löschen">${icon('trash')}</button>
             </td>
         </tr>
     `).join('');
+}
+
+// SMB shares of the PC in range i (shares.js); the own row offers to add some on the main PC
+function shareChipHtml(attendee, rangeIndex) {
+    const count = attendee.shares.filter(sh => sh.range_index === rangeIndex).length;
+    if (count) {
+        return `<button type="button" class="share-chip" onclick="openAttendeeShares(${attendee.id})" title="SMB-Shares dieses PCs öffnen">${icon('folder')}${count === 1 ? '1 Share' : `${count} Shares`}</button>`;
+    }
+    if (rangeIndex === 0 && !attendee.shares.length && isMe(attendee.id)) {
+        return `<button type="button" class="share-chip is-add" onclick="openShareEditor('attendee', ${attendee.id})" title="Ordner deiner PCs für andere freigeben">${icon('plus')}Share</button>`;
+    }
+    return '';
 }
 
 /* Tournaments follow the attendees (src/stage-sync.ts): the server answers changes with

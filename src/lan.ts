@@ -1,6 +1,8 @@
 // LAN party data: events with IP ranges/domain and their attendees.
 // Pure functions only — persistence lives in lan-store.ts.
 
+import type { AttendeeShare, EventShare } from './shares';
+
 export const RANGE_LABELS = ['Haupt-PC', 'Zweiter PC', 'Dritter PC'] as const;
 export const RANGE_COUNT = RANGE_LABELS.length;
 
@@ -25,6 +27,7 @@ export interface LanEvent {
   memorial: string[];  // "In Gedenken": take part in every tournament by name, but always as a bye
   ip_identification: boolean; // welcome page recognizes attendees by their IP address (default on)
   ranges: IpRange[];   // one range per RANGE_LABELS entry
+  shares?: EventShare[]; // fixed SMB shares, shown on the welcome page (shares.ts); missing = none
 }
 
 export interface Attendee {
@@ -37,9 +40,11 @@ export interface Attendee {
   hostname: string;    // DNS-safe form of the nickname (without clan)
   slot: number;        // offset into every IP range
   admin?: boolean;     // logged in as admin by IP address (welcome-routes.ts); missing = no
+  shares?: AttendeeShare[]; // SMB shares of the attendee's PCs (shares.ts); missing = none
 }
 
 export interface AttendeeView extends Attendee {
+  shares: AttendeeShare[];
   display_name: string;
   ips: string[];
   dns_names: string[];
@@ -355,7 +360,7 @@ export function nextFreeSlot(usedSlots: number[], capacity: number): number | nu
 export function describeAttendee(event: LanEvent, attendee: Attendee): AttendeeView {
   const ips = event.ranges.map(range => formatIPv4(parseIPv4(range.start)! + attendee.slot));
   const dnsNames = hostnamesFor(attendee.hostname).map(name => (event.domain ? `${name}.${event.domain}` : name));
-  return { ...attendee, clan: attendee.clan ?? '', admin: attendee.admin === true, display_name: displayName({ clan: attendee.clan ?? '', nickname: attendee.nickname }), ips, dns_names: dnsNames };
+  return { ...attendee, clan: attendee.clan ?? '', admin: attendee.admin === true, shares: attendee.shares ?? [], display_name: displayName({ clan: attendee.clan ?? '', nickname: attendee.nickname }), ips, dns_names: dnsNames };
 }
 
 /* Exports

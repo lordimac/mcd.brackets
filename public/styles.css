@@ -4908,3 +4908,197 @@ body.burger-kitchen-open {
         overflow: visible;
     }
 }
+
+/* SMB shares (shares.js)
+   ========================================================================== */
+
+.modal-content.share-modal {
+    max-width: 760px;
+}
+
+.share-list {
+    list-style: none;
+    display: grid;
+    gap: 0.6rem;
+    margin: 0 0 1rem;
+    padding: 0;
+}
+
+.share-item {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem 1rem;
+    align-items: flex-start;
+    justify-content: space-between;
+    padding: 0.75rem 0.9rem;
+    background: var(--surface-2);
+    border: 1px solid var(--border-color);
+    border-left: 3px solid var(--view-color);
+    border-radius: var(--radius-sm);
+}
+
+.share-main {
+    display: grid;
+    gap: 0.2rem;
+    min-width: 0;
+}
+
+.share-title {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-family: var(--font-display);
+}
+
+.share-title .icon {
+    color: var(--view-color);
+}
+
+.share-path,
+.share-credentials code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.85rem;
+    overflow-wrap: anywhere;
+}
+
+.share-main .dns {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.75rem;
+    color: var(--secondary-color);
+}
+
+.share-credentials {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.1rem 0.6rem;
+    align-items: center;
+    margin: 0.25rem 0 0;
+    font-size: 0.85rem;
+}
+
+.share-credentials dt {
+    color: var(--text-secondary);
+}
+
+.share-credentials dd {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    margin: 0;
+    min-width: 0;
+}
+
+.share-guest {
+    font-size: 0.85rem;
+}
+
+.btn-copy {
+    width: 26px;
+    height: 26px;
+}
+
+.btn-copy.is-copied,
+.share-actions .is-copied {
+    color: var(--success-color);
+}
+
+.share-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+
+.share-empty {
+    margin-bottom: 1rem;
+}
+
+/* Chip under the IP address in the attendee list */
+.share-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    margin-top: 0.25rem;
+    padding: 0.05rem 0.4rem;
+    border: 1px solid var(--view-color);
+    border-radius: 2px;
+    background: transparent;
+    color: var(--view-color);
+    font-family: var(--font-display);
+    font-size: 0.72rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.share-chip .icon {
+    width: 0.9rem;
+    height: 0.9rem;
+}
+
+.share-chip:hover {
+    background: var(--secondary-soft);
+}
+
+.share-chip.is-add {
+    border-style: dashed;
+    color: var(--text-secondary);
+    border-color: var(--border-strong);
+}
+
+/* Editor */
+.share-edit-rows {
+    display: grid;
+    gap: 0.75rem;
+    margin: 1rem 0;
+}
+
+.share-edit-row {
+    position: relative;
+    margin: 0;
+    padding: 0.75rem 2.75rem 0.25rem 0.75rem;
+    background: var(--surface-2);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+}
+
+.share-edit-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 0 0.75rem;
+}
+
+.share-edit-remove {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+}
+
+.event-share-summary {
+    list-style: none;
+    display: grid;
+    gap: 0.3rem;
+    margin: 0 0 0.75rem;
+    padding: 0;
+}
+
+.event-share-summary li {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    overflow-wrap: anywhere;
+}
+
+.welcome-shares-own {
+    margin-top: 0.5rem;
+}
+
+.welcome-subhead-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.6rem;
+}
+
+.welcome-subhead-row .welcome-subhead {
+    margin-bottom: 0;
+}

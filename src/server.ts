@@ -13,6 +13,7 @@ import { opnsenseRouter } from './opnsense-routes';
 import { seatingRouter } from './seating-routes';
 import { timetableRouter } from './timetable-routes';
 import { burgerRouter } from './burger-routes';
+import { shareRouter } from './share-routes';
 import { resolveIpAdmin, welcomeRouter } from './welcome-routes';
 import { loadPoints, pointsRouter } from './points-routes';
 import { migrateRooms } from './seating-store';
@@ -95,8 +96,8 @@ app.use('/api', resolveIpAdmin); // admin attendees are admins by their IP addre
 app.use('/api', requireAdminForChanges);
 // A restore carries the whole database; everything else is small (the event logo is up to 2 MB)
 app.use('/api/restore', express.json({ limit: '10mb' }));
-// Burger orders may come from everyone, so only small bodies
-app.use(['/api/events/:id/burger-orders', '/api/burger-orders'], express.json({ limit: '20kb' }));
+// Burger orders and attendee shares may come from everyone, so only small bodies
+app.use(['/api/events/:id/burger-orders', '/api/burger-orders', '/api/attendees/:id/shares'], express.json({ limit: '20kb' }));
 app.use(express.json({ limit: '3mb' }));
 
 app.get('/api/auth', (req: Request, res: Response) => {
@@ -135,6 +136,7 @@ app.use('/api', opnsenseRouter);
 app.use('/api', seatingRouter);
 app.use('/api', timetableRouter);
 app.use('/api', burgerRouter);
+app.use('/api', shareRouter);
 app.use('/api', pointsRouter);
 app.use('/api', welcomeRouter);
 

@@ -3,9 +3,9 @@ import { Router, Request, Response } from 'express';
 import { getAppStore, withLock } from './db';
 import { isAdmin } from './auth';
 import { HttpError } from './http-error';
-import { displayName, ValidationError, type Attendee, type LanEvent } from './lan';
+import { displayName, ValidationError } from './lan';
 import { getEvent } from './lan-store';
-import { clientIPv4, identify } from './welcome';
+import { ipAttendeeId } from './welcome-routes';
 import {
   claimForPrint, createOrder, DEFAULT_MENU, getMenu, getOrder, isLocked, listOrders, LOCKED_MESSAGE, orderView, saveMenu, setKitchenState, unmarkPrinted, updateOrder, type BurgerOrder,
 } from './burger';
@@ -28,13 +28,6 @@ function idParam(req: Request<IdParams>): number {
 
 function requireAdmin(req: Request): void {
   if (!isAdmin(req)) throw new HttpError(401, 'Admin-Anmeldung erforderlich');
-}
-
-// Attendee of this device by its IP address (same identification as the welcome page)
-async function ipAttendeeId(req: Request): Promise<number | null> {
-  const events: LanEvent[] = (await getAppStore().select('event')) ?? [];
-  const attendees: Attendee[] = (await getAppStore().select('attendee')) ?? [];
-  return identify(clientIPv4(req.ip), events, attendees).attendee?.id ?? null;
 }
 
 function tokenMatches(req: Request, order: BurgerOrder): boolean {

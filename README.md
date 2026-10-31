@@ -2,7 +2,7 @@
 
 Ein vollständiges Turnierverwaltungssystem mit Event-basiertem Meisterschafts-Punktesystem, entwickelt mit [brackets-manager](https://www.npmjs.com/package/brackets-manager).
 
-**Version:** 0.27.0-beta
+**Version:** 0.28.0-beta
 
 ---
 
@@ -55,6 +55,7 @@ Ein vollständiges Turnierverwaltungssystem mit Event-basiertem Meisterschafts-P
 - **IP-Zettel (PDF)** — ein DIN-A4-Blatt pro Teilnehmer mit Logo (oben rechts, Hoch- oder Querformat je nach Bild), Clan-Nickname, Name, den 3 IPs samt DNS-Namen, den Netzwerk-Einstellungen und optional dem WLAN (SSID und Passwort); einzeln (Icon in der Liste) oder für alle als ein PDF. Alle PDFs halten einen Druckrand von mind. 5 mm ein
 - **Anleitung (PDF)** — je eine Seite für Windows (10/11) und macOS (ab 13): feste IP-Adresse einstellen, mit Subnetzmaske, Gateway und DNS des Events in nachgezeichneten Dialogen, Test per ping und Rückstellung nach der LAN
 - **Exporte** — CSV (Excel), hosts-Datei (dnsmasq/Pi-hole), BIND-Zone
+- **SMB-Shares** — Teilnehmer geben Ordner ihrer PCs frei (SMB 3, je PC wählbar, optional Benutzer/Passwort). Festlegen kann das der per IP erkannte Teilnehmer selbst („+ Share“ in der eigenen Zeile bzw. auf der Willkommens-Seite) oder ein Admin. In der Liste steht unter der IP „1 Share“; ein Klick zeigt Pfad und Zugangsdaten mit **macOS** (öffnet den Finder per `smb://`), **Windows** (lädt ein kleines `.cmd`, das per `net use` verbindet und den Explorer öffnet — Windows-Browser öffnen SMB-Links nicht selbst) und „Pfad kopieren“ (`\\host\freigabe`). Benutzer und Passwort sieht jeder, der die Seite öffnet — nur Gast-Zugänge verwenden
 - **Automatische Spieler** — Turniere nehmen alle Teilnehmer ihres Events (per Nickname). Kommen Teilnehmer hinzu oder fallen weg, passen sich die Turniere des Events sofort an, ohne dass gespielte Ergebnisse verloren gehen:
   - *Noch nicht begonnen:* Neue Spieler bekommen einen freien Platz (BYE), Weggefallene machen ihren Platz frei; die Auslosung bleibt. Muss das Bracket größer oder kleiner werden, wird neu ausgelost
   - *Läuft schon:* Neue Spieler bekommen einen freien Platz in Runde 1, solange dessen Folge-Matches noch nicht gespielt sind; alle Ergebnisse bleiben erhalten. Bei Round Robin bekommen sie Matches gegen alle. Gibt es keinen freien Platz mehr, können sie nicht mehr einsteigen (Hinweis; „Neu auslosen“ nimmt alle auf, verwirft aber die Ergebnisse)
@@ -127,6 +128,7 @@ Standardwerte:
 ### 👋 Willkommens-Seite (Startseite)
 - Reiter „Willkommen“ (auf dem Handy „Start“) ist die Startseite: erkennt das Gerät an seiner **IP-Adresse** — IP = Teilnehmer — und begrüßt mit Name, Clan, Nickname, Sitzplatz und welcher der drei PCs das Gerät ist
 - **Netzwerk-Check:** IP-Adresse passt / liegt im Event-Bereich, ist aber niemandem zugeordnet / gehört nicht zum Event (z.B. noch DHCP); Gateway im selben Netz; DNS-Name beim DNS-Server des Events eingetragen (der Server fragt den DNS-Server direkt, wenn er ihn erreicht); Namensauflösung, wenn die Seite über einen Namen der Event-Domain aufgerufen wurde. Daneben die Soll-Werte (IP, Maske, Gateway, DNS), alle Adressen des Teilnehmers, WLAN und die Anleitung „feste IP“ als PDF
+- **Netzwerk-Shares:** feste SMB-Shares des Events (Admins legen sie in der Konfiguration, Block „Netzwerk-Shares“, an; Server per IP oder DNS-Name, optional mit Benutzer/Passwort) und die eigenen Shares, jeweils mit Verbinden-Links für macOS und Windows. Neue Events übernehmen die festen Shares des letzten Events
 - **Deine Turniere:** nächstes Match mit Gegner, Runde und Spielzeit, Platzierung, Sprung ins Bracket
 - Das erkannte Gerät ist auch sonst markiert: Name oben rechts in der Leiste, eigene Zeile in der Teilnehmerliste, eigener Platz im Sitzplan, eigener Name im Bracket
 - Je Event in der Konfiguration (Block „Netzwerk“) mit „IP-Erkennung“ ein-/ausschaltbar, Standard: ein. Gibt es mehrere Events, gilt ein laufendes (Zeitraum) vor dem neuesten
@@ -376,6 +378,8 @@ Ist `ADMIN_PASSWORD` gesetzt, sind alle Anfragen außer GET/HEAD (und `GET /api/
 | POST   | `/api/events/:id/attendees/bulk` | Bulk-Import `{ text, dryRun? }` — Zeilen `Nachname, Vorname // Clan-Nickname`; liefert pro Zeile Ergebnis oder Fehler, `dryRun: true` schreibt nichts |
 | PUT    | `/api/attendees/:id` | Teilnehmer ändern; neuer Clan/Nickname wird in den Turnieren übernommen |
 | DELETE | `/api/attendees/:id` | Teilnehmer löschen (IPs werden frei) |
+| PUT    | `/api/attendees/:id/shares` | SMB-Shares des Teilnehmers `{ shares: [{ id?, label, path, username, password, range_index }] }` (komplette Liste) — Admins oder der per IP erkannte Teilnehmer selbst |
+| PUT    | `/api/events/:id/shares` | Feste SMB-Shares des Events `{ shares: [{ id?, label, host, path, username, password }] }` (Admin) |
 | GET    | `/api/events/:id/export/csv\|hosts\|zone` | Export als CSV, hosts-Datei oder BIND-Zone |
 
 ### Sitzplan

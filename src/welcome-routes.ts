@@ -22,6 +22,14 @@ export async function resolveIpAdmin(req: Request, _res: Response, next: NextFun
   next();
 }
 
+// Attendee of this device by its IP address (same identification as the welcome page);
+// proves "own" for burger orders and SMB shares
+export async function ipAttendeeId(req: Request): Promise<number | null> {
+  const events: LanEvent[] = (await getAppStore().select('event')) ?? [];
+  const attendees: Attendee[] = (await getAppStore().select('attendee')) ?? [];
+  return identify(clientIPv4(req.ip), events, attendees).attendee?.id ?? null;
+}
+
 // Asks the event's DNS server for the attendee's name of this device. Errors and timeouts
 // (DNS server not reachable from the server) leave the check out instead of failing the page.
 async function lookupName(id: Identification): Promise<DnsLookup> {

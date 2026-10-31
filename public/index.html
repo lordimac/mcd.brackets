@@ -29,6 +29,7 @@
         <symbol id="i-network" viewBox="0 0 24 24"><path d="M9 2h6v5H9zM2 17h6v5H2zM16 17h6v5h-6zM12 7v5M5 17v-5h14v5"/></symbol>
         <symbol id="i-search" viewBox="0 0 24 24"><path d="M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM21 21l-4.3-4.3"/></symbol>
         <symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></symbol>
+        <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 6a1 1 0 0 1 1-1h5l2 2h9a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/></symbol>
         <symbol id="i-copy" viewBox="0 0 24 24"><path d="M9 9h12v12H9zM5 15H3V3h12v2"/></symbol>
         <symbol id="i-lock" viewBox="0 0 24 24"><path d="M5 11h14v10H5zM8 11V7a4 4 0 0 1 8 0v4"/></symbol>
         <symbol id="i-logout" viewBox="0 0 24 24"><path d="M9 21H5V3h4M16 17l5-5-5-5M21 12H9"/></symbol>
@@ -543,6 +544,12 @@
                                         <input type="text" id="eventSettingWifiPassword" maxlength="63" autocomplete="off" spellcheck="false">
                                     </div>
                                 </div>
+                            </fieldset>
+
+                            <fieldset class="config-block config-block-span2">
+                                <legend>Netzwerk-Shares <span class="label-hint">SMB 3, stehen auf der Willkommens-Seite</span></legend>
+                                <div id="eventShareList"></div>
+                                <button type="button" class="btn btn-secondary btn-sm" onclick="editEventShares()"><svg class="icon"><use href="#i-folder"/></svg><span>Shares bearbeiten</span></button>
                             </fieldset>
 
                             <fieldset class="config-block config-block-span2">
@@ -1111,6 +1118,34 @@
         </div>
     </div>
 
+    <div id="shareViewModal" class="modal">
+        <div class="modal-content share-modal">
+            <button type="button" class="close" onclick="closeModal('shareViewModal')" aria-label="Schließen"><svg class="icon"><use href="#i-x"/></svg></button>
+            <h2 id="shareViewTitle">Shares</h2>
+            <div id="shareViewBody"></div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-ghost" onclick="closeModal('shareViewModal')">Schließen</button>
+                <button type="button" class="btn btn-primary" id="shareViewEdit"><svg class="icon"><use href="#i-edit"/></svg><span>Bearbeiten</span></button>
+            </div>
+        </div>
+    </div>
+
+    <div id="shareEditModal" class="modal">
+        <div class="modal-content share-modal">
+            <button type="button" class="close" onclick="closeModal('shareEditModal')" aria-label="Schließen"><svg class="icon"><use href="#i-x"/></svg></button>
+            <h2 id="shareEditTitle">Shares</h2>
+            <p class="field-hint" id="shareEditIntro"></p>
+            <form id="shareEditForm">
+                <div id="shareEditRows" class="share-edit-rows"></div>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="addShareRow()"><svg class="icon"><use href="#i-plus"/></svg><span>Share hinzufügen</span></button>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-ghost" onclick="closeModal('shareEditModal')">Abbrechen</button>
+                    <button type="submit" class="btn btn-primary">Speichern</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <div id="attendeeModal" class="modal">
         <div class="modal-content">
             <button type="button" class="close" onclick="closeModal('attendeeModal')" aria-label="Schließen"><svg class="icon"><use href="#i-x"/></svg></button>
@@ -1185,6 +1220,7 @@
     <script src="timetable.js"></script>
     <script src="timetable-pdf.js"></script>
     <script src="welcome.js"></script>
+    <script src="shares.js"></script>
     <script src="burger.js"></script>
     <script src="burger-labels.js"></script>
 </body>

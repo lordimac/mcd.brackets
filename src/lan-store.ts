@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import type { Participant, Stage } from 'brackets-model';
 import { getAppStore, getStorage } from './db';
 import {
@@ -6,6 +7,7 @@ import {
   type Attendee, type AttendeeView, type LanEvent,
 } from './lan';
 import { HttpError } from './http-error';
+import { validateAttendeeShares, validateEventShares, type AttendeeShare, type EventShare } from './shares';
 
 type StageWithEvent = Stage & { event_name?: string };
 
@@ -91,7 +93,9 @@ export async function createEvent(input: EventSettingsInput): Promise<LanEvent> 
     ranges: input.ranges ?? latest?.ranges ?? DEFAULT_RANGES,
   });
   await assertUniqueEventName(settings.name);
-  const id = await getAppStore().insert('event', settings);
+  // Fixed shares (servers of the LAN) usually stay the same
+  const shares = (latest?.shares ?? []).map(share => ({ ...share, id: crypto.randomUUID() }));
+  const id = await getAppStore().insert('event', { ...settings, shares });
   // The rooms of the last event are usually the same: copy their layouts, without seat assignments
   if (latest) {
     for (const room of (await getAppStore().select('room', { event_id: latest.id })) ?? []) {
@@ -119,9 +123,17 @@ export async function updateEvent(id: number, input: EventSettingsInput): Promis
     }
   }
 
-  const updated: LanEvent = { ...settings, id };
+  const updated: LanEvent = { ...settings, shares: event.shares ?? [], id }; // shares have their own route
   await getAppStore().update('event', id, updated);
   return updated;
+}
+
+// Replaces the fixed SMB shares of the event (admins)
+export async function setEventShares(id: number, input: unknown): Promise<EventShare[]> {
+  const event = await getEvent(id);
+  const shares = validateEventShares(input);
+  await getAppStore().update('event', id, { ...event, shares });
+  return shares;
 }
 
 export async function deleteEvent(id: number): Promise<void> {
@@ -184,6 +196,15 @@ export async function updateAttendee(id: number, input: AttendeeInput): Promise<
   return describeAttendee(event, updated);
 }
 
+// Replaces the SMB shares of the attendee (the attendee by IP or admins, share-routes.ts)
+export async function setAttendeeShares(id: number, input: unknown): Promise<AttendeeShare[]> {
+  const existing = await getAppStore().select('attendee', id);
+  if (!existing) throw new HttpError(404, 'Teilnehmer nicht gefunden');
+  const shares = validateAttendeeShares(input);
+  await getAppStore().update('attendee', id, { ...existing, shares });
+  return shares;
+}
+
 export async function deleteAttendee(id: number): Promise<void> {
   const existing = await getAppStore().select('attendee', id);
   if (!existing) throw new HttpError(404, 'Teilnehmer nicht gefunden');
@@ -196,7 +217,7 @@ export async function deleteAttendee(id: number): Promise<void> {
 }
 
 // Copies attendees (names, nickname) of another event; nicknames already present are skipped.
-// The admin flag is not copied: admin rights are given per event on purpose.
+// The admin flag is not copied: admin rights are given per event on purpose; shares neither.
 export async function importAttendees(eventId: number, fromEventId: number): Promise<{ added: number; skipped: string[] }> {
   if (eventId === fromEventId) throw new ValidationError('Quelle und Ziel sind dasselbe Event');
   await getEvent(fromEventId);

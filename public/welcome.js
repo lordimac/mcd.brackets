@@ -2,7 +2,7 @@
 // src/welcome.ts). The client IP identifies the attendee; `me` also highlights the own row in
 // the attendee list, the own seat and the own entry in brackets.
 // Uses apiFetch, escapeHtml, icon, lanEvents, formatType, formatDeadline, rankBadge from app.js
-// and RANGE_LABELS, clanTag from lan.js.
+// and RANGE_LABELS, clanTag from lan.js, welcomeSharesHtml from shares.js.
 
 let me = null;          // answer of /api/whoami, null = not loaded / failed
 let meError = '';
@@ -93,6 +93,7 @@ function renderWelcome() {
     box.innerHTML = [
         heroHtml(event),
         withNetwork ? networkHtml(event) : '',
+        welcomeSharesHtml(event),
         me.status === 'identified' ? `
             <section class="card">
                 <div class="section-header">

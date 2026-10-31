@@ -134,11 +134,12 @@ export function rejectCrossSite(req: Request, _res: Response, next: NextFunction
 const PUBLIC_PATHS = new Set(['/auth', '/login', '/logout']);
 const isProtectedRead = (path: string) => path === '/backup' || path === '/opnsense' || path.startsWith('/opnsense/');
 
-// Burger orders: everyone may order and change/cancel their own order; the routes check
-// ownership themselves (burger-routes.ts)
+// Burger orders: everyone may order and change/cancel their own order; attendees set their own
+// SMB shares. The routes check ownership themselves (burger-routes.ts, share-routes.ts)
 const isPublicWrite = (method: string, path: string) =>
   (method === 'POST' && /^\/events\/\d+\/burger-orders$/.test(path))
-  || ((method === 'PUT' || method === 'DELETE') && /^\/burger-orders\/\d+$/.test(path));
+  || ((method === 'PUT' || method === 'DELETE') && /^\/burger-orders\/\d+$/.test(path))
+  || (method === 'PUT' && /^\/attendees\/\d+\/shares$/.test(path));
 
 export function requireAdminForChanges(req: Request, _res: Response, next: NextFunction): void {
   const isRead = req.method === 'GET' || req.method === 'HEAD';

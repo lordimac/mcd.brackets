@@ -88,6 +88,16 @@ test('burger orders are open to everyone, menu and printing are not', () => {
   });
 });
 
+test('attendees may set their own shares, event shares need the admin', () => {
+  withPassword('geheim', () => {
+    assert.equal(guard(request('PUT', '/attendees/4/shares')), undefined);
+    for (const [method, path] of [['PUT', '/events/1/shares'], ['DELETE', '/attendees/4/shares'], ['PUT', '/attendees/4']]) {
+      const error = guard(request(method, path));
+      assert.ok(error instanceof HttpError && error.status === 401, `${method} ${path}`);
+    }
+  });
+});
+
 test('a malformed session cookie counts as not logged in', () => {
   withPassword('geheim', () => {
     const req = { method: 'POST', path: '/stages', headers: { cookie: `${SESSION_COOKIE}=%` } } as unknown as Request;
