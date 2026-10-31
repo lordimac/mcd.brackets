@@ -3,7 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { APP_TABLES, dataDir, dbPath, ensureAppTables, getManager, getStorage, replaceDatabase, withLock, withRollback } from './db';
 import {
-  authRequired, clearedSessionCookie, createSessionToken, isAdmin, loginRetryAfter, passwordMatches, recordLoginFailure,
+  adminVia, authRequired, clearedSessionCookie, createSessionToken, isAdmin, loginRetryAfter, passwordMatches, recordLoginFailure,
   rejectCrossSite, requireAdminForChanges, resetLoginFailures, sessionCookie,
 } from './auth';
 import { HttpError } from './http-error';
@@ -12,6 +12,8 @@ import { lanRouter } from './lan-routes';
 import { opnsenseRouter } from './opnsense-routes';
 import { seatingRouter } from './seating-routes';
 import { timetableRouter } from './timetable-routes';
+import { burgerRouter } from './burger-routes';
+import { resolveIpAdmin, welcomeRouter } from './welcome-routes';
 import { loadPoints, pointsRouter } from './points-routes';
 import { migrateRooms } from './seating-store';
 import { OpnsenseError } from './opnsense';
@@ -57,6 +59,7 @@ const CONTENT_SECURITY_POLICY = [
   "img-src 'self' data: blob:",
   "font-src 'self'",
   "connect-src 'self'",
+  "frame-src 'self' blob:", // burger labels are printed from a hidden frame with the PDF
   "object-src 'none'",
   "base-uri 'none'",
   "form-action 'self'",
@@ -88,13 +91,16 @@ app.use(express.static(publicDir, { etag: true, lastModified: true, setHeaders: 
 // Changes only from the app's own pages (CSRF), and only with the admin session (ADMIN_PASSWORD).
 // Both run before the body parser, so nobody can make the server parse large bodies without login.
 app.use('/api', rejectCrossSite);
+app.use('/api', resolveIpAdmin); // admin attendees are admins by their IP address
 app.use('/api', requireAdminForChanges);
 // A restore carries the whole database; everything else is small (the event logo is up to 2 MB)
 app.use('/api/restore', express.json({ limit: '10mb' }));
+// Burger orders may come from everyone, so only small bodies
+app.use(['/api/events/:id/burger-orders', '/api/burger-orders'], express.json({ limit: '20kb' }));
 app.use(express.json({ limit: '3mb' }));
 
 app.get('/api/auth', (req: Request, res: Response) => {
-  res.json({ required: authRequired(), admin: isAdmin(req) });
+  res.json({ required: authRequired(), admin: isAdmin(req), via: adminVia(req) });
 });
 
 app.post('/api/login', async (req: Request, res: Response) => {
@@ -128,7 +134,9 @@ app.use('/api', lanRouter);
 app.use('/api', opnsenseRouter);
 app.use('/api', seatingRouter);
 app.use('/api', timetableRouter);
+app.use('/api', burgerRouter);
 app.use('/api', pointsRouter);
+app.use('/api', welcomeRouter);
 
 // Get all tournaments (stages)
 app.get('/api/stages', async (_req: Request, res: Response) => {

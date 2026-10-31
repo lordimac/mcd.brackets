@@ -2,8 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { NextFunction, Request, Response } from 'express';
 import {
-  authRequired, clearedSessionCookie, createSessionToken, isAdmin, isValidSessionToken, LOGIN_MAX_FAILURES, loginRetryAfter,
-  passwordMatches, recordLoginFailure, rejectCrossSite, requireAdminForChanges, resetLoginFailures, SESSION_COOKIE, sessionCookie,
+  adminVia, authRequired, clearedSessionCookie, createSessionToken, isAdmin, isValidSessionToken, LOGIN_MAX_FAILURES, loginRetryAfter,
+  markIpAdmin, passwordMatches, recordLoginFailure, rejectCrossSite, requireAdminForChanges, resetLoginFailures, SESSION_COOKIE, sessionCookie,
 } from './auth';
 import { HttpError } from './http-error';
 
@@ -76,6 +76,18 @@ test('reads are public, changes and the backup need the session', () => {
   });
 });
 
+test('burger orders are open to everyone, menu and printing are not', () => {
+  withPassword('geheim', () => {
+    for (const [method, path] of [['POST', '/events/2/burger-orders'], ['PUT', '/burger-orders/5'], ['DELETE', '/burger-orders/5']]) {
+      assert.equal(guard(request(method, path)), undefined, `${method} ${path}`);
+    }
+    for (const [method, path] of [['PUT', '/burger/menu'], ['POST', '/events/2/burger-orders/print'], ['POST', '/burger-orders/5/unprint'], ['DELETE', '/events/2/burger-orders']]) {
+      const error = guard(request(method, path));
+      assert.ok(error instanceof HttpError && error.status === 401, `${method} ${path}`);
+    }
+  });
+});
+
 test('a malformed session cookie counts as not logged in', () => {
   withPassword('geheim', () => {
     const req = { method: 'POST', path: '/stages', headers: { cookie: `${SESSION_COOKIE}=%` } } as unknown as Request;
@@ -123,4 +135,18 @@ test('changes from foreign pages are rejected (CSRF)', () => {
     assert.equal(crossSite('POST', headers), undefined, JSON.stringify(headers));
   }
   assert.equal(crossSite('GET', { 'sec-fetch-site': 'cross-site' }), undefined, 'reads stay possible');
+});
+
+test('admin attendees are admins by IP: no password, no session, logout does not apply', () => {
+  withPassword('geheim', () => {
+    const req = request('PUT', '/events/1');
+    assert.equal(adminVia(req), null);
+    assert.ok(guard(req) instanceof HttpError);
+    markIpAdmin(req);
+    assert.equal(adminVia(req), 'ip');
+    assert.equal(isAdmin(req), true);
+    assert.equal(guard(req), undefined);
+    assert.equal(adminVia(request('PUT', '/events/1', createSessionToken())), 'session');
+  });
+  withPassword(undefined, () => assert.equal(adminVia(request('PUT', '/x')), 'open'));
 });

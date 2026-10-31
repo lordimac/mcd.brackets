@@ -85,12 +85,20 @@ document.addEventListener('DOMContentLoaded', () => {
 /* Loading
    ========================================================================== */
 
+// Seat to show once the seating tab has loaded ({ room, key }, set by the welcome page)
+let pendingSeatJump = null;
+
 // Called by showView() in app.js whenever the seating tab opens
 async function showSeatingView() {
     await loadEvents();
     ensureCurrentEvent();
     renderSeatEventSelect();
     await loadSeating();
+    if (pendingSeatJump) {
+        const { room, key } = pendingSeatJump;
+        pendingSeatJump = null;
+        jumpToSeat(room, key);
+    }
 }
 
 function renderSeatEventSelect() {
@@ -379,6 +387,7 @@ function renderCanvas(room) {
             const classes = ['cell', 'cell-seat', person ? 'is-taken' : 'is-free'];
             if (duplicates.has(number.toLowerCase())) classes.push('is-duplicate');
             if (query) classes.push(match ? 'is-match' : 'is-dimmed');
+            if (person && isMe(person.id)) classes.push('is-me');
             // On the table only the nickname; number, clan and name are in the tooltip.
             // While designing the room the number is what matters.
             const content = seatMode === 'layout'

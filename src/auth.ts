@@ -52,8 +52,23 @@ function readCookie(req: Request, name: string): string | undefined {
   return undefined;
 }
 
+// Attendees marked as admin are admins by their IP address, without password and session
+// (resolveIpAdmin in welcome-routes.ts marks the request before the admin check)
+const ipAdminRequests = new WeakSet<Request>();
+
+export function markIpAdmin(req: Request): void {
+  ipAdminRequests.add(req);
+}
+
+// How the request is admin: 'open' = no password set, 'ip' = admin attendee, 'session' = login cookie
+export function adminVia(req: Request): 'open' | 'ip' | 'session' | null {
+  if (!authRequired()) return 'open';
+  if (ipAdminRequests.has(req)) return 'ip';
+  return isValidSessionToken(readCookie(req, SESSION_COOKIE)) ? 'session' : null;
+}
+
 export function isAdmin(req: Request): boolean {
-  return !authRequired() || isValidSessionToken(readCookie(req, SESSION_COOKIE));
+  return adminVia(req) !== null;
 }
 
 // secure: request came in via HTTPS (behind a reverse proxy only with TRUST_PROXY)
@@ -119,9 +134,15 @@ export function rejectCrossSite(req: Request, _res: Response, next: NextFunction
 const PUBLIC_PATHS = new Set(['/auth', '/login', '/logout']);
 const isProtectedRead = (path: string) => path === '/backup' || path === '/opnsense' || path.startsWith('/opnsense/');
 
+// Burger orders: everyone may order and change/cancel their own order; the routes check
+// ownership themselves (burger-routes.ts)
+const isPublicWrite = (method: string, path: string) =>
+  (method === 'POST' && /^\/events\/\d+\/burger-orders$/.test(path))
+  || ((method === 'PUT' || method === 'DELETE') && /^\/burger-orders\/\d+$/.test(path));
+
 export function requireAdminForChanges(req: Request, _res: Response, next: NextFunction): void {
   const isRead = req.method === 'GET' || req.method === 'HEAD';
-  if ((isRead && !isProtectedRead(req.path)) || PUBLIC_PATHS.has(req.path) || isAdmin(req)) {
+  if ((isRead && !isProtectedRead(req.path)) || PUBLIC_PATHS.has(req.path) || isPublicWrite(req.method, req.path) || isAdmin(req)) {
     next();
     return;
   }

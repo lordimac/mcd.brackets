@@ -6,7 +6,7 @@ import {
   ValidationError, type Attendee, type LanEvent,
 } from './lan';
 
-const event: LanEvent = { id: 1, name: 'mcd.lan 2026', domain: 'lan.example.org', dns_server: '192.168.120.1', netmask: '255.255.255.0', gateway: '192.168.120.1', logo: '', starts_on: '', ends_on: '', wifi_enabled: false, wifi_ssid: '', wifi_password: '', memorial: [], ranges: DEFAULT_RANGES };
+const event: LanEvent = { id: 1, name: 'mcd.lan 2026', domain: 'lan.example.org', dns_server: '192.168.120.1', netmask: '255.255.255.0', gateway: '192.168.120.1', logo: '', starts_on: '', ends_on: '', wifi_enabled: false, wifi_ssid: '', wifi_password: '', memorial: [], ip_identification: true, ranges: DEFAULT_RANGES };
 
 function attendee(nickname: string, slot: number, extra: Partial<Attendee> = {}): Attendee {
   return { id: slot, event_id: 1, first_name: 'Max', last_name: 'Muster', clan: '', nickname, hostname: toHostname(nickname), slot, ...extra };

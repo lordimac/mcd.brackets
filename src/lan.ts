@@ -23,6 +23,7 @@ export interface LanEvent {
   wifi_ssid: string;
   wifi_password: string; // empty = open network; only admins get it from the API (lan-routes.ts)
   memorial: string[];  // "In Gedenken": take part in every tournament by name, but always as a bye
+  ip_identification: boolean; // welcome page recognizes attendees by their IP address (default on)
   ranges: IpRange[];   // one range per RANGE_LABELS entry
 }
 
@@ -35,6 +36,7 @@ export interface Attendee {
   nickname: string;
   hostname: string;    // DNS-safe form of the nickname (without clan)
   slot: number;        // offset into every IP range
+  admin?: boolean;     // logged in as admin by IP address (welcome-routes.ts); missing = no
 }
 
 export interface AttendeeView extends Attendee {
@@ -142,6 +144,7 @@ export interface EventSettingsInput {
   wifi_ssid?: unknown;
   wifi_password?: unknown;
   memorial?: unknown;
+  ip_identification?: unknown;
   ranges?: unknown;
 }
 
@@ -201,7 +204,10 @@ export function validateEventSettings(input: EventSettingsInput, usedSlots: numb
   const wifi = validateWifi(input);
   const period = validatePeriod(input);
 
-  return { name, domain, dns_server: dnsServer, netmask, gateway, logo, ...period, ...wifi, memorial, ranges };
+  // Missing in events saved before the switch existed: on
+  const ip_identification = input.ip_identification !== false;
+
+  return { name, domain, dns_server: dnsServer, netmask, gateway, logo, ...period, ...wifi, memorial, ip_identification, ranges };
 }
 
 // Period of the event: both days or none, at most 31 days
@@ -276,6 +282,7 @@ export interface AttendeeInput {
   clan?: unknown;
   last_name?: unknown;
   nickname?: unknown;
+  admin?: unknown;
 }
 
 // Name shown everywhere and used as player name in tournaments: "Clan-Nickname" or just the nickname
@@ -348,7 +355,7 @@ export function nextFreeSlot(usedSlots: number[], capacity: number): number | nu
 export function describeAttendee(event: LanEvent, attendee: Attendee): AttendeeView {
   const ips = event.ranges.map(range => formatIPv4(parseIPv4(range.start)! + attendee.slot));
   const dnsNames = hostnamesFor(attendee.hostname).map(name => (event.domain ? `${name}.${event.domain}` : name));
-  return { ...attendee, clan: attendee.clan ?? '', display_name: displayName({ clan: attendee.clan ?? '', nickname: attendee.nickname }), ips, dns_names: dnsNames };
+  return { ...attendee, clan: attendee.clan ?? '', admin: attendee.admin === true, display_name: displayName({ clan: attendee.clan ?? '', nickname: attendee.nickname }), ips, dns_names: dnsNames };
 }
 
 /* Exports

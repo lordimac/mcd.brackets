@@ -35,6 +35,11 @@
         <symbol id="i-external" viewBox="0 0 24 24"><path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></symbol>
         <symbol id="i-seat" viewBox="0 0 24 24"><path d="M19 9V6a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v3M3 16a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5a2 2 0 0 0-4 0v1.5a.5.5 0 0 1-.5.5h-9a.5.5 0 0 1-.5-.5V11a2 2 0 0 0-4 0zM5 18v2M19 18v2"/></symbol>
         <symbol id="i-clock" viewBox="0 0 24 24"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2"/></symbol>
+        <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 11 12 3l9 8M5 9.5V21h5v-6h4v6h5V9.5"/></symbol>
+        <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+        <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3 2 20h20zM12 10v4M12 17h.01"/></symbol>
+        <symbol id="i-info" viewBox="0 0 24 24"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 11v6M12 7.5h.01"/></symbol>
+        <symbol id="i-burger" viewBox="0 0 24 24"><path d="M4 10.5C4 6.4 7.6 4 12 4s8 2.4 8 6.5zM3 14c1.5 0 1.5-1 3-1s1.5 1 3 1 1.5-1 3-1 1.5 1 3 1 1.5-1 3-1 1.5 1 3 1M4 17.5h16V18a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 18z"/></symbol>
         <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/></symbol>
     </svg>
 
@@ -48,31 +53,131 @@
                 </div>
             </div>
             <nav class="tabs" aria-label="Bereiche">
+                <a href="#willkommen" class="tab" data-view="welcome"><svg class="icon"><use href="#i-home"/></svg><span class="tab-long">Willkommen</span><span class="tab-short">Start</span></a>
                 <a href="#teilnehmer" class="tab" data-view="attendees"><svg class="icon"><use href="#i-users"/></svg><span>Teilnehmer</span></a>
                 <a href="#sitzplan" class="tab" data-view="seating"><svg class="icon"><use href="#i-seat"/></svg><span>Sitzplan</span></a>
                 <a href="#zeitplan" class="tab" data-view="timetable"><svg class="icon"><use href="#i-clock"/></svg><span>Zeitplan</span></a>
+                <a href="#burger" class="tab" data-view="burger"><svg class="icon"><use href="#i-burger"/></svg><span>Burger</span></a>
                 <a href="#turniere" class="tab" data-view="tournaments"><svg class="icon"><use href="#i-trophy"/></svg><span>Turniere</span></a>
             </nav>
             <div class="topbar-actions">
-                <span class="footer-hint" id="importStatus"></span>
-                <a href="/api/backup" class="btn btn-ghost btn-sm admin-only" download title="Datenbank als JSON herunterladen">
-                    <svg class="icon"><use href="#i-download"/></svg><span>Backup</span>
-                </a>
-                <button class="btn btn-ghost btn-sm admin-only" onclick="document.getElementById('importBackupInput').click()" title="Datenbank aus JSON wiederherstellen">
-                    <svg class="icon"><use href="#i-upload"/></svg><span>Einlesen</span>
-                </button>
-                <input type="file" id="importBackupInput" accept=".json" style="display:none;" onchange="importBackup(this)">
-                <button class="btn btn-secondary btn-sm" id="loginButton" onclick="openLoginModal()" style="display: none;" title="Als Admin anmelden, um zu bearbeiten">
-                    <svg class="icon"><use href="#i-lock"/></svg><span>Anmelden</span>
-                </button>
-                <button class="btn btn-ghost btn-sm" id="logoutButton" onclick="logout()" style="display: none;" title="Admin-Sitzung beenden">
-                    <svg class="icon"><use href="#i-logout"/></svg><span>Abmelden</span>
-                </button>
+                <a href="#willkommen" class="me-chip" id="meChip" hidden></a>
             </div>
         </div>
     </header>
 
     <div class="container">
+        <!-- Welcome: who is this device (by its IP address) and is the network set up correctly -->
+        <main class="layout view" id="view-welcome" style="display: none;">
+            <div id="welcomeContent" class="welcome"><p class="loading">Erkenne dein Gerät…</p></div>
+
+            <section class="card admin-only welcome-test">
+                <div class="section-header">
+                    <div>
+                        <h2><svg class="icon icon-accent"><use href="#i-search"/></svg>Ansicht testen</h2>
+                        <p class="section-subtitle">So sieht die Seite für ein Gerät mit dieser IP-Adresse aus.</p>
+                    </div>
+                </div>
+                <form id="welcomeTestForm" class="inline-form">
+                    <input type="text" id="welcomeTestIp" placeholder="192.168.120.100" autocomplete="off" spellcheck="false" aria-label="IP-Adresse zum Testen">
+                    <button type="submit" class="btn btn-secondary btn-sm">Anzeigen</button>
+                    <button type="button" class="btn btn-ghost btn-sm" id="welcomeTestReset" onclick="resetWelcomeTest()" hidden>Eigenes Gerät</button>
+                </form>
+            </section>
+        </main>
+
+        <!-- Burger designer: everyone orders, admins print the orders on DYMO labels -->
+        <main class="layout view" id="view-burger" style="display: none;">
+            <section class="card">
+                <div class="section-header event-bar">
+                    <div class="event-picker">
+                        <h2><svg class="icon icon-accent"><use href="#i-flag"/></svg>Event</h2>
+                        <select id="burgerEventSelect" onchange="selectBurgerEvent(this.value)" aria-label="Event auswählen"></select>
+                    </div>
+                </div>
+            </section>
+
+            <section class="card" id="burgerDesignerCard">
+                <div class="section-header">
+                    <div>
+                        <h2><svg class="icon icon-accent"><use href="#i-burger"/></svg><span id="burgerFormTitle">Dein Burger</span></h2>
+                        <p class="section-subtitle">Zusammenklicken, bestellen — der Grill bekommt deine Bestellung als Zettel.</p>
+                    </div>
+                </div>
+                <p class="burger-closed" id="burgerClosed" hidden></p>
+                <form id="burgerOrderForm" class="burger-designer">
+                    <div class="burger-stage">
+                        <div class="burger-preview" id="burgerPreview"></div>
+                        <p class="burger-summary" id="burgerSummary"></p>
+                    </div>
+                    <div class="burger-form">
+                        <div id="burgerSteps" class="burger-steps"><p class="loading">Lade Speisekarte…</p></div>
+                        <div class="burger-step">
+                            <h3><span class="burger-step-no">+</span>Für wen &amp; Anmerkung</h3>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="burgerWho">Für</label>
+                                    <select id="burgerWho" onchange="updateBurgerWhoName()"></select>
+                                    <input type="text" id="burgerWhoName" maxlength="60" placeholder="Name" autocomplete="off" hidden aria-label="Name">
+                                </div>
+                                <div class="form-group">
+                                    <label for="burgerNote">Anmerkung <span class="label-hint">optional</span></label>
+                                    <input type="text" id="burgerNote" maxlength="200" placeholder="z.B. Allergie, gut durch" autocomplete="off">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="burger-submit">
+                            <button type="button" class="btn btn-ghost" id="burgerCancelEdit" onclick="cancelBurgerEdit()" hidden>Abbrechen</button>
+                            <button type="submit" class="btn btn-primary" id="burgerSubmit"><svg class="icon"><use href="#i-check"/></svg><span class="btn-label">Bestellen</span></button>
+                            <span class="burger-message" id="burgerMessage" role="status" hidden></span>
+                        </div>
+                    </div>
+                </form>
+            </section>
+
+            <section class="card" id="burgerMineCard" style="display: none;">
+                <div class="section-header">
+                    <h2><svg class="icon icon-accent"><use href="#i-list"/></svg>Deine Bestellungen</h2>
+                </div>
+                <div class="burger-mine" id="burgerMine"></div>
+            </section>
+
+            <section class="card admin-only">
+                <div class="section-header">
+                    <div>
+                        <h2><svg class="icon icon-accent"><use href="#i-list"/></svg>Bestellungen</h2>
+                        <p class="section-subtitle" id="burgerCounts"></p>
+                    </div>
+                    <div class="section-actions">
+                        <label class="toggle" title="Teilnehmer dürfen bestellen">
+                            <input type="checkbox" id="burgerOpenToggle" onchange="toggleBurgerOpen(this.checked)">
+                            <span>Bestellung offen</span>
+                        </label>
+                        <button class="btn btn-ghost btn-sm" onclick="openBurgerMenuModal()">
+                            <svg class="icon"><use href="#i-settings"/></svg><span>Zutaten</span>
+                        </button>
+                        <button class="btn btn-primary btn-sm" id="burgerPrintNew" onclick="printBurgerOrders()" title="Alle noch nicht gedruckten Bestellungen als DYMO-Etiketten drucken">
+                            <svg class="icon"><use href="#i-file"/></svg><span class="btn-label">Neue drucken</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="burger-print-options">
+                    <label class="toggle">
+                        <input type="checkbox" id="burgerAutoPrint">
+                        <span>Neue automatisch drucken</span>
+                    </label>
+                    <label class="toggle">
+                        <input type="checkbox" id="burgerShowAll" onchange="toggleBurgerShowAll(this.checked)">
+                        <span>Gedruckte anzeigen</span>
+                    </label>
+                    <a class="btn btn-ghost btn-sm" id="burgerLastPdf" target="_blank" rel="noopener" hidden><svg class="icon"><use href="#i-external"/></svg><span>Letzten Druck als PDF</span></a>
+                </div>
+                <p class="field-hint">Etiketten: DYMO 11354 (57 × 32 mm). Im Druckdialog den LabelWriter, Papier „11354“, Querformat, Ränder „Keine“ und Skalierung 100 % wählen. Was gedruckt wurde, wird nicht noch einmal gedruckt. Für den Druck ganz ohne Dialog Chrome mit <code>--kiosk-printing</code> starten (LabelWriter als Standarddrucker).</p>
+                <div class="burger-totals" id="burgerTotals"></div>
+                <div class="burger-orders" id="burgerOrderList"></div>
+            </section>
+        </main>
+
         <!-- Timetable of an event: own entries, tournament rounds from the deadlines, notes -->
         <main class="layout view" id="view-timetable" style="display: none;">
             <section class="card">
@@ -367,6 +472,10 @@
                                     <label for="eventSettingDns">DNS <span class="label-hint">auch für die BIND-Zone</span></label>
                                     <input type="text" id="eventSettingDns" placeholder="192.168.120.1" autocomplete="off" spellcheck="false">
                                 </div>
+                                <label class="toggle">
+                                    <input type="checkbox" id="eventSettingIpIdentification">
+                                    <span>IP-Erkennung <span class="label-hint">die Willkommens-Seite erkennt Teilnehmer an ihrer IP-Adresse</span></span>
+                                </label>
                             </fieldset>
 
                             <fieldset class="config-block">
@@ -678,6 +787,23 @@
             <a class="footer-update" id="footerUpdate" target="_blank" rel="noopener" hidden></a>
             </div>
             <div class="footer-line footer-stats" id="footerStats"></div>
+            <div class="footer-line footer-actions">
+                <a href="/api/backup" class="footer-action admin-only" download title="Datenbank als JSON herunterladen">
+                    <svg class="icon"><use href="#i-download"/></svg><span>Backup herunterladen</span>
+                </a>
+                <button type="button" class="footer-action admin-only" onclick="document.getElementById('importBackupInput').click()" title="Datenbank aus JSON wiederherstellen">
+                    <svg class="icon"><use href="#i-upload"/></svg><span>Backup einlesen</span>
+                </button>
+                <input type="file" id="importBackupInput" accept=".json" style="display:none;" onchange="importBackup(this)">
+                <button type="button" class="footer-action" id="loginButton" onclick="openLoginModal()" style="display: none;" title="Als Admin anmelden, um zu bearbeiten">
+                    <svg class="icon"><use href="#i-lock"/></svg><span>Anmelden</span>
+                </button>
+                <button type="button" class="footer-action" id="logoutButton" onclick="logout()" style="display: none;" title="Admin-Sitzung beenden">
+                    <svg class="icon"><use href="#i-logout"/></svg><span>Abmelden</span>
+                </button>
+                <span class="footer-note" id="footerAdminNote" hidden>Admin über die IP-Adresse dieses Geräts</span>
+                <span class="footer-hint" id="importStatus" role="status"></span>
+            </div>
         </footer>
     </div>
 
@@ -745,6 +871,24 @@
                 <div class="modal-actions">
                     <button type="button" class="btn btn-danger modal-action-left" id="ttEntryDelete" onclick="deleteTimetableEntry()">Löschen</button>
                     <button type="button" class="btn btn-ghost" onclick="closeModal('ttEntryModal')">Abbrechen</button>
+                    <button type="submit" class="btn btn-primary">Speichern</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Burger menu: categories and ingredients -->
+    <div id="burgerMenuModal" class="modal">
+        <div class="modal-content burger-menu-modal">
+            <button type="button" class="close" onclick="closeModal('burgerMenuModal')" aria-label="Schließen"><svg class="icon"><use href="#i-x"/></svg></button>
+            <h2>Zutaten</h2>
+            <p class="field-hint">Reihenfolge = Reihenfolge im Designer und auf dem Etikett. „da“ ausschalten, wenn etwas aus ist — bestehende Bestellungen bleiben, wie sie sind.</p>
+            <form id="burgerMenuForm">
+                <div id="burgerMenuEditor" class="burger-menu-editor"></div>
+                <button type="button" class="btn btn-ghost btn-sm" onclick="addBurgerDraftCategory()"><svg class="icon"><use href="#i-plus"/></svg><span>Kategorie</span></button>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-ghost modal-action-left" onclick="resetBurgerMenuDraft()">Standard</button>
+                    <button type="button" class="btn btn-ghost" onclick="closeModal('burgerMenuModal')">Abbrechen</button>
                     <button type="submit" class="btn btn-primary">Speichern</button>
                 </div>
             </form>
@@ -951,6 +1095,10 @@
                     </div>
                 </div>
                 <p class="field-hint edit-preview">Anzeige: <strong id="editDisplayPreview"></strong></p>
+                <label class="toggle">
+                    <input type="checkbox" id="editAdmin">
+                    <span>Admin <span class="label-hint">von den IP-Adressen dieses Teilnehmers ohne Passwort angemeldet (nur mit IP-Erkennung)</span></span>
+                </label>
                 <p class="field-hint">Änderungen an Clan oder Nickname werden auch in den Turnieren des Events übernommen. IP-Adressen bleiben gleich, DNS-Namen folgen dem Nickname.</p>
                 <div class="modal-actions">
                     <button type="button" class="btn btn-ghost" onclick="closeModal('attendeeModal')">Abbrechen</button>
@@ -995,5 +1143,8 @@
     <script src="ip-guide.js"></script>
     <script src="timetable.js"></script>
     <script src="timetable-pdf.js"></script>
+    <script src="welcome.js"></script>
+    <script src="burger.js"></script>
+    <script src="burger-labels.js"></script>
 </body>
 </html>

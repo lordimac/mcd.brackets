@@ -85,6 +85,7 @@ function fillEventSettings(event) {
     document.getElementById('eventSettingNetmask').value = event.netmask ?? '';
     document.getElementById('eventSettingGateway').value = event.gateway ?? '';
     document.getElementById('eventSettingMemorial').value = (event.memorial ?? []).join('\n');
+    document.getElementById('eventSettingIpIdentification').checked = event.ip_identification !== false;
     document.getElementById('eventSettingWifi').checked = !!event.wifi_enabled;
     document.getElementById('eventSettingWifiSsid').value = event.wifi_ssid ?? '';
     document.getElementById('eventSettingWifiPassword').value = event.wifi_password ?? '';
@@ -152,6 +153,7 @@ async function saveEventSettings(e) {
                 netmask: document.getElementById('eventSettingNetmask').value,
                 gateway: document.getElementById('eventSettingGateway').value,
                 memorial: document.getElementById('eventSettingMemorial').value,
+                ip_identification: document.getElementById('eventSettingIpIdentification').checked,
                 wifi_enabled: document.getElementById('eventSettingWifi').checked,
                 wifi_ssid: document.getElementById('eventSettingWifiSsid').value,
                 wifi_password: document.getElementById('eventSettingWifiPassword').value,
@@ -161,6 +163,7 @@ async function saveEventSettings(e) {
         await loadEvents();
         renderEventSelect();
         await loadAttendees();
+        await loadWhoami(); // IP identification may have been switched
         await loadStages(); // event name may have changed on tournaments
         await reportBracketChanges(result.bracket_changes); // e.g. changed memorial names
     } catch (error) {
@@ -331,12 +334,12 @@ function renderAttendees() {
 
     const cell = value => escapeHtml(value) || '<span class="muted">–</span>';
     tbody.innerHTML = rows.map(a => `
-        <tr>
+        <tr${isMe(a.id) ? ' class="is-me" title="Das bist du (erkannt über die IP-Adresse)"' : ''}>
             <td class="col-slot">${a.slot + 1}</td>
             <td class="col-name">${cell(a.first_name)}</td>
             <td class="col-name">${cell(a.last_name)}</td>
             <td class="col-clan">${clanTag(a.clan)}</td>
-            <td class="col-nick">${escapeHtml(a.nickname)}</td>
+            <td class="col-nick">${escapeHtml(a.nickname)}${a.admin ? '<span class="admin-badge" title="Über die IP-Adresse als Admin angemeldet">Admin</span>' : ''}</td>
             ${a.ips.map((ip, i) => `
                 <td class="col-ip">
                     <span class="ip">${ip}</span>
@@ -409,6 +412,7 @@ function editAttendee(id) {
     document.getElementById('editLastName').value = attendee.last_name;
     document.getElementById('editClan').value = attendee.clan;
     document.getElementById('editNickname').value = attendee.nickname;
+    document.getElementById('editAdmin').checked = !!attendee.admin;
     updateEditDisplayPreview();
     openModal('attendeeModal');
 }
@@ -423,10 +427,13 @@ async function saveAttendee(e) {
                 first_name: document.getElementById('editFirstName').value,
                 last_name: document.getElementById('editLastName').value,
                 clan: document.getElementById('editClan').value,
-                nickname: document.getElementById('editNickname').value
+                nickname: document.getElementById('editNickname').value,
+                admin: document.getElementById('editAdmin').checked
             })
         });
         closeModal('attendeeModal');
+        await loadAuth(); // the own admin flag may have changed
+        await loadWhoami();
         await loadAttendees();
         await loadParticipants(); // nickname may have changed in tournaments
         await reportBracketChanges(result.bracket_changes);

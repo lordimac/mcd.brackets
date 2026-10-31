@@ -62,8 +62,10 @@ lanRouter.delete('/events/:id', async (req: Request<IdParams>, res: Response) =>
 
 /* Attendees */
 
+// Who is admin only goes to admins: otherwise everybody would know which IP to take over
 lanRouter.get('/events/:id/attendees', async (req: Request<IdParams>, res: Response) => {
-  res.json(await listAttendeeViews(idParam(req)));
+  const views = await listAttendeeViews(idParam(req));
+  res.json(isAdmin(req) ? views : views.map(({ admin: _admin, ...view }) => view));
 });
 
 lanRouter.post('/events/:id/attendees', async (req: Request<IdParams>, res: Response) => {

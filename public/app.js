@@ -45,7 +45,9 @@ async function loadAuth() {
     isAdmin = auth.admin;
     document.body.classList.toggle('read-only', !auth.admin);
     document.getElementById('loginButton').style.display = auth.required && !auth.admin ? '' : 'none';
-    document.getElementById('logoutButton').style.display = auth.required && auth.admin ? '' : 'none';
+    // Admins by IP address (admin attendee) can't log out; only the password session can
+    document.getElementById('logoutButton').style.display = auth.via === 'session' ? '' : 'none';
+    document.getElementById('footerAdminNote').hidden = auth.via !== 'ip';
     renderPoints(); // fields are editable only for admins
 }
 
@@ -68,6 +70,7 @@ async function login(e) {
         await reloadEventsForAuth();
         await loadOpnsenseSettings();
         if (typeof renderSeating === 'function') renderSeating();
+        if (document.body.dataset.view === 'burger') showBurgerView();
     } catch (error) {
         document.getElementById('loginError').textContent = error.message;
         document.getElementById('loginPassword').select();
@@ -80,6 +83,7 @@ async function logout() {
     await reloadEventsForAuth();
     clearOpnsenseSettings();
     if (typeof renderSeating === 'function') renderSeating();
+    if (document.body.dataset.view === 'burger') showBurgerView();
 }
 
 function openModal(id) {
@@ -146,20 +150,24 @@ function setupEventListeners() {
     window.addEventListener('hashchange', showView);
 }
 
-// Views: #turniere (default), #teilnehmer, #sitzplan and #zeitplan
-const VIEWS = { '#teilnehmer': 'attendees', '#sitzplan': 'seating', '#zeitplan': 'timetable' };
+// Views: #willkommen (default), #teilnehmer, #sitzplan, #zeitplan, #burger and #turniere
+const VIEWS = { '#turniere': 'tournaments', '#teilnehmer': 'attendees', '#sitzplan': 'seating', '#zeitplan': 'timetable', '#burger': 'burger' };
 
 function showView() {
-    const view = VIEWS[location.hash] ?? 'tournaments';
+    const view = VIEWS[location.hash] ?? 'welcome';
+    document.getElementById('view-welcome').style.display = view === 'welcome' ? '' : 'none';
     document.getElementById('view-tournaments').style.display = view === 'tournaments' ? '' : 'none';
     document.getElementById('view-attendees').style.display = view === 'attendees' ? '' : 'none';
     document.getElementById('view-seating').style.display = view === 'seating' ? '' : 'none';
     document.getElementById('view-timetable').style.display = view === 'timetable' ? '' : 'none';
+    document.getElementById('view-burger').style.display = view === 'burger' ? '' : 'none';
     document.body.dataset.view = view;
     document.querySelectorAll('.tab').forEach(tab => tab.classList.toggle('active', tab.dataset.view === view));
     if (view === 'attendees' && typeof showAttendeeView === 'function') showAttendeeView();
     if (view === 'seating' && typeof showSeatingView === 'function') showSeatingView();
     if (view === 'timetable' && typeof showTimetableView === 'function') showTimetableView();
+    if (view === 'burger' && typeof showBurgerView === 'function') showBurgerView();
+    if (view === 'welcome' && typeof showWelcomeView === 'function') showWelcomeView();
 }
 
 /* Footer: short statistics and the hint on a newer version (GET /api/info) */
@@ -762,6 +770,7 @@ async function viewBracket(stageId, preserveScroll = false) {
         markDeadlines(data.round_deadlines ?? {}, data.round_starts ?? {});
         markDrawnMatches(data.match);
         markMemorialByes(data.memorial_byes ?? []);
+        if (typeof markOwnParticipant === 'function') markOwnParticipant(stage, data.participant);
         scheduleBracketRefresh(stageId, Object.keys(data.round_deadlines ?? {}).length > 0);
 
         // A correction prepared for another tournament no longer applies

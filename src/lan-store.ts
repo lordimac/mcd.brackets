@@ -66,7 +66,7 @@ export async function syncEventsFromStages(): Promise<void> {
   const names = new Set((await allStages()).map(s => s.event_name).filter((n): n is string => !!n));
   for (const name of names) {
     if (!known.has(name)) {
-      await getAppStore().insert('event', { name, domain: '', dns_server: '', netmask: '', gateway: '', logo: '', starts_on: '', ends_on: '', wifi_enabled: false, wifi_ssid: '', wifi_password: '', memorial: [], ranges: DEFAULT_RANGES });
+      await getAppStore().insert('event', { name, domain: '', dns_server: '', netmask: '', gateway: '', logo: '', starts_on: '', ends_on: '', wifi_enabled: false, wifi_ssid: '', wifi_password: '', memorial: [], ip_identification: true, ranges: DEFAULT_RANGES });
     }
   }
 }
@@ -87,6 +87,7 @@ export async function createEvent(input: EventSettingsInput): Promise<LanEvent> 
     wifi_ssid: input.wifi_ssid ?? latest?.wifi_ssid ?? '',
     wifi_password: input.wifi_password ?? latest?.wifi_password ?? '',
     memorial: input.memorial ?? latest?.memorial ?? [],
+    ip_identification: input.ip_identification ?? latest?.ip_identification ?? true,
     ranges: input.ranges ?? latest?.ranges ?? DEFAULT_RANGES,
   });
   await assertUniqueEventName(settings.name);
@@ -132,6 +133,7 @@ export async function deleteEvent(id: number): Promise<void> {
   await getAppStore().delete('attendee', { event_id: id });
   await getAppStore().delete('room', { event_id: id });
   await getAppStore().delete('timetable', { event_id: id });
+  await getAppStore().delete('burger_order', { event_id: id });
   await getAppStore().delete('event', { id });
 }
 
@@ -155,8 +157,9 @@ export async function addAttendee(eventId: number, input: AttendeeInput): Promis
   const slot = nextFreeSlot(others.map(a => a.slot), eventCapacity(event));
   if (slot === null) throw new ValidationError(`Alle ${eventCapacity(event)} Plätze sind vergeben — IP-Bereiche vergrößern`);
 
-  const id = await getAppStore().insert('attendee', { ...attendee, event_id: eventId, slot });
-  return describeAttendee(event, { ...attendee, id, event_id: eventId, slot });
+  const admin = input.admin === true;
+  const id = await getAppStore().insert('attendee', { ...attendee, admin, event_id: eventId, slot });
+  return describeAttendee(event, { ...attendee, admin, id, event_id: eventId, slot });
 }
 
 // A changed clan or nickname is also changed on the player entries of the event's tournaments
@@ -175,7 +178,8 @@ export async function updateAttendee(id: number, input: AttendeeInput): Promise<
     await renamePlayer(event.name, oldName, displayName(changes));
   }
 
-  const updated: Attendee = { ...existing, ...changes };
+  const admin = input.admin === undefined ? existing.admin === true : input.admin === true;
+  const updated: Attendee = { ...existing, ...changes, admin };
   await getAppStore().update('attendee', id, updated);
   return describeAttendee(event, updated);
 }
@@ -191,7 +195,8 @@ export async function deleteAttendee(id: number): Promise<void> {
   }
 }
 
-// Copies attendees (names, nickname) of another event; nicknames already present are skipped
+// Copies attendees (names, nickname) of another event; nicknames already present are skipped.
+// The admin flag is not copied: admin rights are given per event on purpose.
 export async function importAttendees(eventId: number, fromEventId: number): Promise<{ added: number; skipped: string[] }> {
   if (eventId === fromEventId) throw new ValidationError('Quelle und Ziel sind dasselbe Event');
   await getEvent(fromEventId);
@@ -201,7 +206,7 @@ export async function importAttendees(eventId: number, fromEventId: number): Pro
   const skipped: string[] = [];
   for (const attendee of source) {
     try {
-      await addAttendee(eventId, attendee);
+      await addAttendee(eventId, { ...attendee, admin: false });
       added++;
     } catch (error) {
       if (!(error instanceof ValidationError)) throw error;

@@ -9,7 +9,7 @@ import {
 } from './opnsense';
 
 const event: LanEvent = {
-  id: 3, name: 'Demo-LAN', domain: 'lan.example', dns_server: '', netmask: '', gateway: '', logo: '', starts_on: '', ends_on: '', wifi_enabled: false, wifi_ssid: '', wifi_password: '', memorial: [],
+  id: 3, name: 'Demo-LAN', domain: 'lan.example', dns_server: '', netmask: '', gateway: '', logo: '', starts_on: '', ends_on: '', wifi_enabled: false, wifi_ssid: '', wifi_password: '', memorial: [], ip_identification: true,
   ranges: [
     { start: '192.168.120.100', end: '192.168.120.149' },
     { start: '192.168.120.150', end: '192.168.120.199' },

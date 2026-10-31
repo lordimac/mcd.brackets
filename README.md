@@ -2,7 +2,7 @@
 
 Ein vollständiges Turnierverwaltungssystem mit Event-basiertem Meisterschafts-Punktesystem, entwickelt mit [brackets-manager](https://www.npmjs.com/package/brackets-manager).
 
-**Version:** 0.25.0-beta
+**Version:** 0.26.0-beta
 
 ---
 
@@ -69,6 +69,12 @@ Ein vollständiges Turnierverwaltungssystem mit Event-basiertem Meisterschafts-P
 - Nach Tagen gegliedert, Vergangenes abgeblendet; Tage außerhalb des Event-Zeitraums (z. B. alte Spielzeiten) sind markiert
 - „Zeitplan (PDF)“: A4 zum Aushängen mit Logo, allen Tagen des Zeitraums und den Hinweisen (mehrseitig, wenn nötig)
 
+### 🍔 Burger-Designer (Reiter „Burger“)
+- Jeder stellt sich seinen Burger per Klick zusammen (Größe, Patty, Käse, Belag, Sauce mit „extra viel“, Brötchen) und sieht ihn dabei als gezeichneten Burger wachsen; dazu „für wen“ (vorausgewählt, wenn das Gerät über seine IP erkannt wird) und eine Anmerkung
+- Eigene Bestellungen lassen sich ändern oder stornieren, solange sie noch nicht gedruckt sind (der Browser merkt sich die Bestellung; ein über die IP erkanntes Gerät darf auch so). Höchstens 3 offene Bestellungen je Teilnehmer
+- Admins: Liste aller Bestellungen mit Zusammenfassung für den Grill (z. B. „5× Patty Fleisch, 2× Cheddar …“), Schalter „Bestellung offen“, Zutaten bearbeiten (eigene Kategorien und Zutaten mit Kurzform fürs Etikett, Farbe und Form für die Zeichnung, „da“ zum Ausschalten, wenn etwas aus ist)
+- Etiketten für den DYMO LabelWriter 450 (DYMO 11354, 57 × 32 mm): „Neue drucken“ druckt alle noch nicht gedruckten Bestellungen — Nummer, Name, Kurzfassung („Einfach, Fleisch, Blauschimmel, Zwiebeln, Bacon, extra viel Burgersauce“) und Anmerkung. Gedruckte werden nicht noch einmal gedruckt; einzeln nachdrucken oder zurück in die Warteschlange geht über die Liste. Mit „Neue automatisch drucken“ druckt der Grill-PC neue Bestellungen von selbst (ganz ohne Druckdialog mit Chrome `--kiosk-printing`)
+
 ### 🏅 Punktesystem & Rankings
 Platzierungsbasierte Punkte, gleich für alle Turniere. Unter „Turniere“ › „Punktesystem“ lassen sich die Punkte für Platz 1–10 und „ab Platz 11“ anpassen (nur Admin). Unter jedem Feld steht der Standardwert, „Standardwerte eintragen“ setzt alle zurück. Die Punkte werden bei jedem Abruf einer Rangliste aus der Platzierung berechnet. Eine Änderung gilt deshalb sofort für alle Turniere, auch für laufende und abgeschlossene.
 
@@ -109,12 +115,22 @@ Standardwerte:
 ### 🔒 Admin-Passwort
 - Mit der Umgebungsvariable `ADMIN_PASSWORD` dürfen nur angemeldete Admins Turniere, Ergebnisse, Teilnehmer und Event-Einstellungen ändern sowie Backups laden/einspielen
 - Ansehen (Brackets, Ranglisten, Teilnehmerliste, Exporte) bleibt ohne Anmeldung möglich; Bearbeiten-Elemente und die IP-Zettel werden dann ausgeblendet
-- Anmeldung über „Anmelden“ oben rechts, gültig 7 Tage (signiertes HttpOnly-Cookie); ein neues Passwort beendet alle Sitzungen
+- Anmeldung über „Anmelden“ in der Fußleiste, gültig 7 Tage (signiertes HttpOnly-Cookie); ein neues Passwort beendet alle Sitzungen
 - Ohne `ADMIN_PASSWORD` darf jeder bearbeiten (wie bisher)
 - Nach 10 falschen Passwörtern innerhalb von 15 Minuten ist die Anmeldung für diese IP-Adresse vorübergehend gesperrt (`429`)
 - Änderungen werden nur von den Seiten der App selbst angenommen: Ein Browser auf einer fremden Seite (auch einer anderen App auf demselben Host) bekommt `403` (Schutz gegen CSRF)
 - Sicherheits-Header (Content-Security-Policy, kein Einbetten in Frames, `nosniff`); hinter einem HTTPS-Reverse-Proxy mit `TRUST_PROXY=true` bekommt das Sitzungs-Cookie das `Secure`-Flag
 - Einrichtung siehe [Admin-Passwort einrichten](#admin-passwort-einrichten)
+
+### 👋 Willkommens-Seite (Startseite)
+- Reiter „Willkommen“ (auf dem Handy „Start“) ist die Startseite: erkennt das Gerät an seiner **IP-Adresse** — IP = Teilnehmer — und begrüßt mit Name, Clan, Nickname, Sitzplatz und welcher der drei PCs das Gerät ist
+- **Netzwerk-Check:** IP-Adresse passt / liegt im Event-Bereich, ist aber niemandem zugeordnet / gehört nicht zum Event (z.B. noch DHCP); Gateway im selben Netz; DNS-Name beim DNS-Server des Events eingetragen (der Server fragt den DNS-Server direkt, wenn er ihn erreicht); Namensauflösung, wenn die Seite über einen Namen der Event-Domain aufgerufen wurde. Daneben die Soll-Werte (IP, Maske, Gateway, DNS), alle Adressen des Teilnehmers, WLAN und die Anleitung „feste IP“ als PDF
+- **Deine Turniere:** nächstes Match mit Gegner, Runde und Spielzeit, Platzierung, Sprung ins Bracket
+- Das erkannte Gerät ist auch sonst markiert: Name oben rechts in der Leiste, eigene Zeile in der Teilnehmerliste, eigener Platz im Sitzplan, eigener Name im Bracket
+- Je Event in der Konfiguration (Block „Netzwerk“) mit „IP-Erkennung“ ein-/ausschaltbar, Standard: ein. Gibt es mehrere Events, gilt ein laufendes (Zeitraum) vor dem neuesten
+- Admins können unter „Ansicht testen“ die Seite für eine beliebige IP ansehen
+- **Admin per IP:** Im Dialog „Teilnehmer bearbeiten“ gibt es den Haken „Admin“. Ein so markierter Teilnehmer ist von seinen IP-Adressen aus automatisch als Admin angemeldet, ohne Passwort (nur solange die IP-Erkennung des Events an ist). Das Admin-Passwort bleibt daneben gültig. Abmelden geht dann nicht, der Haken wird nicht in andere Events übernommen, und wer Admin ist, sehen nur Admins. **Achtung:** Eine IP-Adresse kann sich jeder im LAN selbst eintragen. Wer die IP eines Admins übernimmt (z. B. wenn dessen PC aus ist), ist Admin. Den Haken deshalb sparsam setzen
+- **Voraussetzung:** Der Server muss die echte Client-IP sehen. Hinter einem Reverse-Proxy `TRUST_PROXY` setzen. Docker unter Linux mit Port-Mapping reicht die Client-IP durch; Docker Desktop (macOS/Windows) nicht — dort sehen alle Geräte gleich aus
 
 ### 🪑 Sitzplan
 - Reiter „Sitzplan“: pro Event beliebig viele Räume (z.B. Halle, Nebenraum), jeweils eine freie Fläche (Breite × Tiefe in Feldern, 1 Feld ≈ ein Platz)
@@ -235,7 +251,7 @@ Umgebungsvariablen:
 
 ## Webinterface
 
-### Teilnehmer verwalten (Reiter „Teilnehmer“, erster Reiter)
+### Teilnehmer verwalten (Reiter „Teilnehmer“)
 1. Event anlegen („Neu“) — Domain und IP-Bereiche werden vom letzten Event übernommen
 2. Unter „Konfiguration“ (einklappbar) Zeitraum des Events (Beginn/Ende — Spielzeiten und Zeitplan bieten nur diese Tage an), Domain, Logo, Netzwerk (Subnetzmaske, Router/Gateway, DNS — stehen auf den IP-Zetteln) und die drei IP-Bereiche einstellen. Mit dem Haken „WLAN vorhanden“ lassen sich SSID und Passwort eintragen; nur dann steht auf den IP-Zetteln eine Rubrik „WLAN“. Passwort leer = offenes WLAN. IP-Zettel und WLAN-Passwort gibt es nur für angemeldete Admins
 3. Teilnehmer mit Vorname, Name und Nickname hinzufügen — einzeln oder per „Mehrere auf einmal importieren…“ (`Nachname, Vorname // Clan-Nickname`, eine Zeile pro Teilnehmer). IPs und DNS-Namen werden automatisch vergeben, beim Import in der Reihenfolge der Nachnamen
@@ -276,7 +292,7 @@ Die Zugangsdaten gelten für alle Events und liegen in der Datenbank (`db.json`,
 - **Top-3 Highlighting**: Gold / Silber / Bronze
 
 ### Anmelden
-Ist ein Admin-Passwort gesetzt, sieht man ohne Anmeldung nur die Ansicht. „Anmelden“ oben rechts → Passwort eingeben → alle Bearbeiten-Funktionen erscheinen. „Abmelden“ beendet die Sitzung.
+Ist ein Admin-Passwort gesetzt, sieht man ohne Anmeldung nur die Ansicht. In der Fußleiste „Anmelden“ → Passwort eingeben → alle Bearbeiten-Funktionen erscheinen. „Abmelden“ (ebenfalls in der Fußleiste) beendet die Sitzung. Dort liegen für Admins auch „Backup herunterladen“ und „Backup einlesen“.
 
 ### Backup & Restore
 Oben rechts in der Kopfleiste (nur angemeldet):
@@ -289,10 +305,15 @@ Oben rechts in der Kopfleiste (nur angemeldet):
 
 Ist `ADMIN_PASSWORD` gesetzt, sind alle Anfragen außer GET/HEAD (und `GET /api/backup`) nur mit Admin-Sitzung erlaubt, sonst `401`. Ändernde Anfragen, die ein Browser von einer fremden Seite schickt (`Sec-Fetch-Site: cross-site`/`same-site` oder fremder `Origin`), werden mit `403` abgelehnt; Werkzeuge wie curl ohne diese Header sind nicht betroffen. JSON-Bodies dürfen höchstens 3 MB groß sein (`/api/restore`: 10 MB).
 
+### Willkommens-Seite
+| Method | Endpoint | Beschreibung |
+|--------|----------|--------------|
+| GET    | `/api/whoami` | Erkennung über die Client-IP: `{ ip, status (identified/unassigned/unknown/disabled/no-event), event_id, attendee, range_index, expected, seat, checks }`; `?ip=…` nur für Admins (Testansicht) |
+
 ### Anmeldung
 | Method | Endpoint | Beschreibung |
 |--------|----------|--------------|
-| GET    | `/api/auth` | `{ required, admin }` — ist ein Passwort gesetzt, ist der Browser angemeldet |
+| GET    | `/api/auth` | `{ required, admin, via }` — ist ein Passwort gesetzt, ist der Browser angemeldet; `via`: `open` (kein Passwort), `session` (Login), `ip` (Admin-Teilnehmer) |
 | POST   | `/api/login` | Anmelden `{ password }` → setzt das Cookie `mcd_admin` (7 Tage) |
 | POST   | `/api/logout` | Abmelden (Cookie löschen) |
 
@@ -311,6 +332,13 @@ Ist `ADMIN_PASSWORD` gesetzt, sind alle Anfragen außer GET/HEAD (und `GET /api/
 | PUT    | `/api/matches/:id` | Match-Ergebnis setzen/ändern: `{ opponent1, opponent2, resetFollowing? }`. Gibt es schon Folgeergebnisse, ist `resetFollowing: true` nötig (sonst `409`); sie werden dann zurückgesetzt |
 | GET    | `/api/events/:id/timetable` | Zeitplan: `{ entries: [{ id, days: ["YYYY-MM-DD"], start: "HH:MM", end: "HH:MM" \| null, title, info, category }], notes: [{ id, title, text }], tournament_rounds: [{ ends_at, title, rounds: [{ stage_name, label }] }] }` (Zeiten = Ortszeit des Events) |
 | PUT    | `/api/events/:id/timetable` | Zeitplan speichern: `{ entries, notes }` (immer vollständig; `category`: meal, program, tournament, other) |
+| GET    | `/api/burger/menu` | Burger-Speisekarte: `{ open, categories: [{ id, name, visual, multiple, extra, empty_label, options: [{ id, name, short, color, shape, count, available }] }], defaults }` |
+| PUT    | `/api/burger/menu` | Speisekarte speichern (Admin, immer vollständig) |
+| GET    | `/api/events/:id/burger-orders` | Bestellungen eines Events: `{ orders: [{ id, number, attendee_id, name, choices, extra, note, summary, created_at, printed_at }], me }` |
+| POST   | `/api/events/:id/burger-orders` | Bestellen (öffentlich, solange offen): `{ attendee_id, choices: { <kategorie>: [<zutat>] }, extra: [<zutat>], note }`; Admins alternativ `{ name }`. Antwort enthält einmalig `token` |
+| PUT/DELETE | `/api/burger-orders/:id` | Eigene Bestellung ändern/stornieren bis zum Druck (Header `X-Burger-Token` oder per IP erkanntes Gerät), Admins immer |
+| POST   | `/api/events/:id/burger-orders/print` | Admin: `{ ids? }` — ohne `ids` alle noch nicht gedruckten, markiert sie als gedruckt und liefert sie fürs Etikett |
+| POST   | `/api/burger-orders/:id/unprint` | Admin: zurück in die Warteschlange |
 | GET    | `/api/events/:id/schedule` | Gemeinsame Zeiten aller Turniere eines Events: `{ slots: [{ slot, ends_at, mixed, rounds: [{ stage_id, stage_name, label }] }], finals: [{ stage_id, stage_name, group, round, label, starts_at }] }` |
 | PUT    | `/api/events/:id/schedule` | `{ slots: [{ slot, ends_at }], finals: [{ stage_id, group, round, starts_at }] }`: jede Runde mit Spielzeit (SE, Winner Bracket) aller Turniere bekommt die Zeit ihrer Spielrunde, die Spiele um Platz 1–3 ihren Beginn; nicht genannte bleiben unverändert. Antwort `{ slots, finals, decided }` |
 | PUT    | `/api/stages/:id/settings` | Nachträglich änderbare Einstellungen: `{ consolationFinal: boolean }` (Spiel um Platz 3, nur Single Elimination) oder `{ grandFinalDouble: boolean }` (Grand Final mit Rückspiel, nur Double Elimination); Neuaufbau mit gleicher Auslosung. Antwort `{ stage_id, dropped }` |

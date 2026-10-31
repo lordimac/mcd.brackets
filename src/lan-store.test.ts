@@ -144,3 +144,18 @@ test('memorial names are kept apart from attendee names', async () => {
   // A new event takes the memorial list over
   assert.deepEqual((await store.createEvent({ name: 'Gedenk-LAN 2' })).memorial, ['Opa Willi']);
 });
+
+test('admin flag: set and kept on update, never copied to another event', async () => {
+  const event = await store.createEvent({ name: 'Admin-LAN' });
+  const orga = await store.addAttendee(event.id, { nickname: 'Orga', admin: true });
+  assert.equal(orga.admin, true);
+  assert.equal((await store.addAttendee(event.id, { nickname: 'Gast' })).admin, false);
+  // Without the field the flag stays, with it it changes
+  assert.equal((await store.updateAttendee(orga.id, { nickname: 'Orga', first_name: 'Max' })).admin, true);
+  assert.equal((await store.updateAttendee(orga.id, { nickname: 'Orga', admin: false })).admin, false);
+  await store.updateAttendee(orga.id, { nickname: 'Orga', admin: true });
+
+  const next = await store.createEvent({ name: 'Admin-LAN 2' });
+  await store.importAttendees(next.id, event.id);
+  assert.ok((await store.listAttendeeViews(next.id)).every(a => !a.admin));
+});
