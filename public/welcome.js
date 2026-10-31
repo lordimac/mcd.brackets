@@ -284,7 +284,7 @@ function myTournamentHtml({ stage, participant, matches: stageMatches, rounds, n
         status = '<span class="muted">Gerade kein offenes Match</span>';
     }
 
-    return `<div class="my-tournament">
+    return `<div class="my-tournament type-${escapeHtml(stage.type)}">
         <div class="my-tournament-rank">${standing ? rankBadge(standing) : ''}</div>
         <div class="my-tournament-main">
             <div class="my-tournament-head"><strong>${escapeHtml(stage.name)}</strong><span class="info-badge badge-type">${formatType(stage.type)}</span></div>

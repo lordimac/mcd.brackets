@@ -1035,9 +1035,10 @@ textarea {
     background: var(--type-color, var(--primary-color));
 }
 
-.stage-item.type-double_elimination { --type-color: var(--primary-color); --type-fg: var(--on-primary); }
-.stage-item.type-single_elimination { --type-color: var(--band-blue); --type-fg: #f7f8f5; }
-.stage-item.type-round_robin { --type-color: var(--band-brown); --type-fg: #f7f8f5; }
+/* Tournament mode colours (tournament cards and "Deine Turniere" on the welcome page) */
+.type-double_elimination { --type-color: var(--primary-color); --type-fg: var(--on-primary); }
+.type-single_elimination { --type-color: var(--band-blue); --type-fg: #f7f8f5; }
+.type-round_robin { --type-color: var(--band-brown); --type-fg: #f7f8f5; }
 
 .stage-head {
     display: flex;
@@ -1411,6 +1412,109 @@ textarea {
     background: var(--surface-2);
 }
 
+/* Phones: every attendee becomes a small card instead of a table row that scrolls sideways.
+   Nickname first, then clan and name, then the three addresses; actions top right. */
+@media (max-width: 640px) {
+    .list-toolbar {
+        flex-direction: column;
+    }
+
+    .attendee-table:not(.bulk-table) {
+        min-width: 0;
+    }
+
+    .attendee-table:not(.bulk-table) thead {
+        display: none;
+    }
+
+    /* Flex rows: nickname + actions, then clan and name, then one line per address */
+    .attendee-table:not(.bulk-table) tbody tr {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        gap: 0.15rem 0.4rem;
+        padding: 0.65rem 0.6rem 0.75rem 0.75rem;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .attendee-table:not(.bulk-table) tbody tr:last-child {
+        border-bottom: 0;
+    }
+
+    .attendee-table:not(.bulk-table) td,
+    .attendee-table:not(.bulk-table) tbody tr:hover td,
+    .attendee-table:not(.bulk-table) tr.is-me td,
+    .attendee-table:not(.bulk-table) tr.is-me td.col-actions {
+        display: block;
+        min-width: 0;
+        padding: 0;
+        border: 0;
+        background: none;
+        box-shadow: none;
+    }
+
+    .attendee-table:not(.bulk-table) tr.is-me {
+        background: #2c3a52;
+        box-shadow: inset 4px 0 0 var(--line-blue);
+    }
+
+    .attendee-table:not(.bulk-table) .col-slot { order: 0; width: 1.6rem; color: var(--text-faint); }
+
+    /* Fills the first line next to the actions, so clan and name wrap below */
+    .attendee-table:not(.bulk-table) .col-nick {
+        order: 1;
+        flex: 1 1 calc(100% - 12rem);
+        font-size: 1.1rem;
+        overflow-wrap: anywhere;
+    }
+
+    .attendee-table:not(.bulk-table) td.col-actions {
+        order: 2;
+        position: static;
+        display: flex;
+        width: auto;
+        align-self: start;
+        margin: -0.35rem 0 0;
+        background: none;
+        box-shadow: none;
+    }
+
+    body.read-only .attendee-table:not(.bulk-table) td.col-actions {
+        display: none;
+    }
+
+    .attendee-table:not(.bulk-table) .col-clan { order: 3; margin-left: 2rem; }
+    .attendee-table:not(.bulk-table) .col-clan:has(> .muted) { display: none; }
+    .attendee-table:not(.bulk-table) .col-clan:has(> .muted) + .col-name,
+    .attendee-table:not(.bulk-table) .col-slot + .col-name { order: 4; }
+    .attendee-table:not(.bulk-table) .col-name { order: 4; color: var(--text-secondary); }
+
+    /* No clan: the first name takes over the indent */
+    .attendee-table:not(.bulk-table) tr:has(.col-clan > .muted) .col-name:nth-child(2) {
+        margin-left: 2rem;
+    }
+
+    .attendee-table:not(.bulk-table) td.col-ip {
+        order: 5;
+        flex: 1 1 100%;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        gap: 0 0.6rem;
+        margin: 0.25rem 0 0 2rem;
+    }
+
+    .attendee-table:not(.bulk-table) td.col-ip .dns {
+        overflow-wrap: anywhere;
+        min-width: 0;
+    }
+
+    .attendee-table:not(.bulk-table) .empty-cell {
+        grid-column: 1 / -1;
+        padding: 0.75rem 0;
+    }
+}
+
 .attendee-table .empty-cell {
     text-align: center;
     color: var(--text-secondary);
@@ -1766,14 +1870,15 @@ textarea {
     margin-bottom: 0.4rem;
     background: var(--surface-2);
     border: 1px solid var(--border-color);
-    border-left: 3px solid var(--tt-color);
+    border-left: 3px solid var(--tt-line, var(--tt-color));
     border-radius: var(--radius);
 }
 
-.tt-item.tt-meal { --tt-color: var(--text-brown); }
-.tt-item.tt-program { --tt-color: var(--text-green); }
-.tt-item.tt-tournament { --tt-color: var(--primary-text); }
-.tt-item.tt-other { --tt-color: var(--text-secondary); }
+/* Text tone for the category label, line tone for the edge (brown and orange stay apart) */
+.tt-item.tt-meal { --tt-color: var(--text-brown); --tt-line: var(--line-brown); }
+.tt-item.tt-program { --tt-color: var(--text-green); --tt-line: var(--line-green); }
+.tt-item.tt-tournament { --tt-color: var(--primary-text); --tt-line: var(--primary-color); }
+.tt-item.tt-other { --tt-color: var(--text-secondary); --tt-line: var(--border-strong); }
 
 /* Over: dimmed */
 .tt-item.is-past {
@@ -4060,7 +4165,7 @@ body:not(.read-only) #seatPlanCard:not(.is-layout) .cell-seat:hover::before {
 
 .welcome-addresses tr.is-current th,
 .welcome-addresses tr.is-current td {
-    background: var(--warning-soft);
+    background: #2c3a52;
 }
 
 .current-badge {
@@ -4225,7 +4330,7 @@ body:not(.read-only) #seatPlanCard:not(.is-layout) .cell-seat:hover::before {
 
 /* The sticky action column has its own opaque background */
 .attendee-table tr.is-me td.col-actions {
-    background: linear-gradient(var(--warning-soft), var(--warning-soft)), var(--surface);
+    background: #2c3a52;
 }
 
 /* Burger designer (#burger, burger.js): drawn burger on the left, choices on the right
