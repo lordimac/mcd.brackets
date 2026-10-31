@@ -31,3 +31,6 @@ Thumbs.db
 
 # TypeScript cache
 *.tsbuildinfo
+
+# Impeccable design reviews (local)
+.impeccable/
