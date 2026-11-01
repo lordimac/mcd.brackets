@@ -2,7 +2,7 @@
 
 Ein vollständiges Turnierverwaltungssystem mit Event-basiertem Meisterschafts-Punktesystem, entwickelt mit [brackets-manager](https://www.npmjs.com/package/brackets-manager).
 
-**Version:** 0.32.2-beta
+**Version:** 0.33.0-beta
 
 ---
 
@@ -151,7 +151,7 @@ Standardwerte:
 - **Deine Turniere:** nächstes Match mit Gegner, Runde und Spielzeit, Platzierung, Sprung ins Bracket
 - Das erkannte Gerät ist auch sonst markiert: Name oben rechts in der Leiste, eigene Zeile in der Teilnehmerliste, eigener Platz im Sitzplan, eigener Name im Bracket
 - Je Event in der Konfiguration (Block „Netzwerk“) mit „IP-Erkennung“ ein-/ausschaltbar, Standard: ein. Gibt es mehrere Events, gilt ein laufendes (Zeitraum) vor dem neuesten
-- Admins können unter „Ansicht testen“ die Seite für eine beliebige IP ansehen
+- Admins können die Seite im Debug-Modus so ansehen wie auf dem Gerät eines Teilnehmers (Personen-Symbol in der Teilnehmerliste)
 - **Admin per IP:** Im Dialog „Teilnehmer bearbeiten“ gibt es den Haken „Admin“. Ein so markierter Teilnehmer ist von seinen IP-Adressen aus automatisch als Admin angemeldet, ohne Passwort (nur solange die IP-Erkennung des Events an ist). Das Admin-Passwort bleibt daneben gültig. Abmelden geht dann nicht, der Haken wird nicht in andere Events übernommen, und wer Admin ist, sehen nur Admins. **Achtung:** Eine IP-Adresse kann sich jeder im LAN selbst eintragen. Wer die IP eines Admins übernimmt (z. B. wenn dessen PC aus ist), ist Admin. Den Haken deshalb sparsam setzen
 - **Voraussetzung:** Der Server muss die echte Client-IP sehen. Hinter einem Reverse-Proxy `TRUST_PROXY` setzen. Docker unter Linux mit Port-Mapping reicht die Client-IP durch; Docker Desktop (macOS/Windows) nicht — dort sehen alle Geräte gleich aus
 
@@ -306,6 +306,7 @@ Die Zugangsdaten gelten für alle Events und liegen in der Datenbank (`db.json`,
 - **Gewinner auswählen**: Klick auf Match → Gewinner wählen
 - **Ergebnisse korrigieren**: Jedes Ergebnis lässt sich ändern, im Bracket per Klick oder in der Match-Liste über „Ergebnis ändern“. Hängen schon Folgeergebnisse davon ab (Winner- und Loser-Pfad bis zum Finale), zeigt eine Vorschau über dem Bracket alle betroffenen Matches. Im Bracket ist das geänderte Match orange markiert, die betroffenen Folge-Matches gelb gestrichelt. Das Bracket zeigt dabei noch den bisherigen Stand. Erst „Änderung übernehmen“ setzt die Folgeergebnisse zurück; sie müssen dann neu eingetragen werden. Nicht betroffene Matches behalten ihr Ergebnis, Gedenk-Matches werden wieder automatisch entschieden. Round-Robin-Ergebnisse lassen sich direkt ändern
 - **BYE-Matches**: Werden automatisch entschieden
+- **Debug-Modus (nur Admins)**: Schalter „Debug“ im Footer. Danach lässt sich in der Teilnehmerliste über das Personen-Symbol eine IP eines Teilnehmers wählen, um die Seite so zu sehen wie auf dessen Gerät (zurück über das Kreuz neben dem Namen oben rechts), und im Footer eine andere Uhrzeit vortäuschen, z. B. um den Zeitplan an einem anderen Tag zu prüfen. Beides wirkt nur in diesem Browser
 - **Zoom und Vollbild**: Über dem Bracket verkleinern/vergrößern (40–150 %), „Einpassen“ zeigt den ganzen Baum in der Breite; „Vollbild“ nutzt den ganzen Bildschirm, Esc beendet es
 - **Turnier abschließen**: Ein fertig gespieltes Turnier lässt sich im Menü „⋯“ am Turnier-Reiter abschließen. Danach sind keine Änderungen mehr möglich — keine Ergebnisse, Spielzeiten, Optionen, kein Neu auslosen oder Löschen, und Änderungen an den Teilnehmern wirken sich nicht mehr aus. „Turnier wieder öffnen“ im selben Menü hebt das auf
 - **Spielzeiten**: Über das Uhr-Symbol am Turnier lässt sich festlegen, bis wann eine Runde gespielt sein muss — nur bei Single Elimination und im Winner Bracket von Double Elimination (Tag aus dem Event-Zeitraum + Uhrzeit; ohne Zeitraum Datum frei wählbar; nur eine Uhrzeit übernimmt den Tag der Zeile darüber). Das Loser Bracket und Round Robin haben keine Spielzeiten. „Spielzeiten“ beim Event setzt dieselben Zeiten für alle Turniere des Events über gemeinsame Spielrunden (Runde n → Spielrunde n); einzelne Turniere lassen sich danach noch anpassen, Spielrunden mit unterschiedlichen Zeiten bleiben unverändert, solange man dort nichts einträgt. Die Spiele um Platz 1–3 — Halbfinale, Finale und Spiel um Platz 3, bei Double Elimination Grand Final und Loser-Bracket-Finale (dessen Verlierer wird Dritter) — haben stattdessen eine Beginn-Zeit („ab …“, im Event-Dialog je Turnier unter „Finalspiele“) und werden nie ausgelost. Die Zeit steht im Bracket unter dem Rundennamen, die nächste auch im Kopf des Brackets. Nach Rundenschluss entscheidet für jedes noch offene Match der Runde das Los (geprüft alle 30 Sekunden, sobald beide Gegner feststehen). Solche Ergebnisse sind mit „Los“ markiert und lassen sich über „Ergebnis ändern“ korrigieren; wählt man dort denselben Gewinner, gilt das Ergebnis als bestätigt und die Markierung verschwindet. Ein offenes Bracket mit Spielzeiten lädt jede Minute neu. Nach Schluss von Runde 1 können keine neuen Spieler mehr einsteigen

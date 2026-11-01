@@ -5314,10 +5314,6 @@ body:not(.read-only) #seatPlanCard:not(.is-layout):not(.is-view) .cell-seat:hove
     color: var(--text-color);
 }
 
-.welcome-test .inline-form input {
-    max-width: 220px;
-}
-
 /* Topbar: identified device */
 /* Own nickname on orange tape (nickname only, no clan) */
 .me-chip {
@@ -5422,10 +5418,6 @@ body:not(.read-only) #seatPlanCard:not(.is-layout):not(.is-view) .cell-seat:hove
     .me-chip .tape {
         max-width: 120px;
     }
-}
-
-.welcome-test .btn[hidden] {
-    display: none;
 }
 
 /* Admin attendee (logged in by IP address) */
@@ -5972,6 +5964,54 @@ body:not(.read-only) #seatPlanCard:not(.is-layout):not(.is-view) .cell-seat:hove
 }
 
 .footer-note[hidden] {
+    display: none;
+}
+
+/* Debug mode (debug.js, admins only): switch and time in the footer, the impersonate menu in the
+   attendee list; while the time is faked the field is marked */
+body:not(.debug-mode) .debug-only {
+    display: none !important;
+}
+
+.site-footer .footer-debug {
+    gap: 0.4rem;
+    font-size: inherit;
+    color: var(--text-secondary);
+}
+
+.footer-debug-tools {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.footer-debug-tools[hidden],
+.site-footer .footer-action[hidden] {
+    display: none;
+}
+
+.footer-debug-time {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    color: var(--text-secondary);
+}
+
+.footer-debug-time input {
+    width: auto;
+    min-height: 0;
+    padding: 0.1rem 0.35rem;
+    font-size: 0.8rem;
+    color-scheme: dark;
+}
+
+body.debug-time .footer-debug-time input {
+    border-color: var(--warning-color);
+    color: var(--warning-color);
+}
+
+/* Next to the name at the top right while looking at the page as another device */
+.me-end[hidden] {
     display: none;
 }
 
@@ -6870,7 +6910,7 @@ body.read-only .action-menu-item.admin-only {
     }
 }
 
-/* Closed admin helpers: "Ansicht testen" on the welcome page, help texts in the burger admin */
+/* Closed summaries: "Netzwerk ok" on the welcome page, help texts in the burger admin */
 .welcome-test-summary {
     display: flex;
     align-items: center;
@@ -6897,14 +6937,6 @@ body.read-only .action-menu-item.admin-only {
     font-family: var(--font-title);
     font-size: 1.35rem;
     font-weight: 600;
-}
-
-.welcome-test[open] .collapse-icon {
-    transform: rotate(180deg);
-}
-
-.welcome-test .inline-form {
-    margin-top: 1rem;
 }
 
 .help-box {

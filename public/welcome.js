@@ -6,14 +6,13 @@
 
 let me = null;          // answer of /api/whoami, null = not loaded / failed
 let meError = '';
-let welcomeTestIp = ''; // admins: preview the page as another device
+let welcomeTestIp = ''; // admins in the debug mode (debug.js): the page as another device
 let whoamiPending = null;
 
 // brackets-model Status: Waiting (opponent not known yet), Ready, Running
 const OPEN_MATCH_STATUS = [1, 2, 3];
 
 document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('welcomeTestForm').addEventListener('submit', testWelcomeIp);
     loadWhoami();
 });
 
@@ -47,6 +46,8 @@ async function fetchWhoami() {
 // Topbar: who this device is
 function renderMeChip() {
     const chip = document.getElementById('meChip');
+    // Looking at the page as another device (test view, debug.js): the x next to the name ends it
+    document.getElementById('meEndTest').hidden = !welcomeTestIp;
     const identified = me?.status === 'identified';
     chip.hidden = !identified;
     if (!identified) return; // not recognised (or request failed): no attendee to show
@@ -77,8 +78,6 @@ async function showWelcomeView() {
 
 function renderWelcome() {
     const box = document.getElementById('welcomeContent');
-    document.getElementById('welcomeTestReset').hidden = !welcomeTestIp;
-    if (welcomeTestIp) document.getElementById('welcomeTestBox').open = true;
     if (!me) {
         box.innerHTML = `<section class="card welcome-hero"><div class="welcome-hero-main">
             <h1 class="welcome-title">Willkommen!</h1>
@@ -485,16 +484,8 @@ function exportWelcomeGuide() {
     }
 }
 
-/* Admins: preview as another device */
-
-async function testWelcomeIp(e) {
-    e.preventDefault();
-    welcomeTestIp = document.getElementById('welcomeTestIp').value.trim();
-    await showWelcomeView();
-}
-
+// Back to the own device after impersonating (debug.js)
 async function resetWelcomeTest() {
     welcomeTestIp = '';
-    document.getElementById('welcomeTestIp').value = '';
     await showWelcomeView();
 }

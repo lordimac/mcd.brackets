@@ -69,6 +69,7 @@
             </nav>
             <div class="topbar-actions">
                 <a href="#willkommen" class="me-chip" id="meChip" hidden></a>
+                <button type="button" class="btn btn-ghost btn-icon me-end" id="meEndTest" onclick="endImpersonation()" hidden title="Zurück zur eigenen Ansicht" aria-label="Zurück zur eigenen Ansicht"><svg class="icon"><use href="#i-x"/></svg></button>
             </div>
         </div>
     </header>
@@ -78,21 +79,6 @@
         <main class="layout view" id="view-welcome" style="display: none;">
             <div id="welcomeContent" class="welcome"><p class="loading">Erkenne dein Gerät…</p></div>
 
-            <!-- Admin tool, closed by default so attendees' start page stays about them -->
-            <details class="card admin-only welcome-test" id="welcomeTestBox">
-                <summary class="welcome-test-summary">
-                    <span>
-                        <span class="welcome-test-title"><svg class="icon icon-accent"><use href="#i-search"/></svg>Ansicht für eine andere IP-Adresse testen</span>
-                        <span class="section-subtitle">So sieht die Seite für ein Gerät mit dieser IP-Adresse aus.</span>
-                    </span>
-                    <span class="collapse-icon"><svg class="icon"><use href="#i-chevron"/></svg></span>
-                </summary>
-                <form id="welcomeTestForm" class="inline-form">
-                    <input type="text" id="welcomeTestIp" placeholder="192.168.120.100" autocomplete="off" spellcheck="false" aria-label="IP-Adresse zum Testen">
-                    <button type="submit" class="btn btn-secondary btn-sm">Anzeigen</button>
-                    <button type="button" class="btn btn-ghost btn-sm" id="welcomeTestReset" onclick="resetWelcomeTest()" hidden>Eigenes Gerät</button>
-                </form>
-            </details>
         </main>
 
         <!-- Burger designer: everyone orders, admins print the orders on DYMO labels -->
@@ -966,6 +952,14 @@
                     <svg class="icon"><use href="#i-logout"/></svg><span>Abmelden</span>
                 </button>
                 <span class="footer-note" id="footerAdminNote" hidden>Admin über die IP-Adresse dieses Geräts</span>
+                <!-- Debug mode (debug.js): impersonate attendees, fake the time; admins only -->
+                <label class="toggle toggle-sm footer-debug admin-only" title="Debug-Modus: Seite als Teilnehmer ansehen, Uhrzeit vortäuschen (nur in diesem Browser)">
+                    <input type="checkbox" id="debugToggle" onchange="setDebugMode(this.checked)"><span>Debug</span>
+                </label>
+                <span class="footer-debug-tools admin-only" id="debugTools" hidden>
+                    <label class="footer-debug-time">Zeit <input type="datetime-local" id="debugTime" onchange="setDebugTime(this.value)" aria-label="Uhrzeit vortäuschen"></label>
+                    <button type="button" class="footer-action" id="debugTimeReset" onclick="setDebugTime('')" hidden>Echte Zeit</button>
+                </span>
             </div>
         </footer>
     </div>
@@ -1339,6 +1333,7 @@
     <script src="timetable.js"></script>
     <script src="timetable-pdf.js"></script>
     <script src="welcome.js"></script>
+    <script src="debug.js"></script>
     <script src="shares.js"></script>
     <script src="burger.js"></script>
     <script src="burger-labels.js"></script>

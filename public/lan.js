@@ -360,6 +360,8 @@ function renderAttendees() {
                     ${shareChipHtml(a, i)}
                 </td>`).join('')}
             <td class="col-actions admin-only">
+                ${actionMenu(a.ips.map((ip, i) => ({ icon: 'network', label: `${RANGE_LABELS[i]} · ${ip}`, onclick: `impersonate('${ip}')`, adminOnly: true })),
+                    `Als ${escapeHtml(a.nickname)} ansehen (Debug)`, { iconName: 'users', className: 'debug-only impersonate-menu' })}
                 <button class="btn btn-ghost btn-icon admin-only" onclick="editAttendee(${a.id})" title="${escapeHtml(a.nickname)} bearbeiten" aria-label="${escapeHtml(a.nickname)} bearbeiten">${icon('edit')}</button>
                 ${actionMenu([
                     { icon: 'folder', label: 'SMB-Shares', onclick: `openShareEditor('attendee', ${a.id})`, adminOnly: true },

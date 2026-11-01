@@ -49,6 +49,7 @@ async function loadAuth() {
     document.getElementById('logoutButton').style.display = auth.via === 'session' ? '' : 'none';
     document.getElementById('footerAdminNote').hidden = auth.via !== 'ip';
     renderPoints(); // fields are editable only for admins
+    if (typeof syncDebugMode === 'function') syncDebugMode(); // debug.js: admins only
 }
 
 function openLoginModal() {
@@ -159,12 +160,12 @@ document.addEventListener('keydown', event => {
 
 /* Action menu: rarely used and destructive actions with a label instead of loose icons.
    items: [{ icon, label, onclick, danger, adminOnly }], onclick is inline JS (numbers only). */
-function actionMenu(items, label = 'Weitere Aktionen') {
+function actionMenu(items, label = 'Weitere Aktionen', { iconName = 'more', className = '' } = {}) {
     const visible = items.filter(Boolean);
     if (!visible.length) return '';
     const adminOnly = visible.every(item => item.adminOnly) ? ' admin-only' : '';
-    return `<details class="action-menu${adminOnly}">
-        <summary class="btn btn-ghost btn-icon" title="${label}" aria-label="${label}">${icon('more')}</summary>
+    return `<details class="action-menu${adminOnly}${className ? ` ${className}` : ''}">
+        <summary class="btn btn-ghost btn-icon" title="${label}" aria-label="${label}">${icon(iconName)}</summary>
         <div class="action-menu-list">
             ${visible.map(item => `<button type="button" class="action-menu-item${item.danger ? ' is-danger' : ''}${item.adminOnly ? ' admin-only' : ''}" onclick="this.closest('details').open = false; ${item.onclick}">${icon(item.icon)}<span>${item.label}</span></button>`).join('')}
         </div>
