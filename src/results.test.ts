@@ -10,7 +10,7 @@ process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'mcd-brackets-resul
 
 const { createStage, resolveMemorialMatches }: typeof import('./stages') = require('./stages');
 const { getManager, getStorage }: typeof import('./db') = require('./db');
-const { describeFollowing, followingResults, updateMatchResult }: typeof import('./results') = require('./results');
+const { clearMatchResult, describeFollowing, followingResults, updateMatchResult }: typeof import('./results') = require('./results');
 const { HttpError }: typeof import('./http-error') = require('./http-error');
 
 let nextTournament = 1;
@@ -89,9 +89,9 @@ test('the preview describes the following matches', async () => {
   const stage = await playedStage('double_elimination', ['A', 'B', 'C', 'D']);
   const target = await firstRealMatch(stage.id);
   const preview = await describeFollowing(target.id);
-  assert.match(preview.label, /^Winner Bracket · Runde 1 · Match 1$/);
-  assert.ok(preview.following.some(f => f.label.startsWith('Loser Bracket')));
-  assert.ok(preview.following.some(f => f.label === 'Grand Final'));
+  assert.match(preview.label, /^Gewinnerrunde 1 · Match 1$/);
+  assert.ok(preview.following.some(f => f.label.startsWith('Verliererrunde')));
+  assert.ok(preview.following.some(f => f.label === 'Großes Finale'));
 });
 
 test('memorial matches (round robin) cannot be changed; elimination corrections never bring memorial entries into play', async () => {
@@ -108,6 +108,35 @@ test('memorial matches (round robin) cannot be changed; elimination corrections 
   await updateMatchResult(target.id, { ...flipped(target), resetFollowing: true });
   await playAll(se.id);
   assert.ok(!(await matchesOf(se.id)).some(m => m.status === Status.Ready));
+});
+
+for (const type of ['single_elimination', 'double_elimination'] as const) {
+  test(`undoing a fresh result opens the match again, also before a BYE (${type})`, async () => {
+    // 5 players: BYEs in round 1, so a result can move on through an automatic BYE match
+    const stage = await createStage({ tournamentId: nextTournament++, name: 'Test', type, names: ['A', 'B', 'C', 'D', 'E'], settings: {} });
+    const ready = (await matchesOf(stage.id)).filter(m => m.status === Status.Ready);
+    assert.ok(ready.length > 0);
+    const state = async () => (await matchesOf(stage.id)).map(m => [m.id, m.status, m.opponent1?.id, m.opponent2?.id]);
+    for (const match of ready) {
+      const before = await state();
+      const win = { opponent1: { result: 'win' as const }, opponent2: { result: 'loss' as const } };
+      await updateMatchResult(match.id, win);
+      const entered = JSON.stringify(await matchesOf(stage.id)); // as stored: without undefined keys
+      const undone = await clearMatchResult(match.id);
+      assert.equal(undone!.status, Status.Ready);
+      assert.deepEqual(await state(), before, 'everyone is back where they were');
+      // Entering it again gives exactly the same bracket as the first time
+      await updateMatchResult(match.id, win);
+      assert.equal(JSON.stringify(await matchesOf(stage.id)), entered);
+      await clearMatchResult(match.id);
+    }
+  });
+}
+
+test('undo is refused once a following match has a result', async () => {
+  const stage = await playedStage('single_elimination', ['A', 'B', 'C', 'D']);
+  const target = await firstRealMatch(stage.id);
+  await assert.rejects(clearMatchResult(target.id), (e: unknown) => e instanceof HttpError && e.status === 409);
 });
 
 test('round robin results can be changed directly', async () => {

@@ -69,11 +69,11 @@ test('stored per event, tournament rounds come from the deadlines, removed with 
   assert.deepEqual(items.map(i => `${i.kind} ${i.title}@${i.at}`), [
     `deadline Spielrunde 1@${at(20)}`,
     `deadline Spielrunde 2@${at(21)}`,
-    `start Loser Bracket · Finale (Platz 3)@${at(21)}`,
+    `start Verliererrunde · Finale (Platz 3)@${at(21)}`,
     `start Finalspiele@${at(22)}`,
   ]);
-  assert.deepEqual(items[1].rounds.map(r => `${r.stage_name}: ${r.label}`), ['UNO: Winner Bracket · Runde 2']);
-  assert.deepEqual(items[3].rounds.map(r => `${r.stage_name}: ${r.label}`), ['Jenga: Finale', 'UNO: Grand Final']);
+  assert.deepEqual(items[1].rounds.map(r => `${r.stage_name}: ${r.label}`), ['UNO: Gewinnerrunde 2']);
+  assert.deepEqual(items[3].rounds.map(r => `${r.stage_name}: ${r.label}`), ['Jenga: Finale', 'UNO: Großes Finale']);
 
   // Deleting an event removes its timetable
   const other = await store.createEvent({ name: 'Wegwerf-LAN', memorial: [] });

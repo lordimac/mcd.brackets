@@ -72,8 +72,8 @@ export const DEFAULT_MENU: BurgerMenu = {
   kitchen_display: false,
   categories: [
     { id: 'size', name: 'Größe', visual: 'size', multiple: false, extra: false, empty_label: '', options: [
-      opt('single', 'Single (ein Patty)', 'Einfach', '#5b3420', { count: 1 }),
-      opt('double', 'Double (zwei Patties)', 'Doppelt', '#5b3420', { count: 2 }),
+      opt('single', 'Einfach (ein Patty)', 'Einfach', '#5b3420', { count: 1 }),
+      opt('double', 'Doppelt (zwei Patties)', 'Doppelt', '#5b3420', { count: 2 }),
     ] },
     { id: 'patty', name: 'Patty', visual: 'patty', multiple: false, extra: false, empty_label: '', options: [
       opt('meat', 'Fleisch', 'Fleisch', '#5b3420'),
@@ -102,7 +102,7 @@ export const DEFAULT_MENU: BurgerMenu = {
     ] },
     { id: 'bun', name: 'Brötchen', visual: 'bun', multiple: false, extra: false, empty_label: '', options: [
       opt('brioche', 'Brioche Bun', 'Brioche', '#e19a45'),
-      opt('low-carb', 'Ohne Stärke', 'ohne Stärke', '#c9a66b'),
+      opt('low-carb', 'Low-Carb-Bun (ohne Stärke)', 'Low-Carb', '#c9a66b'),
       opt('protein', 'Eiweiß-Bun', 'Eiweiß-Bun', '#b9814a'),
     ] },
   ],

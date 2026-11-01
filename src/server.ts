@@ -24,8 +24,8 @@ import { getEvent, playerNamesForEvent, syncEventsFromStages } from './lan-store
 import { memorialByes, migrateMemorialStages, setConsolationFinal, setGrandFinalDouble } from './stage-sync';
 import { isStageType, normalizeNames } from './seeding';
 import { createStage, deleteStage, findStage, pickSettings } from './stages';
-import { describeFollowing, updateMatchResult } from './results';
-import { decideOverdueMatches, eventFinals, eventSchedule, saveEventSchedule, saveSchedule, stageRounds, startScheduleChecks } from './schedule';
+import { clearMatchResult, describeFollowing, updateMatchResult } from './results';
+import { decideOverdueMatches, eventFinals, eventSchedule, relabelSchedules, saveEventSchedule, saveSchedule, stageRounds, startScheduleChecks } from './schedule';
 import { getStandings } from './standings';
 
 const app = express();
@@ -293,6 +293,13 @@ app.put('/api/matches/:id', async (req: Request<{ id: string }>, res: Response) 
   res.json(updatedMatch ?? {});
 });
 
+// Undo a result just entered ("Rückgängig"), only while nothing builds on it
+app.delete('/api/matches/:id/result', async (req: Request<{ id: string }>, res: Response) => {
+  const matchId = parseInt(req.params.id);
+  const match = await withLock(() => withRollback(() => clearMatchResult(matchId)));
+  res.json(match ?? {});
+});
+
 // Delete a stage (including all participants for that tournament)
 app.delete('/api/stages/:id', async (req: Request<{ id: string }>, res: Response) => {
   await withLock(() => withRollback(async () => deleteStage(await findStage(parseInt(req.params.id)))));
@@ -365,6 +372,7 @@ app.post('/api/restore', async (req: Request, res: Response) => {
     await syncEventsFromStages();
     await migrateRooms();
     await detachOrphanedOrders();
+    await relabelSchedules();
   });
   res.json({ ok: true, message: 'Datenbank wiederhergestellt. Bitte Seite neu laden.' });
 });
@@ -399,6 +407,7 @@ async function start(): Promise<void> {
   const migrated = await migrateRooms();
   await detachOrphanedOrders();
   const memorialChanged = await withLock(() => migrateMemorialStages());
+  await withLock(() => relabelSchedules());
   if (memorialChanged.length) console.log(`🕯️  Gedenk-Einträge umgestellt in: ${memorialChanged.join(', ')}`);
   if (migrated > 0) console.log(`🪑 ${migrated} Sitzplan-Raum/Räume ins neue Format übernommen`);
   if (!authRequired()) {

@@ -50,7 +50,7 @@ function renderMeChip() {
     const identified = me?.status === 'identified';
     chip.hidden = !identified;
     if (!identified) return; // not recognised (or request failed): no attendee to show
-    chip.innerHTML = `<span class="tape-wrap"><span class="tape tape-orange">${escapeHtml(me.attendee.nickname)}</span></span>${me.attendee.admin ? '<span class="me-chip-tag">Admin</span>' : ''}${me.tested ? '<span class="me-chip-test">Test</span>' : ''}`;
+    chip.innerHTML = `<span class="tape-wrap"><span class="tape tape-orange">${escapeHtml(me.attendee.nickname)}</span></span>${me.attendee.admin ? '<span class="me-chip-tag">Admin</span>' : ''}${me.tested ? '<span class="me-chip-test" title="Testansicht für eine andere IP-Adresse">Testansicht</span>' : ''}`;
     chip.title = me.attendee.admin && !me.tested
         ? 'Über die IP-Adresse dieses Geräts erkannt und als Admin angemeldet'
         : 'Erkannt über die IP-Adresse dieses Geräts';
@@ -61,6 +61,8 @@ function refreshMeHighlights() {
     const view = document.body.dataset.view;
     if (view === 'attendees' && typeof renderAttendees === 'function') renderAttendees();
     if (view === 'seating' && typeof renderSeating === 'function') renderSeating();
+    // Tournament cards are rendered once and only refreshed on data changes: always bring them up to date
+    if (typeof displayStages === 'function' && stages.length) displayStages();
 }
 
 // Called by showView() in app.js whenever the welcome tab opens
@@ -76,24 +78,24 @@ async function showWelcomeView() {
 function renderWelcome() {
     const box = document.getElementById('welcomeContent');
     document.getElementById('welcomeTestReset').hidden = !welcomeTestIp;
+    if (welcomeTestIp) document.getElementById('welcomeTestBox').open = true;
     if (!me) {
         box.innerHTML = `<section class="card welcome-hero"><div class="welcome-hero-main">
-            <h2 class="welcome-title">Willkommen!</h2>
+            <h1 class="welcome-title">Willkommen!</h1>
             <p class="welcome-lead">Dein Gerät konnte gerade nicht erkannt werden${meError ? `: ${escapeHtml(meError)}` : ''}.</p></div></section>`;
         return;
     }
     const event = welcomeEvent();
     if (!event) {
         box.innerHTML = `<section class="card welcome-hero"><div class="welcome-hero-main">
-            <h2 class="welcome-title">Willkommen!</h2>
+            <h1 class="welcome-title">Willkommen!</h1>
             <p class="welcome-lead">Es ist noch kein Event angelegt.</p></div></section>`;
         return;
     }
     const withNetwork = ['identified', 'unassigned', 'unknown'].includes(me.status);
+    // During the event the own matches matter most; the network setup is done after the first hour
     box.innerHTML = [
         heroHtml(event),
-        withNetwork ? networkHtml(event) : '',
-        welcomeSharesHtml(event),
         me.status === 'identified' ? `
             <section class="card">
                 <div class="section-header">
@@ -101,6 +103,8 @@ function renderWelcome() {
                 </div>
                 <div id="welcomeTournamentList" class="my-tournaments"><p class="loading">Lade Turniere…</p></div>
             </section>` : '',
+        withNetwork ? networkHtml(event) : '',
+        welcomeSharesHtml(event),
     ].join('');
 }
 
@@ -118,14 +122,39 @@ function heroHtml(event) {
     const ip = `<code>${escapeHtml(me.ip ?? '–')}</code>`;
     const test = me.tested ? `<p class="welcome-test-note">${icon('search')}Testansicht für ${ip}</p>` : '';
 
+    // Not recognised yet: a check-in desk, not an error report. Three steps to being recognised,
+    // and the rest of the event to look at in the meantime
+    if (me.status === 'unknown' || me.status === 'unassigned') {
+        const now = me.status === 'unassigned'
+            ? `Dieses Gerät hat schon eine Adresse aus dem Event-Netz (${ip}), sie gehört aber noch niemandem.`
+            : `Dein Gerät ist noch nicht im Event-Netz${/^\d+\.\d+\.\d+\.\d+$/.test(me.ip ?? '') ? ` (es hat gerade ${ip})` : ''}.`;
+        return `<section class="card welcome-hero welcome-checkin">
+            <div class="welcome-hero-main">${kicker}
+                <h1 class="welcome-title">Willkommen bei ${escapeHtml(event.name)}!</h1>
+                <p class="welcome-lead">Schön, dass du da bist. ${now} So kommst du rein:</p>
+                <ol class="checkin-steps">
+                    <li><strong>IP-Zettel holen</strong><span>Liegt am Einlass bzw. bei der Orga. Darauf steht deine feste Adresse.</span></li>
+                    <li><strong>Adresse einstellen</strong><span>Maske, Gateway und DNS stehen <a href="#welcomeSetup" onclick="event.preventDefault(); document.getElementById('welcomeSetup')?.scrollIntoView({ behavior: 'smooth' })">unten</a>.
+                        <button type="button" class="link-button" onclick="exportIpGuide()">Anleitung für Windows und macOS (PDF)</button></span></li>
+                    <li><strong>Seite neu laden</strong><span>Dann begrüßt dich die Seite mit Namen, Platz und nächstem Match.
+                        <button type="button" class="link-button" onclick="location.reload()">Jetzt neu laden</button></span></li>
+                </ol>
+                <p class="checkin-browse">Schon mal stöbern: <a href="#zeitplan">Zeitplan</a> · <a href="#sitzplan">Sitzplan</a> · <a href="#turniere">Turniere</a> · <a href="#burger">Burger bestellen</a></p>
+                ${test}
+            </div>
+            ${logo}
+        </section>`;
+    }
+
     if (me.status !== 'identified') {
         const lead = {
-            unassigned: `Dieses Gerät hat die Adresse ${ip}. Sie gehört zum Event, ist aber keinem Teilnehmer zugeordnet — bitte die Adresse von deinem IP-Zettel eintragen.`,
-            unknown: `Dieses Gerät konnten wir keinem Teilnehmer zuordnen. Erkannt wurde die Adresse ${ip}.`,
+            unassigned: `Dieses Gerät hat die Adresse ${ip}. Sie gehört zum Event, aber noch zu niemandem. Trag die feste Adresse von deinem IP-Zettel ein, dann erkennt dich die Seite.`,
+            // A loopback or IPv6 address means nothing to an attendee; only an IPv4 address is worth showing
+            unknown: `Dieses Gerät ist noch nicht im Event-Netz${/^\d+\.\d+\.\d+\.\d+$/.test(me.ip ?? '') ? ` (es hat gerade ${ip})` : ''}. Stell die feste Adresse von deinem IP-Zettel ein, die Schritte stehen unten. Kein Zettel zur Hand? Frag die Orga.`,
             disabled: 'Schön, dass du da bist! Die Erkennung über die IP-Adresse ist für dieses Event ausgeschaltet.',
         }[me.status] ?? '';
         return `<section class="card welcome-hero">
-            <div class="welcome-hero-main">${kicker}<h2 class="welcome-title">Willkommen!</h2><p class="welcome-lead">${lead}</p>${test}</div>
+            <div class="welcome-hero-main">${kicker}<h1 class="welcome-title">Willkommen!</h1><p class="welcome-lead">${lead}</p>${test}</div>
             ${logo}
         </section>`;
     }
@@ -146,7 +175,7 @@ function heroHtml(event) {
     return `<section class="card welcome-hero is-identified">
         <div class="welcome-hero-main">
             ${kicker}
-            <h2 class="welcome-title">Hallo ${escapeHtml(a.first_name || a.nickname)}!</h2>
+            <h1 class="welcome-title">Hallo ${escapeHtml(a.first_name || a.nickname)}!</h1>
             <p class="welcome-identity"><span class="tape-wrap welcome-tape"><span class="tape-print"><span class="tape tape-white">${escapeHtml(a.display_name)}</span></span></span>${fullName ? `<span class="muted">${escapeHtml(fullName)}</span>` : ''}</p>
             <p class="welcome-lead">Dieses Gerät: <strong>${escapeHtml(RANGE_LABELS[me.range_index])}</strong></p>
             ${test}
@@ -157,6 +186,11 @@ function heroHtml(event) {
                 <span class="welcome-fact-label">${icon('network')}IP-Adresse</span>
                 <strong class="welcome-fact-value is-mono">${escapeHtml(me.expected.ip)}</strong>
                 <span class="welcome-fact-sub">${escapeHtml(me.expected.dns_name)}</span>
+            </div>
+            <div class="welcome-fact is-next" id="welcomeNextMatch">
+                <span class="welcome-fact-label">${icon('bracket')}Nächstes Match</span>
+                <strong class="welcome-fact-value is-text">…</strong>
+                <span class="welcome-fact-sub">wird geladen</span>
             </div>
         </div>
         ${logo}
@@ -170,10 +204,17 @@ function clientChecks(event) {
     return [{ status: 'ok', title: 'Namensauflösung funktioniert', detail: `Du hast diese Seite über ${host} aufgerufen.` }];
 }
 
-const CHECK_ICONS = { ok: 'check', warn: 'alert', error: 'x', info: 'info' };
+const CHECK_ICONS = { ok: 'check', warn: 'alert', error: 'x', info: 'info', todo: 'chevron' };
 
 function networkHtml(event) {
-    const checks = [...me.checks, ...clientChecks(event)];
+    // A device that is not set up yet gets steps to do, not a wall of red errors
+    const setup = me.status !== 'identified';
+    const checks = [...me.checks, ...clientChecks(event)]
+        .map(c => (setup && c.status === 'error' ? { ...c, status: 'todo' } : c));
+    const failed = checks.filter(c => ['warn', 'error', 'todo'].includes(c.status));
+    announce(failed.length
+        ? `Netzwerk-Check: ${failed.length} ${failed.length === 1 ? 'Punkt braucht' : 'Punkte brauchen'} Aufmerksamkeit: ${failed.map(c => c.title).join(', ')}.`
+        : 'Netzwerk-Check: alles in Ordnung.');
     const expected = me.expected;
     const value = v => (v ? `<code>${escapeHtml(v)}</code>` : '<span class="muted">–</span>');
     const settings = [
@@ -198,18 +239,12 @@ function networkHtml(event) {
         <p class="welcome-wifi">${icon('network')}WLAN <strong>${escapeHtml(event.wifi_ssid)}</strong>
             ${event.wifi_password === '' ? '<span class="muted">offen, ohne Passwort</span>' : event.wifi_password ? `<span class="muted">Passwort</span> <code>${escapeHtml(event.wifi_password)}</code>` : '<span class="muted">Passwort steht auf deinem IP-Zettel</span>'}</p>` : '';
 
-    return `<section class="card">
-        <div class="section-header">
-            <div>
-                <h2><svg class="icon icon-accent"><use href="#i-network"/></svg>Netzwerk-Check</h2>
-                <p class="section-subtitle">Geprüft über die Verbindung dieses Geräts zum Server. Maske, Gateway und DNS deines Geräts sieht der Server nicht — bitte mit den Werten unten vergleichen.</p>
-            </div>
-            <div class="section-actions">
+    const actions = `<div class="section-actions">
                 <button class="btn btn-ghost btn-sm" onclick="showWelcomeView()">${icon('refresh')}<span>Erneut prüfen</span></button>
                 <button class="btn btn-secondary btn-sm" onclick="exportWelcomeGuide()" title="Feste IP-Adresse unter Windows und macOS einstellen">${icon('file')}<span>Anleitung (PDF)</span></button>
-            </div>
-        </div>
-        <ul class="check-list">${checks.map(c => `
+            </div>`;
+    const hint = '<p class="section-subtitle">Geprüft über die Verbindung dieses Geräts zum Server. Maske, Gateway und DNS deines Geräts sieht der Server nicht, vergleich sie mit den Werten unten.</p>';
+    const body = `<ul class="check-list">${checks.map(c => `
             <li class="check is-${c.status}">
                 <span class="check-icon">${icon(CHECK_ICONS[c.status])}</span>
                 <div><strong>${escapeHtml(c.title)}</strong><p>${escapeHtml(c.detail)}</p></div>
@@ -222,7 +257,33 @@ function networkHtml(event) {
             </div>
             ${addresses}
         </div>
-        ${wifi}
+        ${wifi}`;
+
+    // Everything passed: one line, the values stay one tap away
+    if (!failed.length) {
+        return `<details class="card welcome-network">
+            <summary class="welcome-test-summary">
+                <span>
+                    <span class="welcome-test-title"><span class="check-icon is-ok">${icon('check')}</span>Netzwerk ok</span>
+                    <span class="section-subtitle">${checks.length === 1 ? 'Die Prüfung ist bestanden' : `Alle ${checks.length} Prüfungen bestanden`}. Einstellungen, Adressen${event.wifi_enabled ? ' und WLAN' : ''} anzeigen</span>
+                </span>
+                <span class="collapse-icon"><svg class="icon"><use href="#i-chevron"/></svg></span>
+            </summary>
+            <div class="welcome-network-body">
+                <div class="section-header">${hint}${actions}</div>
+                ${body}
+            </div>
+        </details>`;
+    }
+    return `<section class="card"${setup ? ' id="welcomeSetup"' : ''}>
+        <div class="section-header">
+            <div>
+                <h2><svg class="icon icon-accent"><use href="#i-network"/></svg>${setup ? 'So richtest du dein Gerät ein' : 'Netzwerk-Check'}</h2>
+                ${hint}
+            </div>
+            ${actions}
+        </div>
+        ${body}
     </section>`;
 }
 
@@ -243,6 +304,7 @@ async function loadMyTournaments() {
             .sort((a, b) => a.stage.tournament_id - b.stage.tournament_id);
         if (!mine.length) {
             list.innerHTML = '<p class="field-hint">Für dieses Event gibt es noch keine Turniere.</p>';
+            renderNextMatchFact(null);
             return;
         }
         const details = await Promise.all(mine.map(async entry => {
@@ -254,48 +316,120 @@ async function loadMyTournaments() {
             const names = new Map(allParticipants.filter(p => p.tournament_id === entry.stage.tournament_id).map(p => [p.id, p.name]));
             return { ...entry, matches: stageMatches, rounds: schedule.rounds ?? [], names, standing: standings.find(s => s.participant_id === entry.participant.id) };
         }));
+        // What needs the attendee comes first: playable matches, then waiting ones, then the rest
+        const next = new Map(details.map(entry => [entry, nextMatchOf(entry)]));
+        details.sort((a, b) => {
+            const na = next.get(a), nb = next.get(b);
+            if (na && nb) return compareNextMatches(na, nb);
+            return (nb ? 1 : 0) - (na ? 1 : 0) || a.stage.tournament_id - b.stage.tournament_id;
+        });
         list.innerHTML = details.map(myTournamentHtml).join('');
+        renderNextMatchFact(next.get(details[0]) ?? null);
     } catch (error) {
         list.innerHTML = `<p class="field-hint is-warning">Die Turniere konnten nicht geladen werden: ${escapeHtml(error.message)}</p>`;
+        renderNextMatchFact(null, 'nicht geladen');
     }
 }
 
-function myTournamentHtml({ stage, participant, matches: stageMatches, rounds, names, standing }) {
+// The own open match of one tournament: opponent, round and its time
+function nextMatchOf({ stage, participant, matches: stageMatches, rounds, names }) {
     const own = m => m.opponent1?.id === participant.id || m.opponent2?.id === participant.id;
     const open = stageMatches
         .filter(m => OPEN_MATCH_STATUS.includes(m.status) && own(m))
         .sort((a, b) => a.round_id - b.round_id || a.number - b.number);
-    const next = open[0];
+    const match = open[0];
+    if (!match) return null;
+    const other = match.opponent1?.id === participant.id ? match.opponent2 : match.opponent1;
+    const round = rounds.find(r => r.round_id === match.round_id);
+    return {
+        stage,
+        match,
+        more: open.length - 1,
+        opponent: other?.id != null ? names.get(other.id) ?? null : null,
+        round,
+        time: round?.ends_at ?? round?.starts_at ?? null,
+    };
+}
+
+// Playable first (opponent known), then by time; without a time last
+function compareNextMatches(a, b) {
+    return (b.opponent ? 1 : 0) - (a.opponent ? 1 : 0)
+        || (a.time ? Date.parse(a.time) : Infinity) - (b.time ? Date.parse(b.time) : Infinity)
+        || a.stage.tournament_id - b.stage.tournament_id;
+}
+
+function renderNextMatchFact(next, failure = '') {
+    const fact = document.getElementById('welcomeNextMatch');
+    if (!fact) return;
+    const label = `<span class="welcome-fact-label">${icon('bracket')}Nächstes Match</span>`;
+    if (!next) {
+        fact.className = 'welcome-fact is-next';
+        fact.innerHTML = `${label}<strong class="welcome-fact-value is-text">–</strong><span class="welcome-fact-sub">${failure || 'gerade keins offen'}</span>`;
+        return;
+    }
+    const when = next.round?.ends_at ? `bis ${formatDeadline(next.round.ends_at)}` : next.round?.starts_at ? `ab ${formatDeadline(next.round.starts_at)}` : '';
+    const replacement = document.createElement('button');
+    replacement.type = 'button';
+    replacement.id = 'welcomeNextMatch';
+    replacement.className = 'welcome-fact is-next is-link';
+    replacement.dataset.stage = next.stage.id;
+    replacement.title = 'Im Bracket zeigen';
+    replacement.setAttribute('onclick', 'openMyMatch(this.dataset.stage)');
+    replacement.innerHTML = `${label}
+        <strong class="welcome-fact-value is-text">${next.opponent ? `gegen ${escapeHtml(next.opponent)}` : 'Gegner offen'}</strong>
+        <span class="welcome-fact-sub">${escapeHtml(next.stage.name)}${when ? ` · ${escapeHtml(when)}` : ''}</span>`;
+    fact.replaceWith(replacement);
+}
+
+function myTournamentHtml(entry) {
+    const { stage, standing } = entry;
+    const next = nextMatchOf(entry);
 
     let status;
     if (next) {
-        const other = next.opponent1?.id === participant.id ? next.opponent2 : next.opponent1;
-        const opponent = other?.id != null ? names.get(other.id) : null;
-        const round = rounds.find(r => r.round_id === next.round_id);
+        const { opponent, round } = next;
         const time = round?.ends_at ? ` · bis ${escapeHtml(formatDeadline(round.ends_at))}` : round?.starts_at ? ` · ab ${escapeHtml(formatDeadline(round.starts_at))}` : '';
-        const more = open.length > 1 ? `<span class="muted"> · noch ${open.length - 1} weitere</span>` : '';
+        const more = next.more > 0 ? `<span class="muted"> · noch ${next.more} weitere</span>` : '';
         status = opponent
             ? `Nächstes Match gegen <strong>${escapeHtml(opponent)}</strong>`
             : 'Nächstes Match — der Gegner steht noch nicht fest';
         status += `<span class="muted">${round ? ` · ${escapeHtml(round.label)}` : ''}${time}</span>${more}`;
     } else if (standing?.placement != null) {
-        status = `Fertig gespielt · ${standing.points} Punkte`;
+        status = `Fertig gespielt · ${standing.points} ${standing.points === 1 ? 'Punkt' : 'Punkte'}`;
     } else {
         status = '<span class="muted">Gerade kein offenes Match</span>';
     }
 
-    return `<div class="my-tournament type-${escapeHtml(stage.type)}">
-        <div class="my-tournament-rank">${standing ? rankBadge(standing) : ''}</div>
+    // Playable now (opponent known): marked and sorted first; orange stays with the "Nächstes Match"
+    // tile at the top, so the page has one orange thing for one fact
+    const playable = Boolean(next?.opponent);
+    return `<div class="my-tournament type-${escapeHtml(stage.type)}${playable ? ' is-mine' : ''}">
+        ${standing?.placement != null ? `<div class="my-tournament-rank"><span class="my-tournament-rank-label">Platz</span>${rankBadge(standing)}</div>` : ''}
         <div class="my-tournament-main">
             <div class="my-tournament-head"><strong>${escapeHtml(stage.name)}</strong><span class="info-badge badge-type">${formatType(stage.type)}</span></div>
             <p class="my-tournament-status">${status}</p>
         </div>
-        <button class="btn btn-ghost btn-sm" data-stage="${stage.id}" onclick="openWelcomeBracket(this.dataset.stage)">${icon('bracket')}<span>Bracket</span></button>
+        <button class="btn ${playable ? 'btn-secondary' : 'btn-ghost'} btn-sm" data-stage="${stage.id}" onclick="${next ? 'openMyMatch' : 'openWelcomeBracket'}(this.dataset.stage)">${icon('bracket')}<span>${playable ? 'Zu meinem Match' : 'Bracket'}</span></button>
     </div>`;
 }
 
 function openWelcomeBracket(stageId) {
     location.hash = `#turniere/bracket/${Number(stageId)}`;
+}
+
+// "Zu meinem Match": open the bracket and, once it is drawn (viewBracket → takeMyMatchJump), go
+// straight to the own open match instead of round 1
+let myMatchJumpPending = false;
+
+function openMyMatch(stageId) {
+    myMatchJumpPending = true;
+    openWelcomeBracket(stageId);
+}
+
+function takeMyMatchJump() {
+    if (!myMatchJumpPending) return;
+    myMatchJumpPending = false;
+    scrollToMyMatch();
 }
 
 // Brackets: the own entry (participant of the same event with the own display name)
@@ -324,6 +458,10 @@ function scrollToMyMatch() {
     if (!match) return;
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     match.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center', inline: 'center' });
+    // Keyboard and screen readers land there too (.opponents carries the match name)
+    const target = match.querySelector('.opponents') ?? match;
+    if (!target.hasAttribute('tabindex')) target.tabIndex = -1;
+    target.focus({ preventScroll: true });
 }
 
 function showMySeat() {

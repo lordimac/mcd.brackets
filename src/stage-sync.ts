@@ -495,7 +495,7 @@ async function rebuildWithSettings(stage: AppStage, settings: StageSettings): Pr
 // switching it off drops only the result of the 3rd place match.
 export async function setConsolationFinal(stageId: Id, enabled: boolean): Promise<{ stage_id: Id; dropped: number }> {
   const stage = await findStage(stageId);
-  if (stage.type !== 'single_elimination') throw new HttpError(400, 'Ein Spiel um Platz 3 gibt es nur bei Single Elimination');
+  if (stage.type !== 'single_elimination') throw new HttpError(400, 'Ein Spiel um Platz 3 gibt es nur im K.-o.-System');
   if (!!stage.settings.consolationFinal === enabled) return { stage_id: stage.id, dropped: 0 };
   return rebuildWithSettings(stage, { consolationFinal: enabled });
 }
@@ -504,7 +504,7 @@ export async function setConsolationFinal(stageId: Id, enabled: boolean): Promis
 // loser bracket winner wins the first one) on or off; switching it off drops only its result.
 export async function setGrandFinalDouble(stageId: Id, enabled: boolean): Promise<{ stage_id: Id; dropped: number }> {
   const stage = await findStage(stageId);
-  if (stage.type !== 'double_elimination') throw new HttpError(400, 'Ein Grand Final mit Rückspiel gibt es nur bei Double Elimination');
+  if (stage.type !== 'double_elimination') throw new HttpError(400, 'Ein Rückspiel im großen Finale gibt es nur beim Doppel-K.-o.');
   if ((stage.settings.grandFinal === 'double') === enabled) return { stage_id: stage.id, dropped: 0 };
   return rebuildWithSettings(stage, { grandFinal: enabled ? 'double' : 'simple' });
 }

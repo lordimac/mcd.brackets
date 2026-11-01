@@ -23,6 +23,7 @@ const SLIP = {
     green: [46, 125, 56],
     violet: [106, 79, 179],
     brown: [122, 74, 38],
+    yellow: [230, 187, 30],
 };
 
 function slipFileSlug(value) {

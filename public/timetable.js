@@ -49,7 +49,8 @@ async function loadTimetable() {
 function timetableItems(data = ttData) {
     const own = data.entries.flatMap(entry => entry.days.map(day => ({ kind: 'entry', at: joinLocal(day, entry.start), day, entry })));
     const rounds = data.tournament_rounds.map(item => ({ kind: 'rounds', at: item.at, item }));
-    return [...own, ...rounds].sort((a, b) => a.at.localeCompare(b.at));
+    // At the same time a round closing comes first: it ends what was before, the entry starts anew
+    return [...own, ...rounds].sort((a, b) => a.at.localeCompare(b.at) || (a.kind === 'rounds' ? -1 : 0) - (b.kind === 'rounds' ? -1 : 0));
 }
 
 // Items grouped by local day: [{ day: Date, items }]
@@ -101,12 +102,17 @@ function renderTimetable() {
     } else {
         const now = Date.now();
         const period = eventDays(event);
+        // Running now: started and not over yet; otherwise the first one still to come is "next"
+        const all = groups.flatMap(g => g.items);
+        const running = new Set(all.filter(item => item.kind === 'entry' && Date.parse(item.at) <= now && Date.parse(ttEndOf(item)) > now));
+        const next = running.size ? null : all.find(item => Date.parse(item.kind === 'rounds' ? item.item.at : item.at) > now);
         list.innerHTML = groups.map(({ day, items }) => `
             <div class="tt-day">
                 <h3 class="tt-day-title">${escapeHtml(ttDay(day))}${period.length && !period.includes(localDay(day)) ? '<span class="tt-outside">außerhalb des Event-Zeitraums</span>' : ''}</h3>
                 ${items.map(item => {
                     const category = item.kind === 'rounds' ? TT_CATEGORIES.tournament : TT_CATEGORIES[item.entry.category] ?? TT_CATEGORIES.other;
                     const past = Date.parse(ttEndOf(item)) < now;
+                    const marker = running.has(item) ? '<span class="tt-now">läuft gerade</span>' : item === next ? '<span class="tt-now is-next">als Nächstes</span>' : '';
                     const repeat = item.kind === 'entry' && item.entry.days.length > 1
                         ? `<span class="tt-repeat" title="${escapeHtml(item.entry.days.map(formatEventDay).join(', '))}">${item.entry.days.length} Tage</span>`
                         : '';
@@ -115,10 +121,10 @@ function renderTimetable() {
                         ? item.item.rounds.map(r => `${r.stage_name}: ${r.label}`).join(' · ')
                         : item.entry.info;
                     return `
-                        <div class="tt-item ${category.className}${past ? ' is-past' : ''}">
+                        <div class="tt-item ${category.className}${past ? ' is-past' : ''}${running.has(item) ? ' is-now' : item === next ? ' is-next' : ''}">
                             <span class="tt-time">${escapeHtml(ttTimeRange(item))}</span>
                             <div class="tt-body">
-                                <span class="tt-title">${escapeHtml(title)}<span class="tt-category">${category.label}</span>${repeat}</span>
+                                <span class="tt-title">${escapeHtml(title)}<span class="tt-category">${category.label}</span>${repeat}${marker}</span>
                                 ${info ? `<span class="tt-info">${escapeHtml(info)}</span>` : ''}
                             </div>
                             ${item.kind === 'entry'

@@ -2,11 +2,11 @@
 // then the notes. Same style as the IP slips (SLIP, slipLabel, fitFontSize, logoBox, slipFileSlug
 // from ip-slips.js); days and times from timetable.js (timetableDays, ttTimeRange, ttDay).
 
-// Same categories as in the app: meals brown, programme green, tournaments orange, rest grey
+// Same categories as in the app: meals brown, programme green, tournaments yellow, rest grey
 const TT_PDF_COLORS = {
     meal: SLIP.brown,
     program: SLIP.green,
-    tournament: SLIP.accent,
+    tournament: SLIP.yellow,
     other: SLIP.faint,
 };
 const TT_PDF_BOTTOM = 276; // content ends above the footer line (282 mm)

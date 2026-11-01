@@ -2,7 +2,7 @@
 
 Ein vollständiges Turnierverwaltungssystem mit Event-basiertem Meisterschafts-Punktesystem, entwickelt mit [brackets-manager](https://www.npmjs.com/package/brackets-manager).
 
-**Version:** 0.30.0-beta
+**Version:** 0.31.0-beta
 
 ---
 
@@ -34,11 +34,11 @@ Ein vollständiges Turnierverwaltungssystem mit Event-basiertem Meisterschafts-P
 ## Features
 
 ### 🏆 Turnier-Formate
-- **Single Elimination** — K.O.-System
-- **Double Elimination** — Doppel-K.O. mit Winner & Loser Bracket
-  - Optional: Grand Final (Simple oder Double)
+- **K.-o.-System** (Single Elimination)
+- **Doppel-K.-o.** (Double Elimination) mit Gewinner- und Verliererrunde
+  - Optional: großes Finale mit Rückspiel
   - Automatische BYE-Generierung für Power-of-2
-- **Round-Robin** — Jeder gegen Jeden (Ranking nach 3/1/0 Punkten)
+- **Jeder gegen jeden** (Round Robin, Ranking nach 3/1/0 Punkten)
 
 ### 🎯 Event-Management
 - **Multi-Turnier Events** — Mehrere Turniere pro Event
@@ -280,8 +280,8 @@ Die Zugangsdaten gelten für alle Events und liegen in der Datenbank (`db.json`,
 ### Turnier erstellen (Reiter „Turniere“)
 1. Event auswählen — alle Teilnehmer des Events spielen mit
 2. Turnier-Name eingeben
-3. Typ wählen (Single/Double Elimination oder Round Robin)
-4. Optional: Grand Final mit Rückspiel (Double Elimination) bzw. Spiel um Platz 3 (Single Elimination). Beides lässt sich auch später auf der Turnierkarte ein- und ausschalten — das Bracket wird dann mit derselben Auslosung neu aufgebaut, alle Ergebnisse bleiben (beim Ausschalten nur das des Platz-3-Spiels bzw. des Rückspiels nicht)
+3. Typ wählen (K.-o.-System, Doppel-K.-o. oder Jeder gegen jeden)
+4. Optional: Grand Final mit Rückspiel (Double Elimination) bzw. Spiel um Platz 3 (Single Elimination). Beides lässt sich auch später im Menü „⋯“ der Turnierkarte hinzufügen oder entfernen (mit Bestätigung, nicht bei fertigen Turnieren) — das Bracket wird dann mit derselben Auslosung neu aufgebaut, alle Ergebnisse bleiben (beim Ausschalten nur das des Platz-3-Spiels bzw. des Rückspiels nicht)
 
 ### Bracket anzeigen & bearbeiten
 - **Gewinner auswählen**: Klick auf Match → Gewinner wählen
@@ -455,7 +455,7 @@ Die Platzierung ergibt sich nur aus der Runde, in der jemand ausscheidet (bei Do
 3 Punkte pro Sieg, 1 pro Unentschieden; Gleichstände löst brackets-manager über die Score-Differenz. Bei mehreren Gruppen kommen alle Gruppenersten vor allen Gruppenzweiten usw. Die Plätze (und damit Punkte) stehen erst fest, wenn alle Spiele gespielt sind; bis dahin ist die Reihenfolge vorläufig.
 
 ### Gesamtwertung
-Summe der Punkte aus allen Turnieren eines Events; bei Gleichstand entscheiden Siege, Siegrate und Anzahl Turniere, sind auch die gleich, teilen sich die Spieler den Platz.
+Summe der Punkte aus allen Turnieren eines Events; bei Gleichstand entscheiden Siege, Siegquote und Anzahl Turniere, sind auch die gleich, teilen sich die Spieler den Platz.
 
 ---
 

@@ -246,7 +246,7 @@ test('the match for 3rd place can be switched on and off later, results stay', a
   assert.equal((await results(off.stage_id)).length, played.length - 1);
 
   const de = await tournament(event.name, 'double_elimination');
-  await assert.rejects(setConsolationFinal(de.id, true), /Single Elimination/);
+  await assert.rejects(setConsolationFinal(de.id, true), /K\.-o\.-System/);
 });
 
 test('the second grand final match can be switched on and off later, results stay', async () => {
@@ -293,5 +293,5 @@ test('the second grand final match can be switched on and off later, results sta
   assert.deepEqual(await results(again.stage_id), decided);
 
   const se = await tournament(event.name, 'single_elimination');
-  await assert.rejects(setGrandFinalDouble(se.id, true), /Double Elimination/);
+  await assert.rejects(setGrandFinalDouble(se.id, true), /Doppel-K\.-o\./);
 });

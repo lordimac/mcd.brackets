@@ -18,7 +18,7 @@ import { findStage, resolveMemorialMatches, type AppStage } from './stages';
 export interface RoundDeadline {
   group: number;       // group number (elimination: 1 winner bracket, 2 loser bracket / 3rd place, 3 grand final)
   round: number;       // round number within the group
-  label: string;       // e.g. "Winner Bracket · Runde 2"
+  label: string;       // e.g. "Gewinnerrunde 2"
   ends_at?: string;    // ISO timestamp: deadline (normal rounds)
   starts_at?: string;  // ISO timestamp: start (matches for places 1–3)
 }
@@ -38,9 +38,9 @@ export function roundLabel(stage: AppStage, groupNumber: number, roundNumber: nu
     if (roundNumber === roundCount - 1) return 'Halbfinale';
     return `Runde ${roundNumber}`;
   }
-  if (groupNumber === 3) return roundNumber === 1 ? 'Grand Final' : 'Grand Final · Rückspiel';
-  if (groupNumber === 2 && roundNumber === roundCount) return 'Loser Bracket · Finale (Platz 3)';
-  return `${groupNumber === 1 ? 'Winner Bracket' : 'Loser Bracket'} · Runde ${roundNumber}`;
+  if (groupNumber === 3) return roundNumber === 1 ? 'Großes Finale' : 'Großes Finale · Rückspiel';
+  if (groupNumber === 2 && roundNumber === roundCount) return 'Verliererrunde · Finale (Platz 3)';
+  return `${groupNumber === 1 ? 'Gewinnerrunde' : 'Verliererrunde'} ${roundNumber}`;
 }
 
 // Matches for places 1–3 get a start time: single elimination semifinal, final and 3rd place
@@ -109,6 +109,29 @@ function parseTime(value: unknown, label: string): string | null {
   const time = typeof value === 'string' ? Date.parse(value) : NaN;
   if (!Number.isFinite(time)) throw new HttpError(400, `${label}: ungültige Uhrzeit`);
   return new Date(time).toISOString();
+}
+
+// Stored schedules keep the round label from when they were saved; when the naming changes
+// (e.g. "Winner Bracket · Runde 2" → "Gewinnerrunde 2"), bring them in line. Returns the stage names.
+export async function relabelSchedules(): Promise<string[]> {
+  const stages: AppStage[] = (await getStorage().select('stage')) ?? [];
+  const changed: string[] = [];
+  for (const stage of stages) {
+    if (!stage.schedule?.length) continue;
+    const rounds = await stageRounds(stage.id);
+    let dirty = false;
+    const schedule: RoundDeadline[] = stage.schedule.map(entry => {
+      const label = rounds.find(r => r.group === entry.group && r.round === entry.round)?.label;
+      if (!label || label === entry.label) return entry;
+      dirty = true;
+      return { ...entry, label };
+    });
+    if (!dirty) continue;
+    const updated: AppStage = { ...await findStage(stage.id), schedule };
+    await getStorage().update('stage', stage.id, updated);
+    changed.push(stage.name);
+  }
+  return changed;
 }
 
 // Input: [{ group, round, ends_at | starts_at: ISO string | null }] — ends_at for normal rounds,

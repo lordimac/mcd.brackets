@@ -7,7 +7,7 @@
 let seatRooms = [];
 let seatAttendees = [];   // attendees of the current event (with display_name)
 let currentRoomId = null;
-let seatMode = 'assign';  // 'assign' or 'layout' (admins only)
+let seatMode = 'view';    // 'view' (look things up, the default), 'assign' or 'layout' (admins only)
 let seatPick = null;      // attendee chosen in "Ohne Platz", placed by the next seat click
 let seatModalKey = null;
 let selectedGroups = new Set();
@@ -20,6 +20,8 @@ let editQueue = Promise.resolve(); // edits run one after another, each on the l
 
 const ZOOM_STEPS = [28, 34, 40, 48, 56, 64, 74, 86, 100];
 let seatUnit = 56;
+// Below this cell size a nickname is cut to a letter or two: the table shows its number instead
+const SEAT_NAME_MIN_UNIT = 48;
 let seatZoomAuto = true; // fit the room to the visible width until someone zooms by hand
 
 const TEMPLATE_PARAMS = {
@@ -219,6 +221,7 @@ function renderRoomTabs() {
     }).join('');
     document.getElementById('roomConfigToggle').style.display = currentRoom() ? '' : 'none';
     document.getElementById('duplicateRoomBtn').style.display = currentRoom() ? '' : 'none';
+    document.getElementById('clearSeatsBtn').style.display = currentRoom() && Object.keys(currentRoom().seats).length ? '' : 'none';
     document.getElementById('newRoomBtn').style.display = currentEventId != null ? '' : 'none';
 }
 
@@ -226,7 +229,7 @@ function renderSeating() {
     renderRoomTabs();
     const room = currentRoom();
     const editable = canEdit();
-    if (!editable) seatMode = 'assign';
+    if (!editable) seatMode = 'view';
 
     document.getElementById('seatExportActions').style.display = room ? '' : 'none';
     document.querySelectorAll('.seat-toolbar .segmented button').forEach(b => b.classList.toggle('active', b.dataset.mode === seatMode));
@@ -234,6 +237,7 @@ function renderSeating() {
     document.getElementById('seatLayoutTools').style.display = room && seatMode === 'layout' ? '' : 'none';
     document.getElementById('unseatedPanel').style.display = room && seatMode === 'assign' ? '' : 'none';
     document.getElementById('seatPlanCard').classList.toggle('is-layout', seatMode === 'layout');
+    document.getElementById('seatPlanCard').classList.toggle('is-view', seatMode === 'view');
 
     const canvas = document.getElementById('roomCanvas');
     if (!room) {
@@ -257,6 +261,7 @@ function renderSeating() {
         + (room.layout.duplicates.length ? ` · doppelte Nummern: ${room.layout.duplicates.join(', ')}` : '');
 
     renderCanvas(room);
+    renderSeatList(room);
     renderSeatResults();
     if (seatMode === 'assign' && editable) renderUnseated();
     if (seatMode === 'layout') renderSelectionBar();
@@ -389,11 +394,13 @@ function renderCanvas(room) {
             if (query) classes.push(match ? 'is-match' : 'is-dimmed');
             if (person && isMe(person.id)) classes.push('is-me');
             // On the table only the nickname; number, clan and name are in the tooltip.
-            // While designing the room the number is what matters.
+            // While designing the room the number is what matters. Tables too small for a
+            // readable name (phones) show their number; the list below the plan has the names.
             const content = seatMode === 'layout'
                 ? `<span class="seat-no">${escapeHtml(number)}</span>`
-                : person ? `<span class="seat-name">${escapeHtml(person.nickname)}</span>` : '';
-            return `<div class="${classes.join(' ')}" style="${pos}" data-key="${cell.key}" aria-label="${escapeHtml(seatTooltipText(room, cell.key))}">${content}</div>`;
+                : person && seatUnit < SEAT_NAME_MIN_UNIT ? `<span class="seat-label">${escapeHtml(number)}</span>`
+                : person ? `<span class="seat-name${/\s/.test(person.nickname.trim()) ? '' : ' is-one-word'}">${escapeHtml(person.nickname)}</span>` : '';
+            return `<div class="${classes.join(' ')}" style="${pos}" data-key="${cell.key}" role="img" aria-label="${escapeHtml(seatTooltipText(room, cell.key))}">${content}</div>`;
         }).join('');
         html.push(`<div class="room-group${selected}" data-group="${group.id}" style="${box}">${cells}</div>`);
     }
@@ -406,6 +413,7 @@ function renderCanvas(room) {
     if (room.groups.length === 0) {
         html.push(`<p class="canvas-empty">${canEdit() ? 'Leerer Raum — unter „Raum gestalten“ Tischreihen, U-Formen, Flächen oder Türen hinzufügen.' : 'Für diesen Raum gibt es noch keinen Plan.'}</p>`);
     }
+    document.getElementById('legendMe').hidden = !Object.values(room.seats).some(id => isMe(id));
     canvas.innerHTML = `<div class="room-floor" id="roomFloor" style="left:${m.left * seatUnit}px;top:${m.top * seatUnit}px;width:${room.width * seatUnit}px;height:${room.height * seatUnit}px">${html.join('')}</div>${renderDoors(room)}`;
 }
 
@@ -442,6 +450,28 @@ function showSeatTooltip(target) {
 
 function hideSeatTooltip() {
     document.getElementById('seatTooltip').hidden = true;
+}
+
+// The whole room as a list (seat number and full name): on a phone the names on the tables are
+// cut short, and screen readers cannot read the plan. A tap jumps to the table.
+function renderSeatList(room) {
+    const box = document.getElementById('seatListBox');
+    box.hidden = seatMode === 'layout' || room.layout.seats.length === 0;
+    if (box.hidden) return;
+    // Open from the start on a phone, closed on larger screens; afterwards it stays as the user left it
+    if (!box.dataset.init) {
+        box.dataset.init = '1';
+        box.open = window.matchMedia('(max-width: 640px)').matches;
+    }
+    const people = attendeeMap();
+    document.getElementById('seatList').innerHTML = room.layout.seats.map(seat => {
+        const person = people.get(room.seats[seat.key]);
+        return `<li><button type="button" class="seat-list-item${person ? '' : ' is-free'}${person && isMe(person.id) ? ' is-me' : ''}" data-room="${room.id}" data-key="${seat.key}" onclick="jumpToSeat(this.dataset.room, this.dataset.key)">
+            <span class="seat-list-no">${escapeHtml(seat.label)}</span>
+            <span class="seat-list-name">${person ? escapeHtml(person.display_name) : 'frei'}</span>
+            ${person && fullName(person) ? `<span class="muted">${escapeHtml(fullName(person))}</span>` : ''}
+        </button></li>`;
+    }).join('');
 }
 
 // Search results across all rooms; a click jumps to the seat
@@ -876,7 +906,8 @@ function onCanvasPointerDown(e) {
     const room = currentRoom();
     hideSeatTooltip();
     if (!room || e.button > 0) return;
-    if (!canEdit()) {
+    // Looking up (everyone; admins until they switch to "Plätze vergeben"): a tap only shows who sits there
+    if (!canEdit() || seatMode === 'view') {
         const target = e.target.closest('.cell-seat, .chair');
         if (target) showSeatTooltip(target);
         return;

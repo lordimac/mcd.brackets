@@ -14,7 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('rangeInputs').addEventListener('input', updateCapacityHint);
     document.getElementById('bulkImportText').addEventListener('input', resetBulkPreview);
     document.querySelectorAll('#attendeeHead th.sortable').forEach(th => {
-        th.addEventListener('click', () => sortAttendeesBy(th.dataset.sort));
+        th.querySelector('.sort-btn').addEventListener('click', () => sortAttendeesBy(th.dataset.sort));
     });
     for (const id of ['editClan', 'editNickname']) {
         document.getElementById(id).addEventListener('input', updateEditDisplayPreview);
@@ -196,7 +196,8 @@ async function createLanEvent(e) {
 async function deleteLanEvent() {
     const event = currentEvent();
     if (!event) return;
-    if (!(await confirmDialog(`Event „${event.name}“ mit allen ${event.attendee_count} Teilnehmern löschen?`, { title: 'Event löschen?' }))) return;
+    const message = `„${event.name}“ wird mit allem gelöscht, was daran hängt: ${event.attendee_count} Teilnehmer, alle Sitzpläne, der Zeitplan und alle Burger-Bestellungen. Das lässt sich nicht rückgängig machen, außer über ein Backup.`;
+    if (!(await confirmDialog(message, { title: 'Event löschen?', confirmLabel: 'Event löschen', typeToConfirm: event.name }))) return;
     try {
         await apiFetch(`/events/${event.id}`, { method: 'DELETE' });
         currentEventId = null;
@@ -300,14 +301,25 @@ function compareAttendees(a, b) {
     return (x.localeCompare(y, 'de', { sensitivity: 'base', numeric: true }) || a.slot - b.slot) * (x ? dir : 1);
 }
 
+// Phone: show or hide the add form (it is always visible on wider screens)
+function toggleAddAttendee(button) {
+    const open = button.getAttribute('aria-expanded') !== 'true';
+    button.setAttribute('aria-expanded', String(open));
+    document.getElementById('addAttendeeForm').classList.toggle('is-open', open);
+    if (open) document.getElementById('newNickname').focus();
+}
+
 function renderAttendees() {
     const event = currentEvent();
     const tbody = document.getElementById('attendeeRows');
     const summary = document.getElementById('attendeeSummary');
 
     document.querySelectorAll('#attendeeHead th.sortable').forEach(th => {
-        th.classList.toggle('sort-asc', th.dataset.sort === attendeeSort.key && attendeeSort.dir === 1);
-        th.classList.toggle('sort-desc', th.dataset.sort === attendeeSort.key && attendeeSort.dir === -1);
+        const active = th.dataset.sort === attendeeSort.key;
+        th.classList.toggle('sort-asc', active && attendeeSort.dir === 1);
+        th.classList.toggle('sort-desc', active && attendeeSort.dir === -1);
+        if (active) th.setAttribute('aria-sort', attendeeSort.dir === 1 ? 'ascending' : 'descending');
+        else th.removeAttribute('aria-sort');
     });
 
     if (!event) {
@@ -340,7 +352,7 @@ function renderAttendees() {
             <td class="col-name">${cell(a.first_name)}</td>
             <td class="col-name">${cell(a.last_name)}</td>
             <td class="col-clan">${clanTag(a.clan)}</td>
-            <td class="col-nick">${escapeHtml(a.nickname)}${a.admin ? '<span class="admin-badge" title="Über die IP-Adresse als Admin angemeldet">Admin</span>' : ''}</td>
+            <td class="col-nick">${escapeHtml(a.nickname)}${isMe(a.id) ? '<span class="me-tag">du</span>' : ''}${a.admin ? '<span class="admin-badge" title="Über die IP-Adresse als Admin angemeldet">Admin</span>' : ''}</td>
             ${a.ips.map((ip, i) => `
                 <td class="col-ip">
                     <span class="ip">${ip}</span>

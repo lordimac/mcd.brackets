@@ -9,6 +9,8 @@ import { findStage, memorialParticipantIds, resolveMemorialMatches, type AppStag
 // ones first, and have to be entered again. Matches that don't depend on it keep their results.
 
 // Status values from brackets-model (only a type dependency at runtime)
+const STATUS_LOCKED = 0;
+const STATUS_WAITING = 1;
 const STATUS_RUNNING = 3;
 
 // A match with a result (or a running score) between two known opponents. BYE matches are
@@ -108,7 +110,35 @@ export async function updateMatchResult(matchId: Id, input: ResultInput): Promis
   return getStorage().select('match', matchId);
 }
 
-// Readable position of a match, e.g. "Winner Bracket · Runde 2 · Match 1"
+// Undo of a result just entered ("Rückgängig" after a click in the bracket): the match is open
+// again. Only as long as nothing builds on it; otherwise the correction flow is the way (409).
+export async function clearMatchResult(matchId: Id): Promise<Match | null> {
+  const match = await getStorage().select('match', matchId);
+  if (!match) throw new HttpError(404, 'Match nicht gefunden');
+  const stage = await findStage(match.stage_id);
+
+  const memorial = await memorialParticipantIds(stage);
+  if ([match.opponent1?.id, match.opponent2?.id].some(id => id != null && memorial.has(id))) {
+    throw new HttpError(400, 'Matches mit einem Gedenk-Eintrag werden automatisch entschieden');
+  }
+  if (match.status < STATUS_RUNNING) return match; // no result: nothing to undo
+  if ((await followingResults(matchId)).length > 0) {
+    throw new HttpError(409, 'Inzwischen gibt es Folgeergebnisse — bitte über „Ergebnis korrigieren“ ändern');
+  }
+  await getManager().reset.matchResults(matchId);
+  await clearDrawn(matchId);
+  // brackets-manager locks the next match again, even if its other opponent came in by a BYE
+  // and it was waiting before the result
+  for (const next of await getManager().find.nextMatches(matchId)) {
+    const known = [next.opponent1?.id, next.opponent2?.id].filter(id => id != null).length;
+    if (next.status === STATUS_LOCKED && known === 1) {
+      await getStorage().update('match', next.id, { ...next, status: STATUS_WAITING } as Match);
+    }
+  }
+  return getStorage().select('match', matchId);
+}
+
+// Readable position of a match, e.g. "Gewinnerrunde 2 · Match 1"
 export async function matchLabel(stage: AppStage, match: Match): Promise<string> {
   const group = await getStorage().select('group', match.group_id) as Group | null;
   const round = await getStorage().select('round', match.round_id) as Round | null;
@@ -122,9 +152,9 @@ export async function matchLabel(stage: AppStage, match: Match): Promise<string>
     if (roundNumber === rounds - 1) return `Halbfinale · Match ${match.number}`;
     return `Runde ${roundNumber} · Match ${match.number}`;
   }
-  if (groupNumber === 3) return roundNumber === 1 ? 'Grand Final' : 'Grand Final · Rückspiel';
-  const bracket = groupNumber === 1 ? 'Winner Bracket' : 'Loser Bracket';
-  return `${bracket} · Runde ${roundNumber} · Match ${match.number}`;
+  if (groupNumber === 3) return roundNumber === 1 ? 'Großes Finale' : 'Großes Finale · Rückspiel';
+  const bracket = groupNumber === 1 ? 'Gewinnerrunde' : 'Verliererrunde';
+  return `${bracket} ${roundNumber} · Match ${match.number}`;
 }
 
 export async function describeFollowing(matchId: Id): Promise<{ label: string; following: FollowingResult[] }> {

@@ -11,7 +11,7 @@ process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'mcd-brackets-sched
 const { ensureAppTables, getStorage }: typeof import('./db') = require('./db');
 const store: typeof import('./lan-store') = require('./lan-store');
 const { createStage, deleteStage, findStage }: typeof import('./stages') = require('./stages');
-const { decideOverdueMatches, findOverdueMatch, eventSchedule, saveEventSchedule, saveSchedule, stageRounds }: typeof import('./schedule') = require('./schedule');
+const { decideOverdueMatches, findOverdueMatch, eventSchedule, relabelSchedules, saveEventSchedule, saveSchedule, stageRounds }: typeof import('./schedule') = require('./schedule');
 const { updateMatchResult }: typeof import('./results') = require('./results');
 const { syncEventStages }: typeof import('./stage-sync') = require('./stage-sync');
 const { HttpError }: typeof import('./http-error') = require('./http-error');
@@ -38,9 +38,9 @@ const inRound = async (stageId: Id, label: string) => {
 test('round labels in bracket order; the matches for places 1–3 get a start time', async () => {
   const de = await stage('double_elimination', 4);
   assert.deepEqual((await stageRounds(de.id)).map(r => `${r.label}/${r.kind}`), [
-    'Winner Bracket · Runde 1/deadline', 'Winner Bracket · Runde 2/deadline',
-    'Loser Bracket · Runde 1/none', 'Loser Bracket · Finale (Platz 3)/start',
-    'Grand Final/start',
+    'Gewinnerrunde 1/deadline', 'Gewinnerrunde 2/deadline',
+    'Verliererrunde 1/none', 'Verliererrunde · Finale (Platz 3)/start',
+    'Großes Finale/start',
   ]);
   const se = await stage('single_elimination', 8);
   assert.deepEqual((await stageRounds(se.id)).map(r => `${r.label}/${r.kind}`), ['Runde 1/deadline', 'Halbfinale/start', 'Finale/start']);
@@ -141,9 +141,9 @@ test('deadlines survive a rebuild; after the deadline of round 1 nobody joins an
 test('play slots: loser bracket one slot behind, grand final after it, 3rd place with the final', async () => {
   const de = await stage('double_elimination', 8);
   assert.deepEqual((await stageRounds(de.id)).map(r => `${r.label}=${r.slot}`), [
-    'Winner Bracket · Runde 1=1', 'Winner Bracket · Runde 2=2', 'Winner Bracket · Runde 3=3',
-    'Loser Bracket · Runde 1=2', 'Loser Bracket · Runde 2=3', 'Loser Bracket · Runde 3=4', 'Loser Bracket · Finale (Platz 3)=5',
-    'Grand Final=6',
+    'Gewinnerrunde 1=1', 'Gewinnerrunde 2=2', 'Gewinnerrunde 3=3',
+    'Verliererrunde 1=2', 'Verliererrunde 2=3', 'Verliererrunde 3=4', 'Verliererrunde · Finale (Platz 3)=5',
+    'Großes Finale=6',
   ]);
   const se = await createStage({ tournamentId: tournamentId++, name: 'se', type: 'single_elimination', settings: { consolationFinal: true }, names: ['A', 'B', 'C', 'D'] });
   assert.deepEqual((await stageRounds(se.id)).map(r => `${r.label}=${r.slot}/${r.kind}`), ['Halbfinale=1/start', 'Finale=2/start', 'Spiel um Platz 3=2/start']);
@@ -161,13 +161,13 @@ test('one schedule for all tournaments of an event: deadlines by play slot, star
   assert.equal(decided, 0);
   assert.deepEqual(slots.map(s => s.slot), [1, 2], 'only normal rounds have play slots');
   assert.deepEqual(slots[1].rounds.map(r => `${r.stage_name}: ${r.label}`), [
-    'double_elimination: Winner Bracket · Runde 2',
+    'double_elimination: Gewinnerrunde 2',
   ], 'the loser bracket has no times');
   assert.deepEqual(finals.map(f => `${f.stage_name}: ${f.label}=${f.starts_at}`), [
     'single_elimination: Halbfinale=null',
     `single_elimination: Finale=${at(5)}`,
-    'double_elimination: Loser Bracket · Finale (Platz 3)=null',
-    `double_elimination: Grand Final=${at(6)}`,
+    'double_elimination: Verliererrunde · Finale (Platz 3)=null',
+    `double_elimination: Großes Finale=${at(6)}`,
   ]);
   assert.deepEqual((await stageRounds(se.id)).map(r => r.ends_at ?? r.starts_at), [at(1), null, at(5)]);
   assert.deepEqual((await stageRounds(de.id)).map(r => r.ends_at ?? r.starts_at), [at(1), at(2), null, null, at(6)]);
@@ -189,12 +189,23 @@ test('loser bracket and round robin rounds never get a time, also not from old d
   const de = await stage('double_elimination', 8);
   const rr = await stage('round_robin', 4);
   await saveSchedule(de.id, [{ group: 2, round: 1, ends_at: past }]);
-  assert.equal((await stageRounds(de.id)).find(r => r.label === 'Loser Bracket · Runde 1')!.ends_at, null);
+  assert.equal((await stageRounds(de.id)).find(r => r.label === 'Verliererrunde 1')!.ends_at, null);
   // Stored by an older version: ignored, never by lot
   const stored = await findStage(rr.id);
   await getStorage().update('stage', rr.id, { ...stored, schedule: [{ group: 1, round: 1, label: 'Runde 1', ends_at: past }] } as typeof stored);
   assert.ok((await stageRounds(rr.id)).every(r => r.ends_at === null));
   assert.equal(await decideOverdueMatches(rr.id, NOW), 0);
+});
+
+test('stored round labels from an older naming are renamed at startup', async () => {
+  const de = await stage('double_elimination', 8);
+  await saveSchedule(de.id, [{ group: 1, round: 2, ends_at: future }]);
+  const stored = await findStage(de.id);
+  await getStorage().update('stage', de.id, { ...stored, schedule: [{ group: 1, round: 2, label: 'Winner Bracket · Runde 2', ends_at: future }] } as typeof stored);
+  assert.ok((await relabelSchedules()).includes(stored.name));
+  assert.equal((await findStage(de.id)).schedule?.[0].label, 'Gewinnerrunde 2');
+  assert.equal((await findStage(de.id)).schedule?.[0].ends_at, future);
+  assert.ok(!(await relabelSchedules()).includes(stored.name));
 });
 
 test('a stage that no longer exists (rebuilt or deleted) is skipped without an error', async () => {

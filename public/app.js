@@ -86,13 +86,76 @@ async function logout() {
     if (document.body.dataset.view === 'burger') showBurgerView();
 }
 
+/* Dialogs: role and name for screen readers, focus moves in (first field, else the first button
+   after the close cross), Tab stays inside, Esc closes (via the dialog's own close button, which may
+   reset state), focus returns to where it was. Callers may focus a specific field after opening. */
+const modalReturnFocus = new Map();
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])';
+
+function focusableIn(container) {
+    return [...container.querySelectorAll(FOCUSABLE)].filter(el => el.offsetParent !== null || el === document.activeElement);
+}
+
 function openModal(id) {
-    document.getElementById(id).classList.add('show');
+    const modal = document.getElementById(id);
+    if (!modal.classList.contains('show')) modalReturnFocus.set(id, document.activeElement);
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    const title = modal.querySelector('h2');
+    if (title && !modal.hasAttribute('aria-labelledby')) {
+        title.id ||= `${id}Title`;
+        modal.setAttribute('aria-labelledby', title.id);
+    }
+    modal.classList.add('show');
+    const items = focusableIn(modal);
+    (items.find(el => el.matches('input, select, textarea')) ?? items.find(el => !el.classList.contains('close')) ?? items[0])?.focus();
 }
 
 function closeModal(id) {
-    document.getElementById(id).classList.remove('show');
+    const modal = document.getElementById(id);
+    if (!modal.classList.contains('show')) return;
+    modal.classList.remove('show');
+    const back = modalReturnFocus.get(id);
+    modalReturnFocus.delete(id);
+    if (back?.isConnected && !document.querySelector('.modal.show')) back.focus();
 }
+
+// The dialog on top (the last open one in the page)
+function topModal() {
+    const open = document.querySelectorAll('.modal.show');
+    return open[open.length - 1] ?? null;
+}
+
+// Closes like a click on its cross, so dialogs with their own close function (winner) reset their state
+function dismissModal(modal) {
+    if (modal.id === 'confirmModal') {
+        answerConfirm(false);
+        return;
+    }
+    const close = modal.querySelector(':scope > .modal-content > .close');
+    if (close) close.click();
+    else closeModal(modal.id);
+}
+
+document.addEventListener('keydown', event => {
+    if (event.key !== 'Tab') return;
+    const modal = topModal();
+    if (!modal) return;
+    const items = focusableIn(modal);
+    if (!items.length) return;
+    const first = items[0];
+    const last = items[items.length - 1];
+    if (!modal.contains(document.activeElement)) {
+        event.preventDefault();
+        first.focus();
+    } else if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+    }
+});
 
 /* Action menu: rarely used and destructive actions with a label instead of loose icons.
    items: [{ icon, label, onclick, danger, adminOnly }], onclick is inline JS (numbers only). */
@@ -117,7 +180,14 @@ function placeActionMenu(menu) {
     const bottomEdge = footer && getComputedStyle(footer).position === 'fixed'
         ? window.innerHeight - footer.offsetHeight
         : window.innerHeight;
-    list.style.right = `${Math.max(8, window.innerWidth - anchor.right)}px`;
+    // Right-aligned to the button, unless that would push it out on the left (button at the left edge)
+    if (anchor.right - list.offsetWidth < 8) {
+        list.style.right = '';
+        list.style.left = `${Math.max(8, anchor.left)}px`;
+    } else {
+        list.style.left = '';
+        list.style.right = `${Math.max(8, window.innerWidth - anchor.right)}px`;
+    }
     const below = bottomEdge - anchor.bottom;
     if (below < list.offsetHeight + 12 && anchor.top > below) {
         list.style.top = '';
@@ -142,6 +212,19 @@ document.addEventListener('click', event => {
         if (!menu.contains(event.target)) menu.open = false;
     }
 });
+// "/" jumps to the search of the current view (attendees, seating), like in many web apps
+const VIEW_SEARCH = { attendees: 'attendeeSearch', seating: 'seatSearch' };
+document.addEventListener('keydown', event => {
+    if (event.key !== '/' || event.ctrlKey || event.metaKey || event.altKey) return;
+    const target = event.target;
+    if (target.closest('input, textarea, select, [contenteditable="true"]') || document.querySelector('.modal.show')) return;
+    const search = document.getElementById(VIEW_SEARCH[document.body.dataset.view]);
+    if (!search || !search.offsetParent) return;
+    event.preventDefault();
+    search.focus();
+    search.select();
+});
+
 document.addEventListener('keydown', event => {
     if (event.key !== 'Escape') return;
     if (confirmResolve) {
@@ -149,24 +232,38 @@ document.addEventListener('keydown', event => {
         return;
     }
     const menu = document.querySelector('details.action-menu[open]');
-    if (!menu) return;
-    menu.open = false;
-    menu.querySelector('summary').focus();
+    if (menu) {
+        menu.open = false;
+        menu.querySelector('summary').focus();
+        return;
+    }
+    const modal = topModal();
+    if (modal) {
+        event.preventDefault();
+        dismissModal(modal);
+    }
 });
 
 /* Confirmation dialog instead of the browser's confirm dialog: names the consequence, the safe
    choice has the focus. Resolves to true when confirmed. */
 let confirmResolve = null;
 
-function confirmDialog(message, { title = 'Bist du sicher?', confirmLabel = 'Löschen', danger = true } = {}) {
+// typeToConfirm: the action only unlocks after typing this text (deleting a whole event)
+function confirmDialog(message, { title = 'Bist du sicher?', confirmLabel = 'Löschen', danger = true, typeToConfirm = '' } = {}) {
     if (confirmResolve) confirmResolve(false);
     document.getElementById('confirmTitle').textContent = title;
     document.getElementById('confirmMessage').textContent = message;
     const ok = document.getElementById('confirmOk');
     ok.textContent = confirmLabel;
     ok.className = `btn ${danger ? 'btn-danger-solid' : 'btn-primary'}`;
+    const typed = document.getElementById('confirmTyped');
+    document.getElementById('confirmTypeGroup').hidden = !typeToConfirm;
+    document.getElementById('confirmTypeTarget').textContent = typeToConfirm;
+    typed.value = '';
+    typed.oninput = () => { ok.disabled = typed.value.trim() !== typeToConfirm; };
+    ok.disabled = Boolean(typeToConfirm);
     openModal('confirmModal');
-    document.getElementById('confirmCancel').focus();
+    (typeToConfirm ? typed : document.getElementById('confirmCancel')).focus();
     return new Promise(resolve => { confirmResolve = resolve; });
 }
 
@@ -177,10 +274,19 @@ function answerConfirm(value) {
     resolve?.(value);
 }
 
+// Tells screen readers what changed (network check result, bracket update), without a visible note
+function announce(text) {
+    const status = document.getElementById('srStatus');
+    if (!status) return;
+    status.textContent = '';
+    setTimeout(() => { status.textContent = text; }, 50);
+}
+
 /* Messages instead of the browser's alert dialog: a note at the bottom of the screen, announced to screen readers.
    Errors stay until closed and can offer "Erneut versuchen"; others disappear after a while.
-   A leading emoji from older messages (❌ ✅ ⚠️) only decides the kind and is dropped. */
-function notify(message, { retry } = {}) {
+   A leading emoji from older messages (❌ ✅ ⚠️) only decides the kind and is dropped.
+   action: { label, run } adds a button (e.g. "Rückgängig"); such notes stay a little longer. */
+function notify(message, { retry, action } = {}) {
     let text = String(message);
     let kind = 'info';
     const marks = [['❌', 'error'], ['✅', 'success'], ['⚠️', 'warning']];
@@ -207,6 +313,14 @@ function notify(message, { retry } = {}) {
         again.onclick = () => { toast.remove(); retry(); };
         actions.append(again);
     }
+    if (action) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'btn btn-secondary btn-sm';
+        button.textContent = action.label;
+        button.onclick = () => { toast.remove(); action.run(); };
+        actions.append(button);
+    }
     const close = document.createElement('button');
     close.type = 'button';
     close.className = 'btn btn-ghost btn-icon';
@@ -215,7 +329,7 @@ function notify(message, { retry } = {}) {
     close.onclick = () => toast.remove();
     actions.append(close);
     stack.append(toast);
-    if (kind !== 'error') setTimeout(() => toast.remove(), 6000);
+    if (kind !== 'error') setTimeout(() => toast.remove(), action ? 10000 : 6000);
 }
 
 // State
@@ -290,8 +404,15 @@ function showView() {
     document.getElementById('view-seating').style.display = view === 'seating' ? '' : 'none';
     document.getElementById('view-timetable').style.display = view === 'timetable' ? '' : 'none';
     document.getElementById('view-burger').style.display = view === 'burger' ? '' : 'none';
+    // Another area starts at its top; staying within one (detail pages, reload) keeps the position
+    if (document.body.dataset.view && document.body.dataset.view !== view) window.scrollTo(0, 0);
     document.body.dataset.view = view;
-    document.querySelectorAll('.tab').forEach(tab => tab.classList.toggle('active', tab.dataset.view === view));
+    document.querySelectorAll('.tab').forEach(tab => {
+        tab.classList.toggle('active', tab.dataset.view === view);
+        if (tab.dataset.view === view) tab.setAttribute('aria-current', 'page');
+        else tab.removeAttribute('aria-current');
+    });
+    setAttendeeConfig(view === 'attendees' && detailKind === 'konfiguration');
     if (view === 'attendees' && typeof showAttendeeView === 'function') showAttendeeView();
     if (view === 'seating' && typeof showSeatingView === 'function') showSeatingView();
     if (view === 'timetable' && typeof showTimetableView === 'function') showTimetableView();
@@ -353,6 +474,62 @@ function leaveTournamentDetail() {
     else closeTournamentDetail();
 }
 
+/* Attendee configuration as its own page (#teilnehmer/konfiguration): the event settings replace the
+   list instead of pushing it screens down; back and reload work like the tournament pages */
+function setAttendeeConfig(open) {
+    open = open && isAdmin;
+    const wasOpen = document.body.classList.contains('attendee-config');
+    document.body.classList.toggle('attendee-config', open);
+    document.getElementById('eventConfigSection').style.display = open ? 'block' : 'none';
+    if (open !== wasOpen) window.scrollTo(0, 0);
+}
+
+function openAttendeeConfig() {
+    location.hash = '#teilnehmer/konfiguration';
+}
+
+function leaveAttendeeConfig() {
+    location.hash = '#teilnehmer';
+}
+
+// Skip link: the hash stays the view, so focus the content instead of following the link
+function focusContent() {
+    const view = [...document.querySelectorAll('main.view')].find(v => v.style.display !== 'none');
+    const target = view?.querySelector('h1, h2') ?? document.getElementById('content');
+    if (!target.hasAttribute('tabindex')) target.setAttribute('tabindex', '-1');
+    target.focus();
+}
+
+/* Phones: the topbar gives the screen to the content while scrolling down and comes back as
+   soon as the page moves up, so the tabs are always one small swipe away */
+document.addEventListener('DOMContentLoaded', () => {
+    const topbar = document.querySelector('.topbar');
+    const phone = window.matchMedia('(max-width: 640px)');
+    let lastY = window.scrollY;
+    let ticking = false;
+    const update = () => {
+        ticking = false;
+        const y = window.scrollY;
+        const hide = phone.matches && y > topbar.offsetHeight && y > lastY
+            && !topbar.contains(document.activeElement);
+        if (Math.abs(y - lastY) > 4 || y <= 0) {
+            topbar.classList.toggle('is-tucked', hide);
+            lastY = y;
+        }
+    };
+    window.addEventListener('scroll', () => {
+        if (!ticking) requestAnimationFrame(update);
+        ticking = true;
+    }, { passive: true });
+    phone.addEventListener('change', () => topbar.classList.remove('is-tucked'));
+    // Sticky bars below it (burger) start under the visible topbar; set once right away, the
+    // observer follows when the tabs wrap
+    const setHeight = () => document.documentElement.style.setProperty('--topbar-height', `${topbar.offsetHeight}px`);
+    setHeight();
+    document.fonts?.ready.then(setHeight); // the fonts make the tabs a little taller
+    if (typeof ResizeObserver !== 'undefined') new ResizeObserver(setHeight).observe(topbar);
+});
+
 /* Footer: short statistics and the hint on a newer version (GET /api/info) */
 
 let footerTimer = null;
@@ -412,6 +589,8 @@ async function loadEvents() {
         console.error('Error loading events:', error);
         lanEvents = [];
     }
+    // With one event there is nothing to choose: the event pickers step aside (styles.css)
+    document.body.classList.toggle('single-event', lanEvents.length <= 1);
     updateEventDropdown();
     updateBrandLogo();
 }
@@ -421,18 +600,20 @@ function updateBrandLogo() {
     if (typeof ensureCurrentEvent === 'function') ensureCurrentEvent();
     const event = typeof currentEvent === 'function' ? currentEvent() : null;
     const mark = document.querySelector('.brand-mark');
-    const img = mark.querySelector('img');
     mark.classList.toggle('has-logo', Boolean(event?.logo));
+    // The image only exists while there is a logo (an <img> without src is a broken image)
+    let img = mark.querySelector('img');
     if (event?.logo) {
+        img ??= mark.appendChild(document.createElement('img'));
         img.src = event.logo;
         img.alt = event.name;
     } else {
-        img.removeAttribute('src');
+        img?.remove();
     }
 }
 
 // Collapsible cards; the open/closed state is remembered per browser
-const COLLAPSIBLE_SECTIONS = ['createTournamentSection', 'pointsSection', 'eventConfigSection', 'roomConfigSection'];
+const COLLAPSIBLE_SECTIONS = ['createTournamentSection', 'pointsSection', 'roomConfigSection'];
 
 function toggleSection(sectionId, open) {
     const section = document.getElementById(sectionId);
@@ -444,8 +625,14 @@ function toggleSection(sectionId, open) {
     try { localStorage.setItem(`mcd.open.${sectionId}`, shouldOpen ? '1' : '0'); } catch { /* storage unavailable */ }
 }
 
+// Settings blocks that stay closed on a phone after a reload: open, they push the list several
+// screens down, and on a phone one mostly looks things up
+const MOBILE_CLOSED_SECTIONS = ['roomConfigSection'];
+
 function restoreSections() {
+    const phone = window.matchMedia('(max-width: 640px)').matches;
     for (const id of COLLAPSIBLE_SECTIONS) {
+        if (phone && MOBILE_CLOSED_SECTIONS.includes(id)) continue;
         let stored = null;
         try { stored = localStorage.getItem(`mcd.open.${id}`); } catch { /* storage unavailable */ }
         if (stored === '1') toggleSection(id, true);
@@ -527,6 +714,7 @@ async function loadMatches() {
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         matches = await response.json();
         displayMatches();
+        displayStages(); // progress on the tournament cards
         refreshFooter();
     } catch (error) {
         console.error('Error loading matches:', error);
@@ -562,39 +750,36 @@ function displayStages() {
         return;
     }
 
+    // The event line only helps when tournaments of several events are listed
+    const severalEvents = new Set(filteredStages.map(s => s.event_name)).size > 1;
+    // With own matches in several tournaments only the most urgent one (earliest time of the own
+    // match, like compareNextMatches on the welcome page) gets the orange main button; the others keep
+    // the orange frame, so one loud thing stays one
+    const urgent = filteredStages.filter(hasMyOpenMatch)
+        .sort((a, b) => myMatchTime(a) - myMatchTime(b) || Number(a.tournament_id) - Number(b.tournament_id))[0];
     container.innerHTML = filteredStages.map(stage => {
         const participantCount = participants.filter(p => p.tournament_id === stage.tournament_id && p.name).length;
+        const progress = stageProgress(stage);
+        const mine = hasMyOpenMatch(stage);
         return `
-        <div class="stage-item type-${escapeHtml(stage.type)}">
+        <div class="stage-item type-${escapeHtml(stage.type)}${mine ? ' is-mine' : ''}">
             <div class="stage-head">
                 <div>
                     <h3>${escapeHtml(stage.name)}</h3>
-                    ${stage.event_name ? `<p class="event-name">${icon('flag')}${escapeHtml(stage.event_name)}</p>` : ''}
+                    ${stage.event_name && severalEvents ? `<p class="event-name">${icon('flag')}${escapeHtml(stage.event_name)}</p>` : ''}
                 </div>
             </div>
+            <p class="stage-status is-${progress.state}">${progress.html}</p>
+            ${progress.state === 'done' ? `<p class="stage-champion" data-stage="${stage.id}" hidden></p>` : ''}
             <div class="stage-info">
                 <span class="info-badge badge-type">${formatType(stage.type)}</span>
-                <span class="info-badge badge-id">${icon('users')}${participantCount}</span>
-                <span class="info-badge badge-id">#${stage.tournament_id}</span>
+                <span class="info-badge badge-id" title="Spieler">${icon('users')}${participantCount}</span>
             </div>
-            ${stage.type === 'single_elimination' ? `
-                <label class="toggle toggle-sm admin-only stage-option">
-                    <input type="checkbox" ${stage.settings?.consolationFinal ? 'checked' : ''} onchange="setConsolationFinal(${stage.id}, this.checked, this)">
-                    <span>Spiel um Platz 3</span>
-                </label>
-                ${stage.settings?.consolationFinal ? '<p class="stage-option-info read-only-only">mit Spiel um Platz 3</p>' : ''}
-            ` : ''}
-            ${stage.type === 'double_elimination' ? `
-                <label class="toggle toggle-sm admin-only stage-option">
-                    <input type="checkbox" ${stage.settings?.grandFinal === 'double' ? 'checked' : ''} onchange="setGrandFinalDouble(${stage.id}, this.checked, this)">
-                    <span>Grand Final mit Rückspiel</span>
-                </label>
-                ${stage.settings?.grandFinal === 'double' ? '<p class="stage-option-info read-only-only">Grand Final mit Rückspiel</p>' : ''}
-            ` : ''}
-            ${nextDeadlineHtml(stage)}
+            ${stageOptionHtml(stage)}
+            ${progress.state === 'done' ? '' : nextDeadlineHtml(stage)}
             <div class="stage-actions">
-                <button class="btn btn-primary btn-sm" onclick="viewBracket(${stage.id})">
-                    ${icon('bracket')}<span>Bracket</span>
+                <button class="btn ${stage === urgent ? 'btn-primary' : 'btn-secondary'} btn-sm" onclick="${mine ? 'openMyMatch' : 'viewBracket'}(${stage.id})">
+                    ${icon('bracket')}<span>${mine ? 'Zu meinem Match' : 'Bracket'}</span>
                 </button>
                 <button class="btn btn-secondary btn-sm" onclick="viewRankings(${stage.id})">
                     ${icon('chart')}<span>Rangliste</span>
@@ -603,6 +788,7 @@ function displayStages() {
                 ${actionMenu([
                     { icon: 'list', label: 'Matches anzeigen', onclick: `viewStageMatches(${stage.id})` },
                     stage.type !== 'round_robin' && { icon: 'clock', label: 'Spielzeiten', onclick: `openScheduleModal(${stage.id})`, adminOnly: true },
+                    progress.state !== 'done' && stageOptionMenuItem(stage),
                     { icon: 'shuffle', label: 'Neu auslosen', onclick: `resetBracket(${stage.id})`, adminOnly: true },
                     { icon: 'trash', label: 'Turnier löschen', onclick: `deleteStage(${stage.id})`, adminOnly: true, danger: true },
                 ], `Weitere Aktionen für ${escapeHtml(stage.name)}`)}
@@ -610,6 +796,96 @@ function displayStages() {
         </div>
     `;
     }).join('');
+    fillStageChampions();
+}
+
+// Finished tournaments name their winner on tape (standings per tournament, cached until the
+// number of played matches changes, e.g. after a correction)
+const championCache = new Map(); // stageId → { played, names }
+
+async function fillStageChampions() {
+    for (const slot of document.querySelectorAll('.stage-champion[data-stage]')) {
+        const stageId = Number(slot.dataset.stage);
+        const played = matches.filter(m => m.stage_id === stageId && m.status >= 4).length;
+        let cached = championCache.get(stageId);
+        if (!cached || cached.played !== played) {
+            try {
+                const standings = await fetchStandings(stageId);
+                cached = { played, names: standings.filter(s => s.placement === 1).map(s => s.participant_name) };
+                championCache.set(stageId, cached);
+            } catch {
+                continue; // the card works without it
+            }
+        }
+        if (!cached.names.length || !slot.isConnected) continue;
+        slot.innerHTML = `<span class="stage-champion-label">${icon('trophy')}Sieger</span><span class="tape-wrap"><span class="tape tape-yellow">${cached.names.map(escapeHtml).join(' & ')}</span></span>`;
+        slot.hidden = false;
+    }
+}
+
+// Match for 3rd place (SE) and grand final with a second match (DE): shown as plain info on the
+// card; switching it rebuilds the bracket, so it lives in the action menu, not as a toggle
+const STAGE_OPTIONS = {
+    single_elimination: { setting: 'consolationFinal', name: 'Spiel um Platz 3', active: stage => Boolean(stage.settings?.consolationFinal) },
+    double_elimination: { setting: 'grandFinalDouble', name: 'Rückspiel im großen Finale', active: stage => stage.settings?.grandFinal === 'double' },
+};
+
+function stageOptionHtml(stage) {
+    const option = STAGE_OPTIONS[stage.type];
+    return option?.active(stage) ? `<p class="stage-option-info">mit ${option.name}</p>` : '';
+}
+
+function stageOptionMenuItem(stage) {
+    const option = STAGE_OPTIONS[stage.type];
+    if (!option) return null;
+    const active = option.active(stage);
+    return { icon: active ? 'minus' : 'plus', label: `${option.name} ${active ? 'entfernen' : 'hinzufügen'}`, onclick: `toggleStageOption(${stage.id})`, adminOnly: true };
+}
+
+// Where a tournament stands: not started, x of y matches played, finished (BYE matches do not count)
+function stageProgress(stage) {
+    const own = matches.filter(m => m.stage_id === stage.id && m.opponent1 !== null && m.opponent2 !== null);
+    const played = own.filter(m => m.status >= 4).length;
+    // brackets-model Status: Waiting, Ready, Running = still to play; Locked ones that never get
+    // opponents (an unneeded Grand Final reset) do not keep a tournament open
+    const open = own.some(m => m.status >= 1 && m.status <= 3);
+    if (!own.length) return { state: 'idle', html: 'Noch keine Matches' };
+    if (!open && played) return { state: 'done', html: `${icon('check')}Fertig · ${played} ${played === 1 ? 'Match' : 'Matches'} gespielt` };
+    if (!played) return { state: 'idle', html: 'Noch nicht begonnen' };
+    return {
+        state: 'running',
+        html: `Läuft · ${played} von ${own.length} Matches<span class="stage-progress" aria-hidden="true"><span style="width: ${Math.round(played / own.length * 100)}%"></span></span>`,
+    };
+}
+
+// The visitor (recognised by IP, welcome.js) can play a match in this tournament right now
+// (Ready/Running; a match still waiting for the opponent does not count, like on the welcome page)
+function hasMyOpenMatch(stage) {
+    return Boolean(myOpenMatch(stage));
+}
+
+// The first of those matches (lowest round, like nextMatchOf in welcome.js), or null
+function myOpenMatch(stage) {
+    if (typeof me === 'undefined' || me?.status !== 'identified' || stage.event_name !== welcomeEvent()?.name) return null;
+    const own = participants.find(p => p.tournament_id === stage.tournament_id && p.name === me.attendee.display_name);
+    if (!own) return null;
+    return matches
+        .filter(m => m.stage_id === stage.id && m.status >= 2 && m.status <= 3
+            && (m.opponent1?.id === own.id || m.opponent2?.id === own.id))
+        .sort((a, b) => a.round_id - b.round_id || a.number - b.number)[0] ?? null;
+}
+
+// Playing time of the own open match (Infinity without one). stage.schedule names rounds by group
+// and round number; both follow the order of the ids brackets-manager hands out
+function myMatchTime(stage) {
+    const match = myOpenMatch(stage);
+    if (!match) return Infinity;
+    const stageMatches = matches.filter(m => m.stage_id === stage.id);
+    const groups = [...new Set(stageMatches.map(m => m.group_id))].sort((a, b) => a - b);
+    const rounds = [...new Set(stageMatches.filter(m => m.group_id === match.group_id).map(m => m.round_id))].sort((a, b) => a - b);
+    const entry = (stage.schedule ?? []).find(d => d.group === groups.indexOf(match.group_id) + 1 && d.round === rounds.indexOf(match.round_id) + 1);
+    const time = Date.parse(entry?.ends_at ?? entry?.starts_at);
+    return Number.isFinite(time) ? time : Infinity;
 }
 
 function displayEvents() {
@@ -646,7 +922,7 @@ function displayEvents() {
                 <button class="btn btn-ghost btn-sm admin-only" data-event="${escapeHtml(event.name)}" onclick="openEventScheduleModal(this.dataset.event)" title="Spielzeiten für alle Turniere dieses Events">
                     ${icon('clock')}<span>Spielzeiten</span>
                 </button>
-                <button class="btn btn-primary btn-sm" data-event="${escapeHtml(event.name)}" onclick="viewEventRankings(this.dataset.event)">
+                <button class="btn btn-secondary btn-sm" data-event="${escapeHtml(event.name)}" onclick="viewEventRankings(this.dataset.event)">
                     ${icon('trophy')}<span>Gesamtwertung</span>
                 </button>
             </div>
@@ -848,34 +1124,32 @@ function updateTypeSettings() {
 
 // Settings that can change later (match for 3rd place, grand final with a second match): the server
 // rebuilds the bracket with the same draw and keeps the results (switching off drops the result
-// of the removed match)
-async function changeStageSetting(stageId, setting, enabled, input, matchName) {
+// of the removed match). Both directions are confirmed, the bracket changes for everyone.
+async function toggleStageOption(stageId) {
     const stage = stages.find(s => s.id === stageId);
-    if (!enabled && !(await confirmDialog(`${matchName} bei „${stage?.name ?? ''}“ entfernen? Ein schon eingetragenes Ergebnis dieses Spiels geht verloren.`, { title: 'Spiel entfernen?', confirmLabel: 'Entfernen' }))) {
-        input.checked = true;
-        return;
-    }
+    const option = stage && STAGE_OPTIONS[stage.type];
+    if (!option) return;
+    const enabled = !option.active(stage);
+    const question = enabled
+        ? `${option.name} zu „${stage.name}“ hinzufügen? Das Bracket wird mit derselben Auslosung neu aufgebaut, alle Ergebnisse bleiben erhalten.`
+        : `${option.name} bei „${stage.name}“ entfernen? Ein schon eingetragenes Ergebnis dieses Spiels geht verloren.`;
+    if (!(await confirmDialog(question, {
+        title: enabled ? 'Spiel hinzufügen?' : 'Spiel entfernen?',
+        confirmLabel: enabled ? 'Hinzufügen' : 'Entfernen',
+        danger: !enabled,
+    }))) return;
     try {
-        const { stage_id, dropped } = await apiFetch(`/stages/${stageId}/settings`, { method: 'PUT', body: JSON.stringify({ [setting]: enabled }) });
+        const { stage_id, dropped } = await apiFetch(`/stages/${stageId}/settings`, { method: 'PUT', body: JSON.stringify({ [option.setting]: enabled }) });
         await loadParticipants();
         await loadStages();
         await loadMatches();
         if (document.getElementById('bracketViewerSection').style.display !== 'none' && currentBracketStageId === stageId) {
             await viewBracket(stage_id, true);
         }
-        if (dropped > 0) notify(`Das Ergebnis von „${matchName}“ wurde verworfen.`);
+        notify(dropped > 0 ? `Das Ergebnis von „${option.name}“ wurde verworfen.` : `${option.name} ${enabled ? 'hinzugefügt' : 'entfernt'}.`);
     } catch (error) {
-        input.checked = !enabled;
         notify('❌ ' + error.message);
     }
-}
-
-function setConsolationFinal(stageId, enabled, input) {
-    return changeStageSetting(stageId, 'consolationFinal', enabled, input, 'Spiel um Platz 3');
-}
-
-function setGrandFinalDouble(stageId, enabled, input) {
-    return changeStageSetting(stageId, 'grandFinalDouble', enabled, input, 'Grand-Final-Rückspiel');
 }
 
 // View stage matches
@@ -901,16 +1175,11 @@ async function viewBracket(stageId, preserveScroll = false) {
         
         const data = await response.json();
         
-        // Show event name if available
+        // The tournament is the heading, event and mode below it; exports use event + name
         const stage = data.stage?.[0];
-        const eventNameElement = document.getElementById('bracketEventName');
-        if (stage?.event_name) {
-            eventNameElement.textContent = `${stage.event_name} · ${stage.name}`;
-            eventNameElement.style.display = 'block';
-        } else {
-            eventNameElement.textContent = stage?.name || '';
-            eventNameElement.style.display = stage?.name ? 'block' : 'none';
-        }
+        document.getElementById('bracketTitle').textContent = stage?.name || 'Bracket';
+        document.getElementById('bracketEventName').textContent = [stage?.event_name, stage && formatType(stage.type)].filter(Boolean).join(' · ');
+        document.getElementById('bracketViewerSection').dataset.exportName = [stage?.event_name, stage?.name].filter(Boolean).join(' · ');
         
         // Show the bracket as its own page (refreshes keep the page and the scroll position)
         const section = document.getElementById('bracketViewerSection');
@@ -943,11 +1212,17 @@ async function viewBracket(stageId, preserveScroll = false) {
             }
         });
         
+        // A freshly opened bracket starts at round 1, not where the previous one was scrolled to
+        if (!preserveScroll) document.querySelector('.brackets-viewer').scrollLeft = 0;
+        wrapRoundHeads();
+        labelBracketMatches(data.match, data.participant);
         markDeadlines(data.round_deadlines ?? {}, data.round_starts ?? {});
         markDrawnMatches(data.match);
         markMemorialByes(data.memorial_byes ?? []);
+        document.getElementById('memorialLegend').hidden = !(data.memorial_byes ?? []).length;
         if (typeof markOwnParticipant === 'function') markOwnParticipant(stage, data.participant);
         if (typeof markMyOpenMatch === 'function') markMyOpenMatch();
+        if (!preserveScroll && typeof takeMyMatchJump === 'function') takeMyMatchJump();
         scheduleBracketRefresh(stageId, Object.keys(data.round_deadlines ?? {}).length > 0);
 
         // A correction prepared for another tournament no longer applies
@@ -960,6 +1235,8 @@ async function viewBracket(stageId, preserveScroll = false) {
         if (preserveScroll && scrollY !== null) {
             window.scrollTo(0, scrollY);
         }
+        if (preserveScroll) announce(`Bracket ${stage?.name ?? ''} aktualisiert.`);
+        else announce(`Bracket ${stage?.name ?? ''} geöffnet.`);
     } catch (error) {
         notify(`❌ Das Bracket konnte nicht geladen werden (${error.message}).`, { retry: () => viewBracket(stageId, preserveScroll) });
         console.error('Error loading bracket:', error);
@@ -988,6 +1265,56 @@ function nextDeadlineHtml(stage) {
     if (!next) return '';
     return `<p class="stage-deadline">${icon('clock')}${escapeHtml(next.label)} ${next.starts_at ? 'ab' : 'bis'} ${escapeHtml(formatDeadline(next.at))}</p>`;
 }
+
+// Round name and playing time in one head per column; on wide screens it stays at the top of the
+// bracket box while scrolling down (styles.css), so deep in a bracket the round is never lost
+function wrapRoundHeads() {
+    for (const h3 of document.querySelectorAll('.brackets-viewer article.round > h3')) {
+        const head = document.createElement('div');
+        head.className = 'round-head';
+        h3.before(head);
+        head.append(h3);
+    }
+}
+
+/* Keyboard and screen readers: brackets-viewer only listens for clicks on .opponents. Every real
+   match gets a name ("Runde 2 · Match 1: tilt gegen fesi, Sieger tilt"); admins can focus it and
+   open the winner choice with Enter or Space. */
+function labelBracketMatches(list, players) {
+    const names = new Map((players ?? []).map(p => [p.id, p.name]));
+    for (const match of list) {
+        const el = document.querySelector(`.brackets-viewer .match[data-match-id="${Number(match.id)}"] .opponents`);
+        if (!el || !match.opponent1 || !match.opponent2) continue; // BYE: nothing to do
+        const name = side => names.get(match[side]?.id) ?? 'offen';
+        const round = bracketRoundText(el);
+        const winner = match.opponent1.result === 'win' ? match.opponent1 : match.opponent2.result === 'win' ? match.opponent2 : null;
+        const state = winner ? `Sieger ${names.get(winner.id) ?? ''}${match.drawn ? ' (per Los)' : ''}` : match.status >= 2 ? 'offen' : 'wartet auf Gegner';
+        el.setAttribute('aria-label', `${round ? `${round} · ` : ''}Match ${match.number}: ${name('opponent1')} gegen ${name('opponent2')}, ${state}`);
+        const playable = match.opponent1.id != null && match.opponent2.id != null;
+        if (isAdmin && playable) {
+            el.setAttribute('role', 'button');
+            el.tabIndex = 0;
+        } else {
+            el.setAttribute('role', 'group');
+        }
+    }
+}
+
+// "Gewinnerrunde · Runde 2" for a match element in the bracket (double elimination has two "Runde 2")
+function bracketRoundText(el) {
+    const round = el?.closest('article.round')?.querySelector('h3')?.textContent.trim();
+    const group = el?.closest('section.bracket')?.querySelector(':scope > h2')?.textContent.trim();
+    if (!round) return group ?? '';
+    return group && !round.startsWith(group) && group !== round ? `${group} · ${round}` : round;
+}
+
+document.addEventListener('keydown', event => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    const opponents = event.target.closest?.('.brackets-viewer .opponents[role="button"]');
+    if (!opponents) return;
+    event.preventDefault();
+    opponents.click();
+});
 
 // Under the round names: until when the round is played ("bis …", after that "Runde geschlossen …")
 // or start ("Beginn …")
@@ -1045,8 +1372,8 @@ const BRACKET_LOCALE_DE = {
         'double-elimination-semi-final': '{{matchPrefix}} Halbfinale {{matchNumber}}',
         'double-elimination-final': '{{matchPrefix}} Finale',
         'consolation-final': 'Spiel um Platz 3',
-        'grand-final-single': 'Grand Final',
-        'grand-final': 'Grand Final, Spiel {{roundNumber}}',
+        'grand-final-single': 'Großes Finale',
+        'grand-final': 'Großes Finale, Spiel {{roundNumber}}',
         'match-game': 'Spiel {{gameNumber}}',
     },
     'match-status': {
@@ -1061,8 +1388,8 @@ const BRACKET_LOCALE_DE = {
         'best-of-x': 'Bo{{x}}',
         'consolation': 'Trostrunde',
         'group-name': 'Gruppe {{groupNumber}}',
-        'group-name-winner-bracket': 'Winner Bracket',
-        'group-name-loser-bracket': 'Loser Bracket',
+        'group-name-winner-bracket': 'Gewinnerrunde',
+        'group-name-loser-bracket': 'Verliererrunde',
         'round-name': 'Runde {{roundNumber}}',
         'round-name-final': 'Finale',
         'round-name-winner-bracket': 'Runde {{roundNumber}}',
@@ -1082,11 +1409,11 @@ function ensureBracketLocale() {
 }
 
 // Round headings: knockout rounds of a single elimination by their usual names (Viertelfinale,
-// Halbfinale, Finale), the grand final as "Grand Final" and "Rückspiel"; everything else comes
+// Halbfinale, Finale), the grand final as "Großes Finale" and "Rückspiel"; everything else comes
 // from BRACKET_LOCALE_DE
 function bracketRoundName(info) {
     if (info.groupType === 'final-group') {
-        if (info.finalType === 'grand-final') return info.roundNumber === 1 ? 'Grand Final' : 'Rückspiel';
+        if (info.finalType === 'grand-final') return info.roundNumber === 1 ? 'Großes Finale' : 'Rückspiel';
         return 'Spiel um Platz 3';
     }
     if (info.groupType === 'single-bracket') {
@@ -1427,20 +1754,61 @@ function winRateLabel(wins, losses) {
 let rankingsDetail = { kind: 'rangliste', key: '' };
 
 // Show the rankings section with a title and a table; showTournaments adds the "Turniere" column
-function showRankings(title, rankings, showTournaments = false) {
+// heading: the tournament (or "Gesamtwertung"), title: event and tournament below it;
+// type: the tournament mode, for the note on when places are decided (none = overall ranking)
+function showRankings(title, rankings, showTournaments = false, { heading = 'Rangliste', type = null, exportTitle = `${title} · ${heading}` } = {}) {
     const section = document.getElementById('rankingsSection');
     section.style.display = 'block';
+    document.getElementById('rankingsTitle').textContent = heading;
     document.getElementById('rankingsEventName').textContent = title;
+    // Exports (title and file name): "Event · Turnier" or "Event · Gesamtwertung"
+    section.dataset.exportTitle = exportTitle;
 
     const container = document.getElementById('rankingsList');
     if (rankings.length === 0) {
         container.innerHTML = '<p class="empty-state">Keine Rangliste verfügbar</p>';
     } else {
-        const openNote = rankings.some(r => r.placement == null)
-            ? '<p class="rankings-note">„–“ heißt: Der Platz steht noch nicht fest, der Spieler ist noch im Turnier.</p>'
-            : '';
-        container.innerHTML = `${openNote}
-            <div class="rankings-table${showTournaments ? ' with-tournaments' : ''}">
+        // Decided places first in their order; whoever is still in the tournament has no place yet
+        // and is listed below in alphabetical order, not by win rate (that would look like a ranking)
+        const decided = rankings.filter(r => r.placement != null);
+        const open = rankings.filter(r => r.placement == null)
+            .sort((a, b) => a.name.localeCompare(b.name, 'de', { sensitivity: 'base' }));
+        // While nobody has a place, say when places come instead of showing a table of dashes without a reason
+        const whenPlaced = type === 'round_robin'
+            ? 'Bei „Jeder gegen jeden“ stehen die Plätze fest, wenn alle Matches gespielt sind.'
+            : 'Im K.-o.-System bekommt jeder seinen Platz, sobald er ausscheidet.';
+        const openNote = !open.length ? ''
+            : decided.length
+                ? '<p class="rankings-note">Wer noch im Turnier ist, hat noch keinen Platz und steht unten alphabetisch.</p>'
+                : `<p class="rankings-note"><strong>Noch steht kein Platz fest.</strong> ${whenPlaced} Bis dahin zählen hier Siege und Niederlagen.</p>`;
+        // The end of a tournament: the winner on tape, places 2 and 3 next to it (not for the overall
+        // ranking, whose order changes until the last tournament is over)
+        const podium = type ? [1, 2, 3].map(place => decided.filter(r => r.placement === place)) : [];
+        const champion = podium[0]?.length ? `
+            <div class="rankings-champion">
+                <span class="rankings-champion-label">${icon('trophy')}Sieger</span>
+                <span class="tape-wrap"><span class="tape tape-yellow">${podium[0].map(r => escapeHtml(r.name)).join(' & ')}</span></span>
+                ${podium[1]?.length || podium[2]?.length ? `<span class="rankings-champion-rest">${[2, 3].filter(p => podium[p - 1].length).map(p => `${p}. ${podium[p - 1].map(r => escapeHtml(r.name)).join(' & ')}`).join(' · ')}</span>` : ''}
+            </div>` : '';
+        // A finished ranking has nothing pending: the column would only show zeros
+        const withPending = rankings.some(r => r.pending > 0);
+        const rowHtml = r => {
+            const mine = isMyPlayerName(r.name);
+            return `
+                    <div class="rankings-row ${r.placement && r.placement <= 3 ? 'top-' + r.placement : ''}${mine ? ' is-me' : ''}">
+                        <div class="rank-cell">${rankBadge(r)}</div>
+                        <div class="name-cell">${escapeHtml(r.name)}${mine ? ' <span class="me-tag">du</span>' : ''}</div>
+                        <div class="stat-cell points${r.placement == null ? ' is-open' : ''}">${r.placement == null ? '–' : r.points}</div>
+                        <div class="stat-cell${r.wins ? ' wins' : ''}">${r.wins}</div>
+                        <div class="stat-cell${r.losses ? ' losses' : ''}">${r.losses}</div>
+                        <div class="stat-cell">${r.wins + r.losses}</div>
+                        ${withPending ? `<div class="stat-cell">${r.pending}</div>` : ''}
+                        ${showTournaments ? `<div class="stat-cell">${r.tournaments}</div>` : ''}
+                        <div class="stat-cell">${winRateLabel(r.wins, r.losses)}</div>
+                    </div>`;
+        };
+        container.innerHTML = `${champion}${openNote}
+            <div class="rankings-table${showTournaments ? ' with-tournaments' : ''}${withPending ? '' : ' no-pending'}">
                 <div class="rankings-header">
                     <div class="rank-cell">Platz</div>
                     <div class="name-cell">Teilnehmer</div>
@@ -1448,28 +1816,23 @@ function showRankings(title, rankings, showTournaments = false) {
                     <div class="stat-cell"><span class="label-long">Siege</span><span class="label-short" title="Siege">S</span></div>
                     <div class="stat-cell"><span class="label-long">Niederlagen</span><span class="label-short" title="Niederlagen">N</span></div>
                     <div class="stat-cell">Gespielt</div>
-                    <div class="stat-cell">Ausstehend</div>
+                    ${withPending ? '<div class="stat-cell">Ausstehend</div>' : ''}
                     ${showTournaments ? '<div class="stat-cell">Turniere</div>' : ''}
-                    <div class="stat-cell">Siegrate</div>
+                    <div class="stat-cell">Siegquote</div>
                 </div>
-                ${rankings.map(r => `
-                    <div class="rankings-row ${r.placement && r.placement <= 3 ? 'top-' + r.placement : ''}">
-                        <div class="rank-cell">${rankBadge(r)}</div>
-                        <div class="name-cell">${escapeHtml(r.name)}</div>
-                        <div class="stat-cell points${r.placement == null ? ' is-open' : ''}">${r.placement == null ? '–' : r.points}</div>
-                        <div class="stat-cell${r.wins ? ' wins' : ''}">${r.wins}</div>
-                        <div class="stat-cell${r.losses ? ' losses' : ''}">${r.losses}</div>
-                        <div class="stat-cell">${r.wins + r.losses}</div>
-                        <div class="stat-cell">${r.pending}</div>
-                        ${showTournaments ? `<div class="stat-cell">${r.tournaments}</div>` : ''}
-                        <div class="stat-cell">${winRateLabel(r.wins, r.losses)}</div>
-                    </div>
-                `).join('')}
+                ${decided.map(rowHtml).join('')}
+                ${open.length ? '<div class="rankings-group">Noch im Turnier</div>' : ''}
+                ${open.map(rowHtml).join('')}
             </div>
         `;
     }
 
     if (!rankingsRefreshing) openTournamentDetail(rankingsDetail.kind, rankingsDetail.key);
+}
+
+// The device's own player (welcome.js: me), for the "du" mark in rankings
+function isMyPlayerName(name) {
+    return typeof me !== 'undefined' && me?.status === 'identified' && name === me.attendee.display_name;
 }
 
 // Place as badge: "5" or shared "5–6"; an open place (player still in the tournament) as "–"
@@ -1501,9 +1864,11 @@ async function viewRankings(stageId) {
             points: s.points
         }));
 
-        const title = stage.event_name ? `${stage.event_name} · ${stage.name}` : stage.name;
+        // Heading = tournament, below it event and mode (like the bracket page)
+        const subtitle = [stage.event_name, formatType(stage.type)].filter(Boolean).join(' · ');
+        const exportTitle = stage.event_name ? `${stage.event_name} · ${stage.name}` : stage.name;
         rankingsDetail = { kind: 'rangliste', key: stageId };
-        showRankings(title, rankings);
+        showRankings(subtitle, rankings, false, { heading: stage.name, type: stage.type, exportTitle });
         reloadRankings = () => viewRankings(stageId);
     } catch (error) {
         notify(`❌ Die Rangliste konnte nicht geladen werden (${error.message}).`, { retry: () => viewRankings(stageId) });
@@ -1569,7 +1934,7 @@ async function viewEventRankings(eventName) {
         });
 
         rankingsDetail = { kind: 'gesamtwertung', key: eventName };
-        showRankings(`${eventName} · Gesamtwertung`, rankings, true);
+        showRankings(eventName, rankings, true, { heading: 'Gesamtwertung' });
         reloadRankings = () => viewEventRankings(eventName);
     } catch (error) {
         notify('❌ Fehler beim Laden der Event-Rangliste: ' + error.message);
@@ -1586,7 +1951,7 @@ function showQuickWinnerSelection(match) {
     
     // Check if any opponent is completely null (BYE)
     if (match.opponent1 === null || match.opponent2 === null) {
-        notify('🚫 Dieses Match hat einen BYE und wird automatisch entschieden.');
+        notify('Dieses Match hat ein Freilos und wird automatisch entschieden.');
         return;
     }
     
@@ -1610,12 +1975,18 @@ function showQuickWinnerSelection(match) {
         document.getElementById('winnerModalInfo').textContent =
             `Bisheriger Gewinner: ${winnerName}. Zum Korrigieren den neuen Gewinner wählen — vor dem Übernehmen siehst du, welche Folgeergebnisse sich ändern.`;
     } else {
-        document.getElementById('winnerModalInfo').textContent = 
-            'Klicke auf den Gewinner des Matches:';
+        document.getElementById('winnerModalInfo').textContent =
+            'Wer hat gewonnen? Das Ergebnis wird sofort gespeichert, danach kannst du es noch rückgängig machen.';
     }
-    
-    // Show modal
-    document.getElementById('winnerModal').classList.add('show');
+
+    // Which match this is: tournament, round (from the bracket on screen), number
+    const stage = stages.find(s => s.id === match.stage_id);
+    const round = bracketRoundText(document.querySelector(`.brackets-viewer .match[data-match-id="${Number(match.id)}"]`));
+    document.getElementById('winnerModalMatch').textContent = [stage?.name, round, `Match ${match.number}`].filter(Boolean).join(' · ');
+
+    openModal('winnerModal');
+    // Neutral start: focus on a player would look like a choice already made
+    document.querySelector('#winnerModal .modal-content').focus();
 }
 
 // "Ergebnis eingeben" in the match list (outside the bracket viewer)
@@ -1637,9 +2008,9 @@ function selectWinner(winnerNum) {
         return;
     }
     if (currentWinner === null) {
-        // First result: enter it directly
+        // First result: enter it directly, a note offers to undo a misclick
         cancelCorrection();
-        updateMatchQuick(match.id, winnerNum === 1);
+        updateMatchQuick(match.id, winnerNum === 1, false, true);
         return;
     }
     prepareCorrection(match, winnerNum);
@@ -1743,12 +2114,13 @@ async function applyCorrection() {
 }
 
 function closeWinnerModal() {
-    document.getElementById('winnerModal').classList.remove('show');
+    closeModal('winnerModal');
     currentMatchForWinner = null;
 }
 
 // resetFollowing: correction confirmed, the server may reset the following results
-async function updateMatchQuick(matchId, opponent1Wins, resetFollowing = false) {
+// undoable: a first result, the note offers "Rückgängig"
+async function updateMatchQuick(matchId, opponent1Wins, resetFollowing = false, undoable = false) {
     const opponent1 = { result: opponent1Wins ? 'win' : 'loss' };
     const opponent2 = { result: opponent1Wins ? 'loss' : 'win' };
 
@@ -1768,9 +2140,32 @@ async function updateMatchQuick(matchId, opponent1Wins, resetFollowing = false) 
             renderCorrection();
         }
         await refreshOpenRankings(); // placements and points may have changed
+        if (undoable && updated?.opponent1) {
+            const [winner, loser] = opponent1Wins ? [updated.opponent1, updated.opponent2] : [updated.opponent2, updated.opponent1];
+            notify(`✅ ${getParticipantName(winner?.id)} gewinnt gegen ${getParticipantName(loser?.id)}`, {
+                action: { label: 'Rückgängig', run: () => undoMatchResult(matchId) }
+            });
+        }
     } catch (error) {
         notify('❌ Fehler beim Aktualisieren: ' + error.message);
         console.error('Error updating match:', error);
+    }
+}
+
+// "Rückgängig" after a first result: the match is open again (refused once a following match has a result)
+async function undoMatchResult(matchId) {
+    try {
+        const match = await apiFetch(`/matches/${matchId}/result`, { method: 'DELETE' });
+        await loadMatches();
+        const stageId = match?.stage_id ?? matches.find(m => m.id === matchId)?.stage_id;
+        if (document.getElementById('bracketViewerSection').style.display !== 'none' && stageId != null) {
+            await viewBracket(stageId, true);
+        }
+        await refreshOpenRankings();
+        notify('Ergebnis zurückgenommen, das Match ist wieder offen.');
+        announce('Ergebnis zurückgenommen');
+    } catch (error) {
+        notify('❌ Rückgängig nicht möglich: ' + error.message);
     }
 }
 
@@ -1797,9 +2192,9 @@ function getMatchStatus(match) {
 
 function formatType(type) {
     const types = {
-        'single_elimination': 'Single Elimination',
-        'double_elimination': 'Double Elimination',
-        'round_robin': 'Round Robin'
+        'single_elimination': 'K.-o.-System',
+        'double_elimination': 'Doppel-K.-o.',
+        'round_robin': 'Jeder gegen jeden'
     };
     return types[type] || type;
 }
@@ -1851,7 +2246,7 @@ async function exportBracketAsImage() {
     const exportButton = document.getElementById('exportBracketBtn');
     const bracketSection = document.getElementById('bracketViewerSection');
     const bracketContainer = document.querySelector('.brackets-viewer');
-    const eventName = document.getElementById('bracketEventName').textContent;
+    const eventName = bracketSection.dataset.exportName ?? '';
     
     if (!bracketContainer) {
         notify('❌ Kein Bracket zum Exportieren vorhanden!');
@@ -1884,6 +2279,7 @@ async function exportBracketAsImage() {
         bracketContainer.style.outline = 'none';
         bracketContainer.style.padding = '2rem';
         bracketSection.style.overflow = 'visible';
+        bracketContainer.classList.add('is-exporting');
         
         // Wait for layout to update
         await new Promise(resolve => setTimeout(resolve, 100));
@@ -1915,6 +2311,7 @@ async function exportBracketAsImage() {
         bracketContainer.style.outline = originalOutline;
         bracketContainer.style.padding = originalPadding;
         bracketSection.style.overflow = originalSectionOverflow;
+        bracketContainer.classList.remove('is-exporting');
         
         // Convert to JPG and download
         canvas.toBlob((blob) => {
@@ -1944,7 +2341,7 @@ async function exportBracketAsImage() {
 async function exportRankingsAsImage() {
     const exportButton = document.getElementById('exportRankingsBtn');
     const rankingsContainer = document.getElementById('rankingsList');
-    const eventName = document.getElementById('rankingsEventName').textContent;
+    const eventName = document.getElementById('rankingsSection').dataset.exportTitle ?? '';
     
     if (!rankingsContainer) {
         notify('❌ Keine Rangliste zum Exportieren vorhanden!');
@@ -2010,7 +2407,7 @@ async function exportBracketAsPdf() {
     const exportButton = document.getElementById('exportBracketPdfBtn');
     const bracketSection = document.getElementById('bracketViewerSection');
     const bracketContainer = document.querySelector('.brackets-viewer');
-    const eventName = document.getElementById('bracketEventName').textContent;
+    const eventName = bracketSection.dataset.exportName ?? '';
     
     if (!bracketContainer) {
         notify('❌ Kein Bracket zum Exportieren vorhanden!');
@@ -2042,6 +2439,7 @@ async function exportBracketAsPdf() {
         bracketContainer.style.outline = 'none';
         bracketContainer.style.padding = '2rem';
         bracketSection.style.overflow = 'visible';
+        bracketContainer.classList.add('is-exporting');
         bracketContainer.classList.add('export-paper');
         
         // Wait for layout to update
@@ -2074,6 +2472,7 @@ async function exportBracketAsPdf() {
         bracketContainer.style.outline = originalOutline;
         bracketContainer.style.padding = originalPadding;
         bracketSection.style.overflow = originalSectionOverflow;
+        bracketContainer.classList.remove('is-exporting');
         bracketContainer.classList.remove('export-paper');
         
         // A4 landscape, whole bracket fitted onto one page inside the printable area
@@ -2102,7 +2501,7 @@ async function exportBracketAsPdf() {
 async function exportRankingsAsPdf() {
     const exportButton = document.getElementById('exportRankingsPdfBtn');
     const rankingsContainer = document.getElementById('rankingsList');
-    const eventName = document.getElementById('rankingsEventName').textContent;
+    const eventName = document.getElementById('rankingsSection').dataset.exportTitle ?? '';
     
     if (!rankingsContainer) {
         notify('❌ Keine Rangliste zum Exportieren vorhanden!');
@@ -2164,7 +2563,5 @@ async function exportRankingsAsPdf() {
 
 // Close modals on backdrop click
 window.onclick = function(event) {
-    if (!event.target.classList?.contains('modal')) return;
-    if (event.target.id === 'winnerModal') closeWinnerModal();
-    else event.target.classList.remove('show');
+    if (event.target.classList?.contains('modal')) dismissModal(event.target);
 };

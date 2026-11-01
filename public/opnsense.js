@@ -82,8 +82,8 @@ async function openOpnsenseSync() {
     if (!event) return;
     if (!opnsenseSettings?.configured) {
         notify('OPNsense ist noch nicht eingerichtet: unter „Konfiguration“ Adresse, API-Key und Secret eintragen.');
-        toggleSection('eventConfigSection', true);
-        document.getElementById('opnsenseUrl').focus();
+        openAttendeeConfig();
+        setTimeout(() => document.getElementById('opnsenseUrl').focus(), 50);
         return;
     }
     if (!event.domain) {

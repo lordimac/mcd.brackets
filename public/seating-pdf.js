@@ -247,11 +247,10 @@ function buildSeatPlanPdf(event, room, format) {
     return doc;
 }
 
-function exportSeatPlanPdf() {
+function exportSeatPlanPdf(format = 'a4') {
     const room = currentRoom();
     const event = lanEvents.find(e => e.id === currentEventId);
     if (!room || !event) return;
-    const format = document.getElementById('seatPdfFormat').value;
     buildSeatPlanPdf(event, room, format).save(`sitzplan-${slipFileSlug(event.name)}-${slipFileSlug(room.name)}.pdf`);
 }
 

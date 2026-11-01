@@ -19,6 +19,8 @@
     --primary-soft: rgba(255, 69, 0, 0.16);
     --primary-text: #ff9466;
     --on-primary: #1d2023;
+    /* "That's you": own row, seat list entry, bracket entry — orange tint on the surface */
+    --me-row: #57372b;
 
     /* Wire colours. Band = tape, tags, solid fills (real material, light text on it);
        line = tab underline and thin lines; text = readable on the surfaces (≥ 4.5:1) */
@@ -27,14 +29,17 @@
     --band-green: #2e7d38;
     --band-violet: #6a4fb3;
     --band-brown: #7a4a26;
+    --band-yellow: #f2c418;
     --line-blue: #4f8be0;
     --line-green: #4fb35f;
     --line-violet: #9b84e8;
     --line-brown: #b98251;
+    --line-yellow: #e6bb1e;
     --text-blue: #8db6f2;
     --text-green: #7fd18c;
     --text-violet: #c3b4f5;
     --text-brown: #d9a77c;
+    --text-yellow: #f0d36a;
 
     /* Older names, mapped onto the wires */
     --secondary-color: var(--text-blue);
@@ -95,7 +100,7 @@ body[data-view="attendees"] { --view-color: var(--text-blue); --view-line: var(-
 body[data-view="seating"] { --view-color: var(--text-green); --view-line: var(--line-green); }
 body[data-view="timetable"] { --view-color: var(--text-violet); --view-line: var(--line-violet); }
 body[data-view="burger"] { --view-color: var(--text-brown); --view-line: var(--line-brown); }
-body[data-view="tournaments"] { --view-color: var(--primary-text); --view-line: var(--primary-color); }
+body[data-view="tournaments"] { --view-color: var(--text-yellow); --view-line: var(--line-yellow); }
 
 /* Barlow in three widths, IBM Plex Mono for network values (public/lib/fonts, npm run vendor) */
 @font-face { font-family: 'Barlow'; font-weight: 400; font-display: swap; src: url("lib/fonts/barlow-latin-400-normal.woff2") format("woff2"); }
@@ -110,6 +115,14 @@ body[data-view="tournaments"] { --view-color: var(--primary-text); --view-line: 
 
 html {
     color-scheme: dark;
+}
+
+p {
+    text-wrap: pretty;
+}
+
+h1, h2, h3 {
+    text-wrap: balance;
 }
 
 body {
@@ -149,6 +162,7 @@ body {
 .tape-green { --tape-bg: var(--band-green); }
 .tape-violet { --tape-bg: var(--band-violet); }
 .tape-brown { --tape-bg: var(--band-brown); }
+.tape-yellow { --tape-bg: var(--band-yellow); --tape-fg: #1d2023; text-shadow: 0 1px 0 rgba(255, 255, 255, 0.4); }
 
 /* The welcome badge's nickname "prints" out once */
 .tape-print {
@@ -161,7 +175,8 @@ body {
     to { clip-path: inset(0 0 0 0); }
 }
 
-@media (prefers-reduced-motion: reduce) {
+/* Printed or with reduced motion the name is simply there (a stalled animation would hide it) */
+@media print, (prefers-reduced-motion: reduce) {
     .tape-print { animation: none; }
 }
 
@@ -176,7 +191,7 @@ body[data-view="attendees"] .view-title .tape { --tape-bg: var(--band-blue); --t
 body[data-view="seating"] .view-title .tape { --tape-bg: var(--band-green); --tape-fg: #f7f8f5; }
 body[data-view="timetable"] .view-title .tape { --tape-bg: var(--band-violet); --tape-fg: #f7f8f5; }
 body[data-view="burger"] .view-title .tape { --tape-bg: var(--band-brown); --tape-fg: #f7f8f5; }
-body[data-view="tournaments"] .view-title .tape { --tape-bg: var(--primary-color); --tape-fg: #1d2023; text-shadow: 0 1px 0 rgba(255, 255, 255, 0.4); }
+body[data-view="tournaments"] .view-title .tape { --tape-bg: var(--band-yellow); --tape-fg: #1d2023; text-shadow: 0 1px 0 rgba(255, 255, 255, 0.4); }
 
 ::selection {
     background: rgba(255, 69, 0, 0.45);
@@ -263,14 +278,16 @@ body[data-view="tournaments"] .view-title .tape { --tape-bg: var(--primary-color
     object-fit: contain;
 }
 
-.brand h1 {
+.brand-name {
+    display: block;
     font-family: var(--font-title);
     font-size: 1.55rem;
     font-weight: 700;
     line-height: 1;
 }
 
-.brand p {
+.brand-sub {
+    display: block;
     font-size: 0.8rem;
     color: var(--text-secondary);
     line-height: 1.3;
@@ -315,7 +332,7 @@ body[data-view="tournaments"] .view-title .tape { --tape-bg: var(--primary-color
 .tab[data-view="seating"] { --tab-color: var(--line-green); }
 .tab[data-view="timetable"] { --tab-color: var(--line-violet); }
 .tab[data-view="burger"] { --tab-color: var(--line-brown); }
-.tab[data-view="tournaments"] { --tab-color: var(--primary-color); }
+.tab[data-view="tournaments"] { --tab-color: var(--line-yellow); }
 
 .tab:hover {
     color: var(--text-color);
@@ -834,14 +851,15 @@ textarea {
     transition: transform 0.15s, background 0.15s;
 }
 
+/* On = the light wire; orange stays for main actions and "you" */
 .toggle input:checked {
-    background: var(--primary-color);
-    border-color: var(--primary-color);
+    background: var(--text-color);
+    border-color: var(--text-color);
 }
 
 .toggle input:checked::after {
     transform: translateX(14px);
-    background: #fff;
+    background: var(--panel);
 }
 
 .toggle input:focus-visible {
@@ -1044,7 +1062,7 @@ textarea {
 }
 
 /* Tournament mode colours (tournament cards and "Deine Turniere" on the welcome page) */
-.type-double_elimination { --type-color: var(--primary-color); --type-fg: var(--on-primary); }
+.type-double_elimination { --type-color: var(--band-white); --type-fg: #1d2023; }
 .type-single_elimination { --type-color: var(--band-blue); --type-fg: #f7f8f5; }
 .type-round_robin { --type-color: var(--band-brown); --type-fg: #f7f8f5; }
 
@@ -1115,6 +1133,43 @@ textarea {
 .badge-waiting {
     background: var(--surface-3);
     color: var(--text-secondary);
+}
+
+/* Status line: the main information of a tournament card */
+.stage-status {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.35rem 0.6rem;
+    margin-top: 0.6rem;
+    font-family: var(--font-display);
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.stage-status.is-running {
+    color: var(--text-color);
+}
+
+.stage-status.is-done .icon {
+    color: var(--success-color);
+}
+
+.stage-progress {
+    flex: 1 1 100%;
+    height: 4px;
+    background: var(--surface-3);
+}
+
+.stage-progress > span {
+    display: block;
+    height: 100%;
+    background: var(--text-color);
+}
+
+/* The own tournament with an open match: the one orange frame on the page */
+.stage-item.is-mine {
+    border-color: var(--primary-color);
 }
 
 .stage-actions {
@@ -1280,25 +1335,37 @@ textarea {
     vertical-align: middle;
 }
 
-.attendee-table th.sortable {
+/* Sortable column: the header is a button (keyboard), the chevron shows the direction */
+.sort-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    min-height: 32px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
     cursor: pointer;
-    user-select: none;
 }
 
-.attendee-table th.sortable:hover {
+.sort-btn:hover {
     color: var(--text-color);
 }
 
-.attendee-table th.sortable::after {
-    content: "";
-    display: inline-block;
-    width: 0.9em;
-    margin-left: 0.25rem;
-    opacity: 0.35;
+.sort-btn:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
 }
 
-.attendee-table th.sortable:hover::after {
-    content: "↕";
+.sort-icon {
+    opacity: 0;
+    transition: transform 0.15s;
+}
+
+.sort-btn:hover .sort-icon,
+.sort-btn:focus-visible .sort-icon {
+    opacity: 0.4;
 }
 
 .attendee-table th.sort-asc,
@@ -1306,14 +1373,13 @@ textarea {
     color: var(--view-color);
 }
 
-.attendee-table th.sort-asc::after {
-    content: "↑";
+.attendee-table th.sort-asc .sort-icon,
+.attendee-table th.sort-desc .sort-icon {
     opacity: 1;
 }
 
-.attendee-table th.sort-desc::after {
-    content: "↓";
-    opacity: 1;
+.attendee-table th.sort-asc .sort-icon {
+    transform: rotate(180deg);
 }
 
 .attendee-table tbody tr:last-child td {
@@ -1342,8 +1408,14 @@ textarea {
 
 .form-row {
     display: grid;
-    grid-template-columns: 0.8fr 1fr;
+    /* minmax(0, …): date fields have a wide built-in minimum and would push past the card on phones */
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1fr);
     gap: 0.75rem;
+}
+
+.form-row input {
+    min-width: 0;
+    width: 100%;
 }
 
 .edit-preview {
@@ -1372,7 +1444,7 @@ textarea {
     border: 1px solid var(--clan-color);
 }
 
-.clan-c0 { --clan-color: var(--primary-text); --clan-soft: var(--primary-soft); }
+.clan-c0 { --clan-color: var(--text-yellow); --clan-soft: rgba(230, 187, 30, 0.16); }
 .clan-c1 { --clan-color: var(--text-blue); --clan-soft: var(--secondary-soft); }
 .clan-c2 { --clan-color: var(--text-green); --clan-soft: var(--lime-soft); }
 .clan-c3 { --clan-color: var(--text-violet); --clan-soft: var(--pink-soft); }
@@ -1462,8 +1534,8 @@ textarea {
     }
 
     .attendee-table:not(.bulk-table) tr.is-me {
-        background: #2c3a52;
-        box-shadow: inset 4px 0 0 var(--line-blue);
+        background: var(--me-row);
+        border-color: var(--primary-color);
     }
 
     .attendee-table:not(.bulk-table) .col-slot { order: 0; width: 1.6rem; color: var(--text-faint); }
@@ -1502,19 +1574,27 @@ textarea {
         margin-left: 2rem;
     }
 
+    /* Every address the same way: IP on its own line, DNS name below, shares after.
+       A fixed IP column was too narrow for 15-character addresses in the mono font. */
     .attendee-table:not(.bulk-table) td.col-ip {
         order: 5;
         flex: 1 1 100%;
         display: flex;
-        flex-wrap: wrap;
-        align-items: baseline;
-        gap: 0 0.6rem;
-        margin: 0.25rem 0 0 2rem;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.1rem;
+        margin: 0.4rem 0 0 2rem;
     }
 
     .attendee-table:not(.bulk-table) td.col-ip .dns {
         overflow-wrap: anywhere;
         min-width: 0;
+        max-width: 100%;
+    }
+
+    /* First and last name read as one name, not two items */
+    .attendee-table:not(.bulk-table) .col-name + .col-name {
+        margin-left: -0.15rem;
     }
 
     .attendee-table:not(.bulk-table) .empty-cell {
@@ -1535,6 +1615,26 @@ textarea {
 
 .bulk-link {
     margin: -0.5rem 0 1rem;
+}
+
+.add-attendee-toggle {
+    display: none;
+}
+
+@media (max-width: 640px) {
+    .add-attendee-toggle {
+        display: inline-flex;
+        margin-bottom: 1rem;
+    }
+
+    .add-attendee-toggle[aria-expanded="true"] {
+        margin-bottom: 0.6rem;
+    }
+
+    .attendee-form:not(.is-open),
+    .attendee-form:not(.is-open) + .bulk-link {
+        display: none;
+    }
 }
 
 .modal-content.bulk-modal {
@@ -1630,6 +1730,16 @@ textarea {
     min-width: 800px;
 }
 
+.rankings-table.no-pending {
+    --rank-columns: 64px minmax(160px, 1fr) 80px repeat(4, 84px);
+    min-width: 640px;
+}
+
+.rankings-table.with-tournaments.no-pending {
+    --rank-columns: 64px minmax(160px, 1fr) 80px repeat(5, 84px);
+    min-width: 720px;
+}
+
 .rankings-header,
 .rankings-row {
     display: grid;
@@ -1665,6 +1775,85 @@ textarea {
     background: var(--surface-3);
 }
 
+/* Finished tournament card: the winner on tape (app.js fillStageChampions) */
+.stage-champion {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem 0.6rem;
+    margin: 0.4rem 0 0.2rem;
+}
+
+.stage-champion[hidden] {
+    display: none;
+}
+
+.stage-champion-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+.stage-champion-label .icon {
+    color: var(--gold);
+}
+
+.stage-champion .tape {
+    font-size: 1.2rem;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+}
+
+/* End of a tournament: the winner on tape above the table */
+.rankings-champion {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 1rem;
+    margin-bottom: 1.25rem;
+}
+
+.rankings-champion-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-family: var(--font-display);
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.rankings-champion-label .icon {
+    color: var(--gold);
+}
+
+.rankings-champion .tape {
+    font-size: 1.6rem;
+}
+
+.rankings-champion-rest {
+    font-family: var(--font-display);
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.rankings-row.is-me,
+.rankings-row.is-me:nth-child(odd) {
+    background: var(--me-row);
+}
+
+.rankings-group {
+    padding: 0.6rem 0.75rem 0.4rem;
+    font-family: var(--font-display);
+    font-weight: 600;
+    color: var(--text-secondary);
+    background: var(--surface);
+    border-bottom: 1px solid var(--border-color);
+}
+
 .rankings-note {
     margin: 0 0 0.75rem;
     font-size: 0.9rem;
@@ -1693,6 +1882,7 @@ textarea {
 
 .rank-badge.is-shared {
     font-size: 1.1rem;
+    white-space: nowrap;
 }
 
 .rank-badge.rank-open {
@@ -1719,7 +1909,7 @@ textarea {
 }
 
 .stat-cell.points {
-    color: var(--primary-text);
+    color: var(--text-color);
     font-family: var(--font-display);
     font-weight: 700;
     font-size: 1.15em;
@@ -1746,7 +1936,9 @@ textarea {
 /* Phones: place, name, points, wins, losses; the rest is in the PDF */
 @media (max-width: 640px) {
     .rankings-table,
-    .rankings-table.with-tournaments {
+    .rankings-table.with-tournaments,
+    .rankings-table.no-pending,
+    .rankings-table.with-tournaments.no-pending {
         --rank-columns: 48px minmax(0, 1fr) 56px 40px 40px;
         min-width: 0;
     }
@@ -1900,14 +2092,54 @@ textarea {
     margin-bottom: 0.4rem;
     background: var(--surface-2);
     border: 1px solid var(--border-color);
-    border-left: 3px solid var(--tt-line, var(--tt-color));
     border-radius: var(--radius);
+}
+
+/* The category as a small wire-coloured tag in front of the time */
+.tt-time::before {
+    content: "";
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    margin-right: 0.5rem;
+    background: var(--tt-line, var(--tt-color));
+    vertical-align: 0.05em;
+}
+
+/* Right now and next: where the day stands */
+.tt-item.is-now,
+.tt-item.is-next {
+    border-color: var(--text-color);
+    background: var(--surface);
+}
+
+/* What is running or comes next is the reason to open the timetable: a size up */
+.tt-item.is-now .tt-title,
+.tt-item.is-next .tt-title {
+    font-size: 1.1rem;
+}
+
+.tt-now {
+    margin-left: 0.5rem;
+    padding: 0 0.4rem;
+    border-radius: var(--radius-sm);
+    background: var(--band-white);
+    color: var(--panel);
+    font-family: var(--font-display);
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
+.tt-now.is-next {
+    background: transparent;
+    color: var(--text-color);
+    border: 1px solid var(--border-strong);
 }
 
 /* Text tone for the category label, line tone for the edge (brown and orange stay apart) */
 .tt-item.tt-meal { --tt-color: var(--text-brown); --tt-line: var(--line-brown); }
 .tt-item.tt-program { --tt-color: var(--text-green); --tt-line: var(--line-green); }
-.tt-item.tt-tournament { --tt-color: var(--primary-text); --tt-line: var(--primary-color); }
+.tt-item.tt-tournament { --tt-color: var(--text-yellow); --tt-line: var(--line-yellow); }
 .tt-item.tt-other { --tt-color: var(--text-secondary); --tt-line: var(--border-strong); }
 
 /* Over: dimmed */
@@ -2020,7 +2252,7 @@ textarea {
     gap: 0.5rem;
     padding: 0.75rem 0.9rem;
     background: var(--pink-soft);
-    border-left: 3px solid var(--pink);
+    border: 1px solid var(--border-color);
     border-radius: var(--radius);
 }
 
@@ -2050,12 +2282,7 @@ textarea {
     }
 }
 
-/* Option on the tournament card (single elimination: match for 3rd place) */
-.stage-option {
-    margin: -0.25rem 0 0.75rem;
-    font-size: 0.85rem;
-}
-
+/* Option on the tournament card (match for 3rd place, second grand final match) */
 .toggle-sm input {
     transform: scale(0.85);
     transform-origin: left center;
@@ -2065,11 +2292,6 @@ textarea {
     margin: -0.25rem 0 0.75rem;
     font-size: 0.8rem;
     color: var(--text-secondary);
-}
-
-/* Only without admin session (counterpart to .admin-only) */
-body:not(.read-only) .read-only-only {
-    display: none;
 }
 
 /* Deadlines per round */
@@ -2086,6 +2308,31 @@ body:not(.read-only) .read-only-only {
     width: 14px;
     height: 14px;
     color: var(--view-color);
+}
+
+/* Round head (app.js wrapRoundHeads): on wide screens the bracket box scrolls by itself and the
+   heads stay on top, so the round is always in sight. Exports lift the height limit. */
+.brackets-viewer .round-head {
+    position: sticky;
+    top: -1.5rem; /* the box padding: sticks at the visible top edge */
+    z-index: 3;
+    padding-top: 0.25rem;
+    background: var(--primary-background);
+    /* covers the gap to the next column too, so connector lines pass underneath */
+    margin-right: calc(-1 * var(--round-margin));
+    padding-right: var(--round-margin);
+}
+
+@media (min-width: 641px) {
+    .brackets-viewer:not(.is-exporting) {
+        max-height: calc(100dvh - var(--topbar-height, 70px) - var(--footer-height, 40px) - 3rem);
+    }
+}
+
+.brackets-viewer .opponents[role="button"]:focus-visible,
+.brackets-viewer .opponents[tabindex="-1"]:focus-visible {
+    outline: 2px solid var(--text-color);
+    outline-offset: 2px;
 }
 
 .brackets-viewer .round-deadline {
@@ -2216,8 +2463,7 @@ input[type="time"] {
     margin-bottom: 1.25rem;
     padding: 1rem 1.1rem;
     background: var(--surface-2);
-    border: 1px solid var(--border-color);
-    border-left: 3px solid var(--primary-color);
+    border: 1px solid var(--primary-color);
     border-radius: var(--radius);
 }
 
@@ -2292,6 +2538,17 @@ input[type="time"] {
     max-width: 640px;
 }
 
+.winner-modal:focus {
+    outline: none;
+}
+
+.winner-context {
+    margin: -0.25rem 0 0.5rem;
+    font-family: var(--font-display);
+    font-weight: 600;
+    color: var(--view-color);
+}
+
 .winner-selection {
     display: grid;
     grid-template-columns: 1fr auto 1fr;
@@ -2317,10 +2574,15 @@ input[type="time"] {
     transition: border-color 0.15s, background 0.15s, transform 0.15s;
 }
 
+/* Hover only tints: a white frame under the pointer looked like a choice already made (one click
+   saves). The frame and the lit trophy belong to keyboard focus. */
 .winner-btn:hover {
-    border-color: var(--primary-color);
-    background: var(--primary-soft);
-    transform: translateY(-2px);
+    background: var(--surface-3);
+}
+
+.winner-btn:focus-visible {
+    border-color: var(--text-color);
+    background: var(--surface-3);
 }
 
 .winner-btn:focus-visible {
@@ -2328,8 +2590,8 @@ input[type="time"] {
     box-shadow: var(--focus-ring);
 }
 
-.winner-btn:hover .winner-icon {
-    color: var(--gold);
+.winner-btn:focus-visible .winner-icon {
+    color: var(--text-color);
     opacity: 1;
     transform: scale(1);
 }
@@ -2356,8 +2618,7 @@ input[type="time"] {
     font-family: var(--font-display);
     font-size: 1.1rem;
     font-weight: 700;
-    color: var(--pink);
-    letter-spacing: 0.08em;
+    color: var(--text-faint);
 }
 
 /* Responsive
@@ -2365,14 +2626,14 @@ input[type="time"] {
 
 /* Medium widths: the subtitle under the brand gives way to the tabs */
 @media (max-width: 1240px) {
-    .brand p {
+    .brand-sub {
         display: none;
     }
 }
 
 /* Narrower: only the logo stays, tabs move closer together */
 @media (max-width: 1000px) {
-    .brand h1 {
+    .brand-name {
         display: none;
     }
 
@@ -2454,6 +2715,10 @@ input[type="time"] {
         grid-column: 1 / -1;
     }
 
+    /* Turniere: the tournaments (with "Zu meinem Match") before the event overview */
+    #view-tournaments > .view-title { order: -2; }
+    #view-tournaments > .stages-card { order: -1; }
+
     .card {
         padding: 1.1rem;
     }
@@ -2492,6 +2757,22 @@ body.tournament-detail #view-tournaments > section:not(.tournament-detail-sectio
 
 body:not(.tournament-detail) .detail-back {
     display: none;
+}
+
+/* Attendee configuration page (#teilnehmer/konfiguration): only the event card with the settings */
+body.attendee-config #view-attendees > section:not(.picker-admin),
+body.attendee-config #eventConfigToggle,
+body:not(.attendee-config) .config-back,
+body:not(.attendee-config) .config-title {
+    display: none;
+}
+
+.config-title {
+    margin-bottom: 0.75rem;
+}
+
+.config-back {
+    margin: -0.4rem 0 0.75rem -0.6rem;
 }
 
 .detail-back {
@@ -2539,6 +2820,8 @@ body:not(.tournament-detail) .detail-back {
     --text-green: #24702f;
     --text-violet: #6a4fb3;
     --text-brown: #7a4a26;
+    --text-yellow: #7d5e00;
+    --line-yellow: #b38f00;
     /* the aliases resolve at :root, so they need their own paper values */
     --secondary-color: #1f5fbf;
     --pink: #6a4fb3;
@@ -2917,8 +3200,9 @@ body:not(.tournament-detail) .detail-back {
     outline-offset: 1px;
 }
 
-/* Memorial entry instead of "BYE" (elimination) */
-.brackets-viewer .name.memorial-bye {
+/* Memorial entry instead of "BYE" (elimination); the legend shows the same style */
+.brackets-viewer .name.memorial-bye,
+.bracket-legend .memorial-sample {
     font-style: italic;
     color: var(--text-secondary);
 }
@@ -3083,14 +3367,21 @@ body:not(.tournament-detail) .detail-back {
     color: #111;
 }
 
-/* Alternative (draft) rooms: dashed tab with a small flag */
+/* Alternative (draft) rooms: dashed tab with a small flag, never filled — also when chosen */
 .room-tab.is-alternative {
     border-style: dashed;
 }
 
+.room-tab.active.is-alternative {
+    background: transparent;
+    border-color: var(--view-color);
+    color: var(--view-color);
+    box-shadow: inset 0 0 0 1px var(--view-color);
+}
+
 .room-tab-flag {
     padding: 0 0.35rem;
-    border-radius: 999px;
+    border-radius: var(--radius-sm);
     background: var(--surface-3);
     color: var(--text-secondary);
     font-size: 0.8rem;
@@ -3361,9 +3652,11 @@ body:not(.tournament-detail) .detail-back {
 
 .legend-table { border: 1px solid #4b505d; background: #2a2d35; }
 .legend-seat { width: 14px; height: 14px; background: linear-gradient(#5d6370, #5d6370) 50% 100% / 12px 3px no-repeat, linear-gradient(#3e434f, #3e434f) 50% 1px / 10px 8px no-repeat; }
-.legend-taken { border: 1px solid var(--primary-color); background: #33302b; }
+.seat-legend [hidden] { display: none; }
+.legend-taken { border: 1px solid var(--line-green); background: #2b352d; }
 .legend-door { border-left: 3px solid #e2e4e9; border-top: 1px dashed var(--text-faint); border-radius: 0 !important; }
-.legend-area { border: 1px dashed var(--border-strong); background: repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.08) 0 3px, transparent 3px 6px); }
+/* Areas: solid tint and a dashed edge (no hatching, everything is a solid colour) */
+.legend-area { border: 1px dashed var(--border-strong); background: rgba(255, 255, 255, 0.06); }
 
 .seat-grid-wrap {
     overflow: auto;
@@ -3482,8 +3775,8 @@ body:not(.tournament-detail) .detail-back {
     display: grid;
     place-items: center;
     border: 1px dashed var(--border-strong);
-    border-radius: 4px;
-    background: repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.02) 0 8px, transparent 8px 16px);
+    border-radius: var(--radius-sm);
+    background: rgba(255, 255, 255, 0.03);
     color: var(--text-secondary);
     font-size: 0.8rem;
     font-weight: 700;
@@ -3517,8 +3810,8 @@ body:not(.tournament-detail) .detail-back {
 }
 
 .cell-seat.is-taken::before {
-    border: 1px solid var(--primary-color);
-    background: #33302b;
+    border: 1px solid var(--line-green);
+    background: #2b352d;
 }
 
 .seat-no {
@@ -3538,22 +3831,55 @@ body:not(.tournament-detail) .detail-back {
     font-size: 0.8rem;
 }
 
-/* Only the nickname on the table: up to two lines, cut with "…" at the end if it still doesn't fit */
+/* Only the nickname on the table: never broken inside a word. Several words wrap onto two
+   lines, one long word stays on one line; whatever does not fit ends in "…" (full name in the
+   tooltip and in the list below the plan) */
 .seat-name {
     position: relative;
-    padding: 0 5px;
+    padding: 0 4px;
     max-width: 100%;
-    font-size: clamp(0.5rem, calc(var(--u) * 0.2), 0.85rem);
+    font-size: clamp(0.7rem, calc(var(--u) * 0.2), 0.85rem);
     font-weight: 700;
     line-height: 1.15;
     text-align: center;
     color: var(--text-color);
     overflow: hidden;
-    overflow-wrap: anywhere;
+    overflow-wrap: normal;
+    word-break: keep-all;
     display: -webkit-box;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
     line-clamp: 2;
+}
+
+/* Small tables (phones): the seat number, readable; the names are in the list below */
+.seat-label {
+    position: relative;
+    font-family: var(--font-display);
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--text-color);
+}
+
+.cell-seat.is-me .seat-label {
+    color: var(--on-primary);
+}
+
+.seat-name.is-one-word {
+    display: block;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+/* The own seat: orange like the own nickname tape in the topbar */
+.cell-seat.is-me::before,
+.legend-me {
+    border-color: var(--primary-color);
+    background: var(--primary-color);
+}
+
+.cell-seat.is-me .seat-name {
+    color: var(--on-primary);
 }
 
 /* Tooltip above a table or chair */
@@ -3634,7 +3960,7 @@ body:not(.read-only) #seatPlanCard:not(.is-layout) .cell-seat {
     cursor: pointer;
 }
 
-body:not(.read-only) #seatPlanCard:not(.is-layout) .cell-seat:hover::before {
+body:not(.read-only) #seatPlanCard:not(.is-layout):not(.is-view) .cell-seat:hover::before {
     border-color: var(--primary-color);
 }
 
@@ -3817,9 +4143,45 @@ body:not(.read-only) #seatPlanCard:not(.is-layout) .cell-seat:hover::before {
 }
 
 @media (max-width: 640px) {
-    .seat-toolbar {
-        flex-direction: column;
-        align-items: stretch;
+    /* Search and zoom share one line, the mode switch takes the next one in three equal parts with
+       short labels: the plan comes about two rows sooner. "Einpassen" goes — the zoom fits itself
+       until − or + is used, and a reload brings that back. */
+    .list-toolbar.seat-toolbar {
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .seat-toolbar .search-field {
+        flex: 1 1 0;
+        min-width: 0;
+    }
+
+    .seat-toolbar .zoom-fit {
+        display: none;
+    }
+
+    .seat-toolbar .segmented {
+        flex: 1 1 100%;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .seat-toolbar .segmented button {
+        padding-inline: 0.25rem;
+    }
+
+    /* Title and export menu stay on one line; the menu is just its icon */
+    #seatPlanCard > .section-header,
+    .section-header:has(> #exportActions) {
+        flex-wrap: nowrap;
+        align-items: flex-start;
+    }
+
+    /* The how-to points "to the right", which on a phone is below; the button says enough */
+    #seatAssignTools .field-hint {
+        display: none;
     }
 
     .room-settings-grid {
@@ -3931,7 +4293,40 @@ body:not(.read-only) #seatPlanCard:not(.is-layout) .cell-seat:hover::before {
 }
 
 .is-layout .cell-seat.is-taken .seat-no {
-    color: var(--primary-text);
+    color: var(--text-green);
+}
+
+/* Buttons with a shorter label on phones (Zeitplan "PDF", Sitzplan modes) */
+.label-short {
+    display: none;
+}
+
+@media (max-width: 640px) {
+    .label-long {
+        display: none;
+    }
+
+    .label-short {
+        display: inline;
+    }
+
+    /* Toolbars above the content (Zeitplan, Sitzplan: event, rooms, admin buttons) lose the card
+       around them on phones — the frame and its padding cost a screen's worth of height before
+       the content even starts */
+    .card.toolbar-card {
+        padding: 0;
+        border: 0;
+        background: none;
+    }
+
+    .toolbar-card .section-header.event-bar {
+        gap: 0.5rem;
+    }
+
+    .toolbar-card .section-actions {
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
 }
 
 /* Five tabs on a phone: text only, "Start" instead of "Willkommen" */
@@ -3948,8 +4343,10 @@ body:not(.read-only) #seatPlanCard:not(.is-layout) .cell-seat:hover::before {
         display: inline;
     }
 
+    /* Width follows the label, so long names like "Teilnehmer" do not push the last tab to the edge */
     .tab {
-        padding: 0 0.2rem;
+        flex: 1 1 auto;
+        padding: 0 0.3rem;
         font-size: 0.88rem;
     }
 
@@ -3997,9 +4394,11 @@ body:not(.read-only) #seatPlanCard:not(.is-layout) .cell-seat:hover::before {
     margin-right: 0.45rem;
 }
 
-.card h2.welcome-title {
+.welcome-title {
     display: block;
     margin: 0.35rem 0 0.6rem;
+    font-family: var(--font-title);
+    font-weight: 600;
     font-size: clamp(1.8rem, 5vw, 2.6rem);
     line-height: 1.1;
 }
@@ -4049,6 +4448,64 @@ body:not(.read-only) #seatPlanCard:not(.is-layout) .cell-seat:hover::before {
 .welcome-lead {
     color: var(--text-secondary);
     max-width: 60ch;
+}
+
+/* Not recognised yet: check-in steps (welcome.js heroHtml) */
+.checkin-steps {
+    list-style: none;
+    counter-reset: checkin;
+    display: grid;
+    gap: 0.75rem;
+    max-width: 62ch;
+    margin: 1rem 0 0;
+    padding: 0;
+}
+
+.checkin-steps li {
+    counter-increment: checkin;
+    display: grid;
+    grid-template-columns: 2rem 1fr;
+    column-gap: 0.75rem;
+    align-items: baseline;
+}
+
+.checkin-steps li::before {
+    content: counter(checkin);
+    grid-row: span 2;
+    display: grid;
+    place-items: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: var(--radius);
+    background: var(--band-white);
+    color: var(--panel);
+    font-family: var(--font-title);
+    font-size: 1.15rem;
+    font-weight: 700;
+    align-self: start;
+}
+
+.checkin-steps strong {
+    font-family: var(--font-display);
+    font-size: 1.05rem;
+}
+
+.checkin-steps span {
+    color: var(--text-secondary);
+}
+
+.checkin-steps .link-button {
+    margin-left: 0.25rem;
+}
+
+.checkin-browse {
+    margin-top: 1.25rem;
+    color: var(--text-secondary);
+}
+
+.checkin-browse a,
+.checkin-steps a {
+    color: var(--text-color);
 }
 
 .welcome-lead strong {
@@ -4123,9 +4580,29 @@ body:not(.read-only) #seatPlanCard:not(.is-layout) .cell-seat:hover::before {
 }
 
 .welcome-fact-sub {
-    color: var(--text-faint);
+    color: var(--text-secondary);
     font-size: 0.82rem;
     overflow-wrap: anywhere;
+}
+
+/* Next own match: text instead of a number, orange like the own match in the bracket */
+.welcome-fact-value.is-text {
+    font-size: 1.45rem;
+    line-height: 1.15;
+    overflow-wrap: anywhere;
+}
+
+.welcome-fact.is-next {
+    flex: 1 1 220px;
+    max-width: 360px;
+}
+
+.welcome-fact.is-next.is-link {
+    border-color: var(--primary-color);
+}
+
+.welcome-fact.is-next.is-link .welcome-fact-label .icon {
+    color: var(--primary-text);
 }
 
 .welcome-logo {
@@ -4148,14 +4625,40 @@ body:not(.read-only) #seatPlanCard:not(.is-layout) .cell-seat:hover::before {
     padding: 0.7rem 0.9rem;
     border-radius: var(--radius);
     border: 1px solid var(--border-color);
-    border-left: 3px solid var(--check-color);
     background: var(--surface-2);
 }
 
-.check.is-ok { --check-color: var(--success-color); --check-soft: var(--success-soft); }
+/* Passed checks stay quiet; the ones that need something get their colour on the whole frame */
+.check.is-warn,
+.check.is-error,
+.check.is-todo {
+    border-color: var(--check-color);
+}
+
+.check.is-ok,
+.check-icon.is-ok { --check-color: var(--success-color); --check-soft: var(--success-soft); }
 .check.is-warn { --check-color: var(--warning-color); --check-soft: var(--warning-soft); }
 .check.is-error { --check-color: var(--danger-color); --check-soft: var(--danger-soft); }
 .check.is-info { --check-color: var(--secondary-color); --check-soft: var(--secondary-soft); }
+/* A device that is not set up yet: a step to do, not an error */
+.check.is-todo { --check-color: var(--line-blue); --check-soft: var(--secondary-soft); }
+
+.check.is-todo .check-icon .icon {
+    transform: rotate(-90deg);
+}
+
+.welcome-network-body {
+    margin-top: 1rem;
+}
+
+.welcome-network .welcome-test-title .check-icon {
+    width: 28px;
+    height: 28px;
+}
+
+.welcome-network[open] .collapse-icon {
+    transform: rotate(180deg);
+}
 
 .check-icon {
     flex: none;
@@ -4225,7 +4728,7 @@ body:not(.read-only) #seatPlanCard:not(.is-layout) .cell-seat:hover::before {
 
 .welcome-addresses tr.is-current th,
 .welcome-addresses tr.is-current td {
-    background: #2c3a52;
+    background: var(--me-row);
 }
 
 .current-badge {
@@ -4259,9 +4762,25 @@ body:not(.read-only) #seatPlanCard:not(.is-layout) .cell-seat:hover::before {
     border-radius: var(--radius);
 }
 
+.my-tournament.is-mine {
+    border-color: var(--text-secondary);
+    background: var(--surface);
+}
+
+/* Placement of a finished tournament: "Platz" over the badge, so a bare number never stands alone */
 .my-tournament-rank {
     flex: none;
-    width: 30px;
+    min-width: 30px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.1rem;
+}
+
+.my-tournament-rank-label {
+    font-family: var(--font-display);
+    font-size: 0.8rem;
+    color: var(--text-secondary);
 }
 
 .my-tournament-main {
@@ -4325,20 +4844,25 @@ body:not(.read-only) #seatPlanCard:not(.is-layout) .cell-seat:hover::before {
 
 /* "That's you": own row, seat and bracket entry */
 .attendee-table tr.is-me td {
-    background: #2c3a52;
+    background: var(--me-row);
 }
 
-.attendee-table tr.is-me td:first-child {
-    box-shadow: inset 4px 0 0 var(--line-blue);
-}
-
-.cell-seat.is-me::before {
-    border-color: var(--primary-color);
-    box-shadow: 0 0 0 2px var(--primary-color);
+/* "du" next to the own nickname: a small orange tape, like the own nickname in the topbar */
+.me-tag {
+    display: inline-block;
+    margin-left: 0.45rem;
+    padding: 0 0.35rem;
+    border-radius: var(--radius-sm);
+    background: var(--primary-color);
+    color: var(--on-primary);
+    font-family: var(--font-display);
+    font-size: 0.8rem;
+    font-weight: 700;
+    vertical-align: 0.1em;
 }
 
 .brackets-viewer .participant.is-me {
-    background: #2c3a52;
+    background: var(--me-row);
 }
 
 .brackets-viewer .participant.is-me .name {
@@ -4352,13 +4876,34 @@ body:not(.read-only) #seatPlanCard:not(.is-layout) .cell-seat:hover::before {
         min-width: 0;
     }
 
+    /* An address never breaks mid-number: the tile moves to its own row instead */
     .welcome-fact-value.is-mono {
-        font-size: 0.95rem;
-        overflow-wrap: anywhere;
+        font-size: clamp(0.85rem, 3.8vw, 0.95rem);
+        white-space: nowrap;
     }
 
+    .welcome-fact:has(> .welcome-fact-value.is-mono) {
+        min-width: max-content;
+    }
+
+    /* Place (if any) beside the text, the button below both */
     .my-tournament {
-        flex-wrap: wrap;
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        gap: 0.6rem 0;
+    }
+
+    .my-tournament-rank {
+        margin-right: 0.75rem;
+    }
+
+    .my-tournament-main {
+        grid-column: 2;
+    }
+
+    .my-tournament > .btn {
+        grid-column: 1 / -1;
+        justify-self: end;
     }
 
     .me-chip {
@@ -4390,7 +4935,7 @@ body:not(.read-only) #seatPlanCard:not(.is-layout) .cell-seat:hover::before {
 
 /* The sticky action column has its own opaque background */
 .attendee-table tr.is-me td.col-actions {
-    background: #2c3a52;
+    background: var(--me-row);
 }
 
 /* Burger designer (#burger, burger.js): drawn burger on the left, choices on the right
@@ -4415,6 +4960,10 @@ body:not(.read-only) #seatPlanCard:not(.is-layout) .cell-seat:hover::before {
     border-radius: var(--radius);
 }
 
+.burger-stage-next {
+    display: none;
+}
+
 .burger-svg {
     display: block;
     width: 100%;
@@ -4423,7 +4972,7 @@ body:not(.read-only) #seatPlanCard:not(.is-layout) .cell-seat:hover::before {
 }
 
 .burger-layer.is-new {
-    animation: burger-drop 0.35s cubic-bezier(0.3, 1.4, 0.6, 1);
+    animation: burger-drop 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @keyframes burger-drop {
@@ -4634,7 +5183,6 @@ body:not(.read-only) #seatPlanCard:not(.is-layout) .cell-seat:hover::before {
     padding: 0.6rem 0.75rem;
     background: var(--surface-2);
     border: 1px solid var(--border-color);
-    border-left: 3px solid var(--view-color);
     border-radius: var(--radius);
 }
 
@@ -4716,6 +5264,14 @@ body:not(.read-only) #seatPlanCard:not(.is-layout) .cell-seat:hover::before {
     display: none;
 }
 
+.burger-setup .burger-output {
+    margin: 0.25rem 0 0.75rem;
+}
+
+#burgerOrdersCard {
+    scroll-margin-top: 6rem;
+}
+
 .burger-totals {
     display: flex;
     flex-wrap: wrap;
@@ -4725,6 +5281,15 @@ body:not(.read-only) #seatPlanCard:not(.is-layout) .cell-seat:hover::before {
 
 .burger-totals:empty {
     display: none;
+}
+
+.burger-totals-label {
+    align-self: center;
+    margin-right: 0.25rem;
+    font-family: var(--font-display);
+    font-weight: 600;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
 }
 
 .burger-total {
@@ -5024,18 +5589,18 @@ body.burger-kitchen-open {
     gap: 0.6rem;
     padding: 0.75rem;
     background: var(--surface-2);
-    border: 1px solid var(--border-color);
-    border-top: 4px solid var(--violet);
+    border: 1px solid var(--border-strong);
     border-radius: var(--radius);
     box-shadow: var(--shadow);
 }
 
 .kitchen-card.is-started {
-    border-top-color: var(--warning-color);
+    border-color: var(--warning-color);
 }
 
 .kitchen-card.is-late {
-    border-top-color: var(--danger-color);
+    border-color: var(--danger-color);
+    background: var(--danger-soft);
 }
 
 .kitchen-card.is-late .kitchen-age {
@@ -5234,7 +5799,6 @@ body.burger-kitchen-open {
     padding: 0.75rem 0.9rem;
     background: var(--surface-2);
     border: 1px solid var(--border-color);
-    border-left: 3px solid var(--view-color);
     border-radius: var(--radius-sm);
 }
 
@@ -5415,8 +5979,21 @@ body.burger-kitchen-open {
     .room-tab,
     .segmented button,
     .collapsible-header,
-    .toggle {
+    .toggle,
+    select,
+    input[type="text"],
+    input[type="search"],
+    .me-chip,
+    .site-footer a,
+    .sort-btn,
+    .share-chip {
         min-height: 44px;
+    }
+
+    .site-footer a,
+    .me-chip {
+        display: inline-flex;
+        align-items: center;
     }
 
     .btn-icon,
@@ -5430,11 +6007,27 @@ body.burger-kitchen-open {
     }
 }
 
-/* Phones: the bars stop eating the screen. The topbar scrolls away with the page and the
-   footer sits at the end of the content instead of being fixed to the bottom. */
+/* Phones: the bars stop eating the screen. The topbar tucks away while scrolling down
+   (app.js, .is-tucked) and returns on the way up; the footer sits at the end of the content
+   instead of being fixed to the bottom. */
 @media (max-width: 640px) {
     .topbar {
-        position: relative;
+        transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+
+    .topbar.is-tucked {
+        transform: translateY(-100%);
+    }
+
+    /* With the topbar tucked away, sticky bars move up to the edge */
+    body:has(.topbar.is-tucked) .burger-stage {
+        top: 0;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .topbar {
+            transition: none;
+        }
     }
 
     .container {
@@ -5502,10 +6095,39 @@ body.burger-kitchen-open {
     cursor: pointer;
 }
 
+a.action-menu-item {
+    text-decoration: none;
+}
+
 .action-menu-item:hover,
 .action-menu-item:focus-visible {
     background: var(--surface-2);
     outline: none;
+}
+
+.action-menu-item:focus-visible {
+    box-shadow: inset 0 0 0 2px var(--text-color);
+}
+
+/* Keyboard: first stop on the page, jumps past topbar and tabs */
+.skip-link {
+    position: absolute;
+    top: 0.5rem;
+    left: 0.5rem;
+    z-index: 1000;
+    padding: 0.6rem 0.9rem;
+    background: var(--band-white);
+    color: var(--panel);
+    font-family: var(--font-display);
+    font-weight: 600;
+    text-decoration: none;
+    transform: translateY(-150%);
+}
+
+.skip-link:focus {
+    transform: none;
+    outline: none;
+    box-shadow: var(--focus-ring);
 }
 
 /* Destructive entries sit last, in red, behind a rule */
@@ -5527,6 +6149,11 @@ body.read-only .action-menu-item.admin-only {
 }
 
 /* Confirmation dialog (app.js confirmDialog) */
+/* Above other dialogs: it is often asked from inside one (room settings, menu editor) */
+#confirmModal {
+    z-index: 1050;
+}
+
 .confirm-modal {
     max-width: 440px;
 }
@@ -5604,5 +6231,322 @@ body.read-only .action-menu-item.admin-only {
         left: 0.75rem;
         bottom: 0.75rem;
         width: auto;
+    }
+}
+
+/* Seat plan as a list (seating.js renderSeatList): full names on phones and for screen readers */
+.seat-list {
+    margin-top: 1rem;
+    border-top: 1px solid var(--border-color);
+    padding-top: 0.75rem;
+}
+
+.seat-list > summary {
+    cursor: pointer;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-family: var(--font-display);
+    font-weight: 600;
+    list-style: none;
+}
+
+.seat-list > summary::-webkit-details-marker {
+    display: none;
+}
+
+.seat-list[open] > summary .collapse-icon {
+    transform: rotate(180deg);
+}
+
+.seat-list-items {
+    list-style: none;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 0 1rem;
+    margin-top: 0.5rem;
+}
+
+.seat-list-item {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    width: 100%;
+    min-height: 44px;
+    padding: 0.35rem 0.25rem;
+    border: 0;
+    border-bottom: 1px solid var(--border-color);
+    background: none;
+    color: var(--text-color);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.seat-list-item:hover {
+    background: var(--surface-2);
+}
+
+.seat-list-no {
+    min-width: 2.5rem;
+    font-family: var(--font-title);
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: var(--text-green);
+}
+
+.seat-list-name {
+    font-weight: 600;
+}
+
+.seat-list-item.is-free .seat-list-name {
+    color: var(--text-secondary);
+    font-weight: 400;
+}
+
+.seat-list-item.is-me {
+    background: var(--me-row);
+}
+
+/* Phone: the burger stays in view as a small sticky bar while choosing, with a way to the order */
+@media (max-width: 640px) {
+    .burger-stage {
+        position: sticky;
+        top: var(--topbar-height, 0px);
+        z-index: 20;
+        transition: top 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+        flex-direction: row;
+        align-items: center;
+        gap: 0.75rem;
+        margin: 0 -1.1rem;
+        padding: 0.5rem 1.1rem;
+        border-left: 0;
+        border-right: 0;
+        border-radius: 0;
+        background: var(--surface-2);
+    }
+
+    .burger-stage .burger-preview {
+        flex: 0 0 88px;
+    }
+
+    .burger-stage .burger-svg {
+        max-height: 80px;
+    }
+
+    .burger-stage .burger-summary {
+        flex: 1;
+        min-height: 0;
+        margin: 0;
+        font-size: 0.85rem;
+        display: -webkit-box;
+        -webkit-line-clamp: 3;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+
+    .burger-stage-next {
+        display: inline-flex;
+        flex: none;
+    }
+
+    #burgerWhoStep {
+        scroll-margin-top: 110px;
+    }
+
+    /* Name and note get the whole width; while typing there the bar steps back so it
+       does not cover the field */
+    #burgerWhoStep .form-row {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .burger-designer:has(#burgerWhoStep:focus-within) .burger-stage {
+        position: relative;
+    }
+}
+
+/* Closed admin helpers: "Ansicht testen" on the welcome page, help texts in the burger admin */
+.welcome-test-summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    min-height: 44px;
+    cursor: pointer;
+    list-style: none;
+}
+
+.welcome-test-summary::-webkit-details-marker {
+    display: none;
+}
+
+.welcome-test-summary > span:first-child {
+    display: flex;
+    flex-direction: column;
+}
+
+.welcome-test-title {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-family: var(--font-title);
+    font-size: 1.35rem;
+    font-weight: 600;
+}
+
+.welcome-test[open] .collapse-icon {
+    transform: rotate(180deg);
+}
+
+.welcome-test .inline-form {
+    margin-top: 1rem;
+}
+
+.help-box {
+    margin: 0.75rem 0;
+}
+
+.help-box > summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    min-height: 44px;
+    cursor: pointer;
+    font-family: var(--font-display);
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.help-box > summary:hover {
+    color: var(--text-color);
+}
+
+.help-box .field-hint {
+    max-width: 75ch;
+    margin-bottom: 0.5rem;
+}
+
+.backup-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* A labelled menu button ("Exportieren", "Event") instead of the three dots */
+.action-menu > summary.btn-sm,
+#exportActions .action-menu > summary {
+    width: auto;
+    height: auto;
+    padding: 0.4rem 0.7rem;
+}
+
+/* Only for screen readers */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* One event only: nothing to choose, so the pickers step aside (app.js loadEvents) */
+body.single-event .event-picker,
+body.single-event #eventFilter,
+body.single-event .card.only-picker,
+body.single-event.read-only .card.picker-admin {
+    display: none;
+}
+
+body.single-event .event-bar {
+    justify-content: flex-start;
+}
+
+.confirm-type {
+    margin-top: 1rem;
+}
+
+.confirm-type[hidden] {
+    display: none;
+}
+
+/* Focus moved by the skip link: the jump itself is the feedback */
+.container:focus,
+.view h1[tabindex="-1"]:focus,
+.view h2[tabindex="-1"]:focus {
+    outline: none;
+}
+
+/* Under the bracket header: what S, N and "Los" mean */
+.bracket-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 1.25rem;
+    margin: -0.5rem 0 1rem;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.bracket-legend strong {
+    margin-right: 0.3rem;
+    font-family: var(--font-display);
+    color: var(--text-color);
+}
+
+/* Phones: on a tournament page the first match comes before everything else */
+/* The section heading already names the tournament; the viewer's own title only shows in exports
+   and on phones, where the section heading is hidden */
+@media (min-width: 641px) {
+    #bracketViewerSection .brackets-viewer:not(.is-exporting) h1 {
+        display: none;
+    }
+}
+
+@media (max-width: 640px) {
+    body.tournament-detail .view-title,
+    #bracketViewerSection .section-header h2,
+    #bracketViewerSection .section-header .section-subtitle {
+        display: none;
+    }
+
+    #bracketViewerSection .brackets-viewer h1 {
+        font-size: 1.6em;
+        margin-bottom: 8px;
+    }
+
+    .bracket-legend {
+        margin-top: 0;
+    }
+}
+
+/* Medium widths: the attendee table fits without hiding the last address under the sticky actions */
+@media (max-width: 1200px) and (min-width: 641px) {
+    .container {
+        padding-left: 1.25rem;
+        padding-right: 1.25rem;
+    }
+
+    #view-attendees .card {
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+
+    .attendee-table:not(.bulk-table) {
+        font-size: 0.85rem;
+    }
+
+    .attendee-table th,
+    .attendee-table td {
+        padding-left: 0.4rem;
+        padding-right: 0.4rem;
+    }
+
+    .attendee-table .dns {
+        overflow-wrap: anywhere;
     }
 }

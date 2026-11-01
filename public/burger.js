@@ -174,12 +174,14 @@ function toggleBurgerExtra(optionId) {
 }
 
 // Same text as summarizeOrder() in src/burger.ts
-function burgerSummary(choices, extra) {
+// withEmpty: also name the empty categories ("ohne Sauce") — the stored summary and the labels do,
+// the live preview only says what is on the burger
+function burgerSummary(choices, extra, { withEmpty = true } = {}) {
     const parts = [];
     for (const category of burgerCategories()) {
         const ids = choices[category.id] ?? [];
         const options = category.options.filter(o => ids.includes(o.id));
-        if (!options.length && category.empty_label) parts.push(category.empty_label);
+        if (!options.length && category.empty_label && withEmpty) parts.push(category.empty_label);
         for (const option of options) parts.push(`${extra.has(option.id) ? 'extra viel ' : ''}${option.short || option.name}`);
     }
     return parts.join(', ');
@@ -347,24 +349,25 @@ function renderBurgerDesigner() {
                 <span class="burger-chip-wrap">
                     <button type="button" class="burger-chip${active ? ' is-active' : ''}" ${option.available ? '' : 'disabled title="Gerade nicht verfügbar"'}
                         data-category="${escapeHtml(category.id)}" data-option="${escapeHtml(option.id)}"
-                        onclick="pickBurgerOption(this.dataset.category, this.dataset.option)" aria-pressed="${active}">
+                        onclick="pickBurgerOption(this.dataset.category, this.dataset.option)" ${category.multiple ? `aria-pressed="${active}"` : `role="radio" aria-checked="${active}"`}>
                         ${swatch}<span>${escapeHtml(option.name)}</span>${option.available ? '' : '<span class="burger-chip-off">aus</span>'}
                     </button>
                     ${category.extra && active ? `<button type="button" class="burger-extra${extra ? ' is-active' : ''}" data-option="${escapeHtml(option.id)}" onclick="toggleBurgerExtra(this.dataset.option)" aria-pressed="${extra}" title="Extra viel">extra viel</button>` : ''}
                 </span>`;
         }).join('');
         const none = category.multiple
-            ? `<button type="button" class="burger-chip burger-chip-none${selected.length ? '' : ' is-active'}" data-category="${escapeHtml(category.id)}" onclick="clearBurgerCategory(this.dataset.category)">${escapeHtml(category.empty_label || 'nichts')}</button>`
+            ? `<button type="button" class="burger-chip burger-chip-none${selected.length ? '' : ' is-active'}" data-category="${escapeHtml(category.id)}" onclick="clearBurgerCategory(this.dataset.category)" aria-pressed="${!selected.length}">${escapeHtml(category.empty_label || 'nichts')}</button>`
             : '';
         return `
             <div class="burger-step">
-                <h3><span class="burger-step-no">${index + 1}</span>${escapeHtml(category.name)}${category.multiple ? '<span class="burger-step-hint">mehrere möglich</span>' : ''}</h3>
-                <div class="burger-chips">${none}${chips}</div>
+                <h3 id="burgerStep${index}"><span class="burger-step-no">${index + 1}</span>${escapeHtml(category.name)}${category.multiple ? '<span class="burger-step-hint">mehrere möglich</span>' : ''}</h3>
+                <div class="burger-chips" role="${category.multiple ? 'group' : 'radiogroup'}" aria-labelledby="burgerStep${index}">${none}${chips}</div>
             </div>`;
     }).join('');
 
     preview.innerHTML = burgerSvg(burgerSelection.choices, burgerSelection.extra, { animate: true });
-    document.getElementById('burgerSummary').textContent = burgerSummary(burgerSelection.choices, burgerSelection.extra);
+    document.getElementById('burgerSummary').textContent =
+        burgerSummary(burgerSelection.choices, burgerSelection.extra, { withEmpty: false }) || 'Noch nichts ausgewählt';
     const editing = burgerEditingId != null; // IDs start at 0
     document.getElementById('burgerFormTitle').textContent = editing ? `Bestellung #${burgerOrders.find(o => o.id === burgerEditingId)?.number ?? ''} ändern` : 'Dein Burger';
     setButtonLabel(document.getElementById('burgerSubmit'), editing ? 'Änderung speichern' : 'Bestellen');
@@ -521,11 +524,15 @@ function renderBurgerAdmin() {
     const display = !!burgerMenu?.kitchen_display;
     const unprinted = burgerOrders.filter(o => !o.printed_at);
     const button = document.getElementById('burgerPrintNew');
-    setButtonLabel(button, unprinted.length ? `Neue drucken (${unprinted.length})` : 'Keine neuen');
+    setButtonLabel(button, unprinted.length ? `Neue drucken (${unprinted.length})` : 'Alles gedruckt');
     button.disabled = !unprinted.length || burgerPrinting;
     document.querySelectorAll('.burger-print-only').forEach(el => { el.hidden = !printing; });
     document.getElementById('burgerKitchenOpen').hidden = !display;
     document.getElementById('burgerDisplayHint').hidden = !display;
+    // Until the menu has loaded the switches would show "off" for everything
+    for (const id of ['burgerOpenToggle', 'burgerPrintToggle', 'burgerDisplayToggle']) {
+        document.getElementById(id).disabled = !burgerMenu;
+    }
     document.getElementById('burgerOpenToggle').checked = !!burgerMenu?.open;
     document.getElementById('burgerPrintToggle').checked = printing;
     document.getElementById('burgerDisplayToggle').checked = display;
@@ -537,6 +544,7 @@ function renderBurgerAdmin() {
     document.getElementById('burgerCounts').textContent = burgerOrders.length
         ? `${burgerOrders.length} Bestellung${burgerOrders.length === 1 ? '' : 'en'} · ${parts.join(' · ')}`
         : 'Noch keine Bestellungen';
+    setButtonLabel(document.getElementById('burgerJumpLabel').closest('button'), open.length ? `Bestellungen (${open.length} offen)` : 'Bestellungen');
     renderBurgerTotals();
 
     const shown = burgerShowAll ? burgerOrders : open;
@@ -575,8 +583,10 @@ function renderBurgerTotals() {
             }
         }
     }
-    document.getElementById('burgerTotals').innerHTML = [...counts]
-        .map(([label, n]) => `<span class="burger-total"><strong>${n}×</strong> ${escapeHtml(label)}</span>`).join('');
+    document.getElementById('burgerTotals').innerHTML = counts.size
+        ? `<span class="burger-totals-label">Für den Grill</span>${[...counts]
+            .map(([label, n]) => `<span class="burger-total"><strong>${n}×</strong> ${escapeHtml(label)}</span>`).join('')}`
+        : '';
 }
 
 function toggleBurgerShowAll(checked) {
@@ -908,4 +918,12 @@ async function setBurgerKitchenState(id, state) {
         burgerKitchenBusy.delete(id);
         await loadBurgerOrders();
     }
+}
+
+// Phone: the sticky mini preview leads to "Für wen", where the order is sent
+function scrollToBurgerWho() {
+    const step = document.getElementById('burgerWhoStep');
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    step.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+    document.getElementById('burgerWho').focus({ preventScroll: true });
 }

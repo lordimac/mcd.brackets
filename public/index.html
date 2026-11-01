@@ -18,6 +18,7 @@
         <symbol id="i-shuffle" viewBox="0 0 24 24"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></symbol>
         <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/></symbol>
         <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+        <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
         <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></symbol>
         <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 21V9M7 14l5-5 5 5M5 3h14"/></symbol>
         <symbol id="i-image" viewBox="0 0 24 24"><path d="M3 5h18v14H3zM3 16l5-5 4 4 3-3 6 6M15.5 8.5h.01"/></symbol>
@@ -45,13 +46,14 @@
         <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/></symbol>
     </svg>
 
+    <a class="skip-link" href="#content" onclick="event.preventDefault(); focusContent()">Zum Inhalt springen</a>
     <header class="topbar">
         <div class="topbar-inner">
             <div class="brand">
-                <span class="brand-mark"><svg class="icon"><use href="#i-bracket"/></svg><img alt=""></span>
+                <span class="brand-mark"><svg class="icon"><use href="#i-bracket"/></svg></span>
                 <div>
-                    <h1>MCD Brackets</h1>
-                    <p>Turniere, Brackets &amp; Meisterschaftswertung</p>
+                    <span class="brand-name">MCD Brackets</span>
+                    <span class="brand-sub">Turniere, Brackets &amp; Meisterschaftswertung</span>
                 </div>
             </div>
             <nav class="tabs" aria-label="Bereiche">
@@ -68,30 +70,32 @@
         </div>
     </header>
 
-    <div class="container">
+    <div class="container" id="content" tabindex="-1">
         <!-- Welcome: who is this device (by its IP address) and is the network set up correctly -->
         <main class="layout view" id="view-welcome" style="display: none;">
             <div id="welcomeContent" class="welcome"><p class="loading">Erkenne dein Gerät…</p></div>
 
-            <section class="card admin-only welcome-test">
-                <div class="section-header">
-                    <div>
-                        <h2><svg class="icon icon-accent"><use href="#i-search"/></svg>Ansicht testen</h2>
-                        <p class="section-subtitle">So sieht die Seite für ein Gerät mit dieser IP-Adresse aus.</p>
-                    </div>
-                </div>
+            <!-- Admin tool, closed by default so attendees' start page stays about them -->
+            <details class="card admin-only welcome-test" id="welcomeTestBox">
+                <summary class="welcome-test-summary">
+                    <span>
+                        <span class="welcome-test-title"><svg class="icon icon-accent"><use href="#i-search"/></svg>Ansicht für eine andere IP-Adresse testen</span>
+                        <span class="section-subtitle">So sieht die Seite für ein Gerät mit dieser IP-Adresse aus.</span>
+                    </span>
+                    <span class="collapse-icon"><svg class="icon"><use href="#i-chevron"/></svg></span>
+                </summary>
                 <form id="welcomeTestForm" class="inline-form">
                     <input type="text" id="welcomeTestIp" placeholder="192.168.120.100" autocomplete="off" spellcheck="false" aria-label="IP-Adresse zum Testen">
                     <button type="submit" class="btn btn-secondary btn-sm">Anzeigen</button>
                     <button type="button" class="btn btn-ghost btn-sm" id="welcomeTestReset" onclick="resetWelcomeTest()" hidden>Eigenes Gerät</button>
                 </form>
-            </section>
+            </details>
         </main>
 
         <!-- Burger designer: everyone orders, admins print the orders on DYMO labels -->
         <main class="layout view" id="view-burger" style="display: none;">
             <h1 class="view-title"><span class="tape-wrap"><span class="tape">Burger</span></span></h1>
-            <section class="card">
+            <section class="card only-picker">
                 <div class="section-header event-bar">
                     <div class="event-picker">
                         <h2><svg class="icon icon-accent"><use href="#i-flag"/></svg>Event</h2>
@@ -106,16 +110,23 @@
                         <h2><svg class="icon icon-accent"><use href="#i-burger"/></svg><span id="burgerFormTitle">Dein Burger</span></h2>
                         <p class="section-subtitle">Zusammenklicken, bestellen — der Grill bekommt deine Bestellung als Zettel.</p>
                     </div>
+                    <!-- The order list sits below the designer; organisers jump there -->
+                    <div class="section-actions admin-only">
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('burgerOrdersCard').scrollIntoView({ behavior: 'smooth', block: 'start' })">
+                            <svg class="icon"><use href="#i-list"/></svg><span class="btn-label" id="burgerJumpLabel">Bestellungen</span>
+                        </button>
+                    </div>
                 </div>
                 <p class="burger-closed" id="burgerClosed" hidden></p>
                 <form id="burgerOrderForm" class="burger-designer">
                     <div class="burger-stage">
                         <div class="burger-preview" id="burgerPreview"></div>
-                        <p class="burger-summary" id="burgerSummary"></p>
+                        <p class="burger-summary" id="burgerSummary" aria-live="polite"></p>
+                        <button type="button" class="btn btn-primary btn-sm burger-stage-next" onclick="scrollToBurgerWho()">Weiter</button>
                     </div>
                     <div class="burger-form">
                         <div id="burgerSteps" class="burger-steps"><p class="loading">Lade Speisekarte…</p></div>
-                        <div class="burger-step">
+                        <div class="burger-step" id="burgerWhoStep">
                             <h3><span class="burger-step-no">+</span>Für wen &amp; Anmerkung</h3>
                             <div class="form-row">
                                 <div class="form-group">
@@ -145,7 +156,7 @@
                 <div class="burger-mine" id="burgerMine"></div>
             </section>
 
-            <section class="card admin-only">
+            <section class="card admin-only" id="burgerOrdersCard">
                 <div class="section-header">
                     <div>
                         <h2><svg class="icon icon-accent"><use href="#i-list"/></svg>Bestellungen</h2>
@@ -153,7 +164,7 @@
                     </div>
                     <div class="section-actions">
                         <label class="toggle" title="Teilnehmer dürfen bestellen">
-                            <input type="checkbox" id="burgerOpenToggle" onchange="setBurgerMenuSwitch('open', this.checked)">
+                            <input type="checkbox" id="burgerOpenToggle" disabled onchange="setBurgerMenuSwitch('open', this.checked)">
                             <span>Bestellung offen</span>
                         </label>
                         <button class="btn btn-ghost btn-sm" onclick="openBurgerMenuModal()">
@@ -162,35 +173,39 @@
                         <button class="btn btn-ghost btn-sm" id="burgerKitchenOpen" onclick="openBurgerKitchen()" title="Bestellungen groß auf diesem Gerät anzeigen (z.B. Tablet am Grill)" hidden>
                             <svg class="icon"><use href="#i-image"/></svg><span>Tablet-Anzeige öffnen</span>
                         </button>
-                        <button class="btn btn-primary btn-sm burger-print-only" id="burgerPrintNew" onclick="printBurgerOrders()" title="Alle noch nicht gedruckten Bestellungen als DYMO-Etiketten drucken">
+                        <button class="btn btn-primary btn-sm burger-print-only" id="burgerPrintNew" disabled onclick="printBurgerOrders()" title="Alle noch nicht gedruckten Bestellungen als DYMO-Etiketten drucken">
                             <svg class="icon"><use href="#i-file"/></svg><span class="btn-label">Neue drucken</span>
                         </button>
                     </div>
                 </div>
-                <div class="burger-print-options burger-output">
-                    <span class="burger-output-label">Bestellungen gehen an:</span>
-                    <label class="toggle" title="Bestellungen als DYMO-Etiketten drucken">
-                        <input type="checkbox" id="burgerPrintToggle" onchange="setBurgerMenuSwitch('print_labels', this.checked)">
-                        <span>Etikettendrucker</span>
-                    </label>
-                    <label class="toggle" title="Bestellungen auf einem Tablet anzeigen, dort als „in Arbeit“ und „fertig“ markieren">
-                        <input type="checkbox" id="burgerDisplayToggle" onchange="setBurgerMenuSwitch('kitchen_display', this.checked)">
-                        <span>Tablet-Anzeige</span>
-                    </label>
-                </div>
                 <div class="burger-print-options">
-                    <label class="toggle burger-print-only">
-                        <input type="checkbox" id="burgerAutoPrint">
-                        <span>Neue automatisch drucken</span>
-                    </label>
                     <label class="toggle">
                         <input type="checkbox" id="burgerShowAll" onchange="toggleBurgerShowAll(this.checked)">
                         <span>Erledigte anzeigen</span>
                     </label>
                     <a class="btn btn-ghost btn-sm burger-print-only" id="burgerLastPdf" target="_blank" rel="noopener" hidden><svg class="icon"><use href="#i-external"/></svg><span>Letzten Druck als PDF</span></a>
                 </div>
-                <p class="field-hint burger-print-only">Etiketten: DYMO 11354 (57 × 32 mm). Im Druckdialog den LabelWriter, Papier „11354“, Querformat, Ränder „Keine“ und Skalierung 100 % wählen. Was gedruckt wurde, wird nicht noch einmal gedruckt. Für den Druck ganz ohne Dialog Chrome mit <code>--kiosk-printing</code> starten (LabelWriter als Standarddrucker).</p>
-                <p class="field-hint" id="burgerDisplayHint">Tablet-Anzeige: auf dem Tablet als Admin anmelden (oder Admin per IP), diese Seite öffnen und „Tablet-Anzeige öffnen“ tippen — das Tablet merkt sich das und öffnet die Anzeige beim nächsten Mal von selbst. Was schon zubereitet wird, können Teilnehmer nicht mehr ändern oder stornieren.</p>
+                <!-- Set up once before the event: where orders go. Closed, so the bar above stays for the evening -->
+                <details class="help-box burger-setup">
+                    <summary><svg class="icon"><use href="#i-settings"/></svg>Drucker und Tablet einrichten</summary>
+                    <div class="burger-print-options burger-output">
+                        <span class="burger-output-label">Bestellungen gehen an:</span>
+                        <label class="toggle" title="Bestellungen als DYMO-Etiketten drucken">
+                            <input type="checkbox" id="burgerPrintToggle" disabled onchange="setBurgerMenuSwitch('print_labels', this.checked)">
+                            <span>Etikettendrucker</span>
+                        </label>
+                        <label class="toggle" title="Bestellungen auf einem Tablet anzeigen, dort als „in Arbeit“ und „fertig“ markieren">
+                            <input type="checkbox" id="burgerDisplayToggle" disabled onchange="setBurgerMenuSwitch('kitchen_display', this.checked)">
+                            <span>Tablet-Anzeige</span>
+                        </label>
+                        <label class="toggle burger-print-only">
+                            <input type="checkbox" id="burgerAutoPrint">
+                            <span>Neue automatisch drucken</span>
+                        </label>
+                    </div>
+                    <p class="field-hint burger-print-only">Etiketten: DYMO 11354 (57 × 32 mm). Im Druckdialog den LabelWriter, Papier „11354“, Querformat, Ränder „Keine“ und Skalierung 100 % wählen. Was gedruckt wurde, wird nicht noch einmal gedruckt. Für den Druck ganz ohne Dialog Chrome mit <code>--kiosk-printing</code> starten (LabelWriter als Standarddrucker).</p>
+                    <p class="field-hint" id="burgerDisplayHint">Tablet-Anzeige: auf dem Tablet als Admin anmelden (oder Admin per IP), diese Seite öffnen und „Tablet-Anzeige öffnen“ tippen — das Tablet merkt sich das und öffnet die Anzeige beim nächsten Mal von selbst. Was schon zubereitet wird, können Teilnehmer nicht mehr ändern oder stornieren.</p>
+                </details>
                 <div class="burger-totals" id="burgerTotals"></div>
                 <div class="burger-orders" id="burgerOrderList"></div>
             </section>
@@ -225,7 +240,7 @@
         <!-- Timetable of an event: own entries, tournament rounds from the deadlines, notes -->
         <main class="layout view" id="view-timetable" style="display: none;">
             <h1 class="view-title"><span class="tape-wrap"><span class="tape">Zeitplan</span></span></h1>
-            <section class="card">
+            <section class="card toolbar-card">
                 <div class="section-header event-bar">
                     <div class="event-picker">
                         <h2><svg class="icon icon-accent"><use href="#i-flag"/></svg>Event</h2>
@@ -238,35 +253,35 @@
                         <button class="btn btn-ghost btn-sm admin-only" onclick="openTimetableNoteModal()">
                             <svg class="icon"><use href="#i-plus"/></svg><span>Hinweis</span>
                         </button>
-                        <button class="btn btn-primary btn-sm" onclick="exportTimetablePdf()" title="Zeitplan mit Hinweisen zum Aushängen">
-                            <svg class="icon"><use href="#i-file"/></svg><span>Zeitplan (PDF)</span>
+                        <button class="btn btn-secondary btn-sm" onclick="exportTimetablePdf()" title="Zeitplan mit Hinweisen zum Aushängen">
+                            <svg class="icon"><use href="#i-file"/></svg><span><span class="label-long">Zeitplan (PDF)</span><span class="label-short">PDF</span></span>
                         </button>
                     </div>
                 </div>
             </section>
 
-            <section class="card" id="ttNotesCard" style="display: none;">
-                <div class="section-header">
-                    <h2><svg class="icon icon-accent"><use href="#i-flag"/></svg>Hinweise</h2>
-                </div>
-                <div class="tt-notes" id="ttNotes"></div>
-            </section>
-
             <section class="card">
                 <div class="section-header">
                     <div>
-                        <h2><svg class="icon icon-accent"><use href="#i-clock"/></svg>Zeitplan</h2>
+                        <h2><svg class="icon icon-accent"><use href="#i-clock"/></svg>Ablauf</h2>
                         <p class="section-subtitle" id="ttPeriod"></p>
                     </div>
                 </div>
                 <div id="ttList" class="tt-list"><p class="loading">Lade Zeitplan…</p></div>
+            </section>
+
+            <section class="card" id="ttNotesCard" style="display: none;">
+                <div class="section-header">
+                    <h2><svg class="icon icon-accent"><use href="#i-info"/></svg>Hinweise</h2>
+                </div>
+                <div class="tt-notes" id="ttNotes"></div>
             </section>
         </main>
 
         <main class="layout view" id="view-tournaments">
             <h1 class="view-title"><span class="tape-wrap"><span class="tape">Turniere</span></span></h1>
             <!-- Events List Section -->
-            <section class="card">
+            <section class="card events-card">
                 <div class="section-header">
                     <h2><svg class="icon icon-accent"><use href="#i-flag"/></svg>Events</h2>
                     <button class="btn btn-ghost btn-icon" onclick="loadStages()" title="Aktualisieren" aria-label="Aktualisieren">
@@ -279,9 +294,9 @@
             </section>
 
             <!-- Tournament List Section -->
-            <section class="card">
+            <section class="card stages-card">
                 <div class="section-header">
-                    <h2><svg class="icon icon-accent"><use href="#i-trophy"/></svg>Turniere</h2>
+                    <h2><svg class="icon icon-accent"><use href="#i-trophy"/></svg>Alle Turniere</h2>
                     <div class="section-actions">
                         <select id="eventFilter" class="select-sm" onchange="filterStages()" aria-label="Nach Event filtern">
                             <option value="">Alle Events</option>
@@ -320,16 +335,16 @@
                     <div class="form-group">
                         <label for="tournamentType">Modus</label>
                         <select id="tournamentType" required>
-                            <option value="single_elimination">Single Elimination</option>
-                            <option value="double_elimination">Double Elimination</option>
-                            <option value="round_robin">Round Robin</option>
+                            <option value="single_elimination">K.-o.-System</option>
+                            <option value="double_elimination">Doppel-K.-o. (Gewinner- und Verliererrunde)</option>
+                            <option value="round_robin">Jeder gegen jeden</option>
                         </select>
                     </div>
 
                     <div class="form-group form-group-inline" id="settingsGroup">
                         <label class="toggle" id="grandFinalToggle">
                             <input type="checkbox" id="grandFinalDouble">
-                            <span>Grand Final mit Rückspiel</span>
+                            <span>Großes Finale mit Rückspiel</span>
                         </label>
                         <label class="toggle" id="consolationToggle" style="display: none;">
                             <input type="checkbox" id="consolationFinal">
@@ -375,7 +390,7 @@
                 </button>
                 <div class="section-header">
                     <div>
-                        <h2><svg class="icon icon-accent"><use href="#i-bracket"/></svg>Bracket</h2>
+                        <h2><svg class="icon icon-accent"><use href="#i-bracket"/></svg><span id="bracketTitle">Bracket</span></h2>
                         <p class="section-subtitle" id="bracketEventName"></p>
                     </div>
                     <div class="section-actions">
@@ -391,6 +406,7 @@
                     </div>
                 </div>
                 <!-- Correcting a result: shows what will change, the bracket keeps the current state until confirmed -->
+                <p class="bracket-legend"><span><strong>S</strong> Sieg</span><span><strong>N</strong> Niederlage</span><span><strong>Los</strong> per Los entschieden, weil die Spielzeit abgelaufen war</span><span id="memorialLegend" hidden><em class="memorial-sample">Name</em> in Gedenken — zählt als Freilos</span></p>
                 <div id="correctionPanel" class="correction-panel admin-only" style="display: none;"></div>
                 <div class="brackets-viewer"></div>
             </section>
@@ -402,7 +418,7 @@
                 </button>
                 <div class="section-header">
                     <div>
-                        <h2><svg class="icon icon-accent"><use href="#i-chart"/></svg>Rangliste</h2>
+                        <h2><svg class="icon icon-accent"><use href="#i-chart"/></svg><span id="rankingsTitle">Rangliste</span></h2>
                         <p class="section-subtitle" id="rankingsEventName"></p>
                     </div>
                     <div class="section-actions">
@@ -448,22 +464,30 @@
         <main class="layout view" id="view-attendees" style="display: none;">
             <h1 class="view-title"><span class="tape-wrap"><span class="tape">Teilnehmer</span></span></h1>
             <!-- Event selection + collapsible configuration -->
-            <section class="card">
+            <section class="card toolbar-card picker-admin">
+                <!-- Configuration is its own page (#teilnehmer/konfiguration), the list stays the default -->
+                <button class="btn btn-ghost btn-sm config-back" onclick="leaveAttendeeConfig()">
+                    <svg class="icon icon-back"><use href="#i-chevron"/></svg><span>Alle Teilnehmer</span>
+                </button>
+                <h2 class="config-title"><svg class="icon icon-accent"><use href="#i-settings"/></svg>Konfiguration</h2>
                 <div class="section-header event-bar">
                     <div class="event-picker">
                         <h2><svg class="icon icon-accent"><use href="#i-flag"/></svg>Event</h2>
                         <select id="lanEventSelect" onchange="selectLanEvent(this.value)" aria-label="Event auswählen"></select>
-                        <button class="btn btn-ghost btn-sm admin-only" onclick="openNewEventModal()">
-                            <svg class="icon"><use href="#i-plus"/></svg><span>Neu</span>
-                        </button>
-                        <button class="btn btn-danger btn-sm admin-only" id="deleteEventBtn" onclick="deleteLanEvent()" title="Ausgewähltes Event mit allen Teilnehmern löschen">
-                            <svg class="icon"><use href="#i-trash"/></svg><span>Löschen</span>
-                        </button>
                     </div>
-                    <button class="btn btn-secondary btn-sm admin-only" id="eventConfigToggle" onclick="toggleSection('eventConfigSection')">
-                        <svg class="icon"><use href="#i-settings"/></svg><span>Konfiguration</span>
-                        <span class="collapse-icon" id="eventConfigIcon"><svg class="icon"><use href="#i-chevron"/></svg></span>
-                    </button>
+                    <div class="section-actions admin-only">
+                        <button class="btn btn-secondary btn-sm" id="eventConfigToggle" onclick="openAttendeeConfig()">
+                            <svg class="icon"><use href="#i-settings"/></svg><span>Konfiguration</span>
+                        </button>
+                        <!-- Rare and destructive: in the menu, deleting last (app.js action menu behaviour) -->
+                        <details class="action-menu">
+                            <summary class="btn btn-secondary btn-sm"><svg class="icon"><use href="#i-flag"/></svg><span>Event</span><svg class="icon"><use href="#i-chevron"/></svg></summary>
+                            <div class="action-menu-list">
+                                <button type="button" class="action-menu-item" onclick="this.closest('details').open = false; openNewEventModal()"><svg class="icon"><use href="#i-plus"/></svg><span>Neues Event</span></button>
+                                <button type="button" class="action-menu-item is-danger" id="deleteEventBtn" onclick="this.closest('details').open = false; deleteLanEvent()"><svg class="icon"><use href="#i-trash"/></svg><span>Event löschen</span></button>
+                            </div>
+                        </details>
+                    </div>
                 </div>
 
                 <div id="eventConfigSection" class="collapsible-content admin-only" style="display: none;">
@@ -606,6 +630,21 @@
                         </fieldset>
                     </form>
 
+                    <fieldset class="config-block backup-block">
+                        <legend>Backup <span class="label-hint">die ganze Datenbank: alle Events, Turniere, Sitzpläne, Bestellungen</span></legend>
+                        <div class="backup-actions">
+                            <a href="/api/backup" class="btn btn-secondary btn-sm" download title="Datenbank als JSON herunterladen">
+                                <svg class="icon"><use href="#i-download"/></svg><span>Backup herunterladen</span>
+                            </a>
+                            <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('importBackupInput').click()" title="Datenbank aus JSON wiederherstellen">
+                                <svg class="icon"><use href="#i-upload"/></svg><span>Backup einlesen</span>
+                            </button>
+                            <input type="file" id="importBackupInput" accept=".json" style="display:none;" onchange="importBackup(this)">
+                            <span class="field-hint" id="importStatus" role="status"></span>
+                        </div>
+                        <p class="field-hint">Einlesen ersetzt alle Daten auf dem Server durch den Stand der Datei.</p>
+                    </fieldset>
+
                     <div class="import-row" id="importCard" style="display: none;">
                         <div>
                             <strong><svg class="icon icon-accent"><use href="#i-copy"/></svg>Teilnehmer übernehmen</strong>
@@ -623,25 +662,35 @@
             <section class="card">
                 <div class="section-header">
                     <div>
-                        <h2><svg class="icon icon-accent"><use href="#i-users"/></svg>Teilnehmer</h2>
+                        <h2><svg class="icon icon-accent"><use href="#i-users"/></svg>Wer ist da</h2>
                         <p class="section-subtitle" id="attendeeSummary"></p>
                     </div>
                     <div class="section-actions" id="exportActions">
-                        <button class="btn btn-primary btn-sm admin-only" id="exportSlipsBtn" onclick="exportAllSlips()" title="Ein A4-Blatt pro Teilnehmer">
-                            <svg class="icon"><use href="#i-file"/></svg><span class="btn-label">IP-Zettel (PDF)</span>
-                        </button>
-                        <button class="btn btn-secondary btn-sm" onclick="exportIpGuide()" title="Kurze Anleitung: feste IP-Adresse unter Windows und macOS, mit den Netzwerk-Einstellungen des Events">
-                            <svg class="icon"><use href="#i-file"/></svg><span>Anleitung (PDF)</span>
-                        </button>
-                        <a class="btn btn-secondary btn-sm" id="exportCsv" download><svg class="icon"><use href="#i-download"/></svg><span>CSV</span></a>
-                        <a class="btn btn-secondary btn-sm" id="exportHosts" download><svg class="icon"><use href="#i-download"/></svg><span>hosts</span></a>
-                        <a class="btn btn-secondary btn-sm" id="exportZone" download><svg class="icon"><use href="#i-download"/></svg><span>BIND-Zone</span></a>
-                        <button class="btn btn-secondary btn-sm admin-only" id="opnsenseSyncBtn" onclick="openOpnsenseSync()" title="DNS-Namen als Host Overrides nach Unbound übertragen">
-                            <svg class="icon"><use href="#i-network"/></svg><span>OPNsense</span>
-                        </button>
+                        <!-- Printouts and exports in one menu (app.js action menu behaviour) -->
+                        <details class="action-menu">
+                            <summary class="btn btn-secondary btn-sm" aria-label="Exportieren" title="Exportieren"><svg class="icon"><use href="#i-download"/></svg><span class="label-long">Exportieren</span><svg class="icon label-long"><use href="#i-chevron"/></svg></summary>
+                            <div class="action-menu-list">
+                                <button type="button" class="action-menu-item admin-only" id="exportSlipsBtn" onclick="this.closest('details').open = false; exportAllSlips()" title="Ein A4-Blatt pro Teilnehmer">
+                                    <svg class="icon"><use href="#i-file"/></svg><span class="btn-label">IP-Zettel (PDF)</span>
+                                </button>
+                                <button type="button" class="action-menu-item" onclick="this.closest('details').open = false; exportIpGuide()" title="Kurze Anleitung: feste IP-Adresse unter Windows und macOS, mit den Netzwerk-Einstellungen des Events">
+                                    <svg class="icon"><use href="#i-file"/></svg><span>Anleitung feste IP (PDF)</span>
+                                </button>
+                                <a class="action-menu-item" id="exportCsv" download><svg class="icon"><use href="#i-download"/></svg><span>Liste als CSV</span></a>
+                                <a class="action-menu-item" id="exportHosts" download><svg class="icon"><use href="#i-download"/></svg><span>hosts-Datei</span></a>
+                                <a class="action-menu-item" id="exportZone" download><svg class="icon"><use href="#i-download"/></svg><span>BIND-Zone</span></a>
+                                <button type="button" class="action-menu-item admin-only" id="opnsenseSyncBtn" onclick="this.closest('details').open = false; openOpnsenseSync()" title="DNS-Namen als Host Overrides nach Unbound übertragen">
+                                    <svg class="icon"><use href="#i-network"/></svg><span>Nach OPNsense übertragen</span>
+                                </button>
+                            </div>
+                        </details>
                     </div>
                 </div>
 
+                <!-- Phone: the add form stays folded away, the list comes first -->
+                <button type="button" class="btn btn-secondary btn-sm add-attendee-toggle admin-only" aria-expanded="false" aria-controls="addAttendeeForm" onclick="toggleAddAttendee(this)">
+                    <svg class="icon"><use href="#i-plus"/></svg><span>Teilnehmer hinzufügen</span>
+                </button>
                 <form id="addAttendeeForm" class="attendee-form admin-only">
                     <input type="text" id="newFirstName" placeholder="Vorname" autocomplete="off">
                     <input type="text" id="newLastName" placeholder="Nachname" autocomplete="off">
@@ -658,7 +707,7 @@
                 <div class="list-toolbar">
                     <div class="search-field">
                         <svg class="icon"><use href="#i-search"/></svg>
-                        <input type="text" id="attendeeSearch" placeholder="Suchen nach Name, Clan, Nickname oder IP…" oninput="renderAttendees()" autocomplete="off">
+                        <input type="text" id="attendeeSearch" aria-keyshortcuts="/" title="Suchen (Taste /)" placeholder="Name, Clan, Nickname oder IP" oninput="renderAttendees()" autocomplete="off">
                     </div>
                     <select id="clanFilter" class="select-sm" onchange="renderAttendees()" aria-label="Nach Clan filtern"></select>
                 </div>
@@ -667,11 +716,11 @@
                     <table class="attendee-table">
                         <thead>
                             <tr id="attendeeHead">
-                                <th class="col-slot sortable" data-sort="slot">#</th>
-                                <th class="sortable" data-sort="first_name">Vorname</th>
-                                <th class="sortable" data-sort="last_name">Nachname</th>
-                                <th class="sortable" data-sort="clan">Clan</th>
-                                <th class="sortable" data-sort="nickname">Nickname</th>
+                                <th class="col-slot sortable" data-sort="slot" aria-sort="ascending"><button type="button" class="sort-btn" aria-label="Nummer">#<svg class="icon sort-icon" aria-hidden="true"><use href="#i-chevron"/></svg></button></th>
+                                <th class="sortable" data-sort="first_name"><button type="button" class="sort-btn">Vorname<svg class="icon sort-icon" aria-hidden="true"><use href="#i-chevron"/></svg></button></th>
+                                <th class="sortable" data-sort="last_name"><button type="button" class="sort-btn">Nachname<svg class="icon sort-icon" aria-hidden="true"><use href="#i-chevron"/></svg></button></th>
+                                <th class="sortable" data-sort="clan"><button type="button" class="sort-btn">Clan<svg class="icon sort-icon" aria-hidden="true"><use href="#i-chevron"/></svg></button></th>
+                                <th class="sortable" data-sort="nickname"><button type="button" class="sort-btn">Nickname<svg class="icon sort-icon" aria-hidden="true"><use href="#i-chevron"/></svg></button></th>
                                 <th>Haupt-PC</th>
                                 <th>Zweiter PC</th>
                                 <th>Dritter PC</th>
@@ -688,7 +737,7 @@
         <!-- Seating plan -->
         <main class="layout view" id="view-seating" style="display: none;">
             <h1 class="view-title"><span class="tape-wrap"><span class="tape">Sitzplan</span></span></h1>
-            <section class="card">
+            <section class="card toolbar-card">
                 <div class="section-header event-bar">
                     <div class="event-picker">
                         <h2><svg class="icon icon-accent"><use href="#i-flag"/></svg>Event</h2>
@@ -696,16 +745,25 @@
                     </div>
                     <div class="room-tabs" id="roomTabs" role="tablist" aria-label="Räume"></div>
                     <div class="section-actions admin-only">
-                        <button class="btn btn-ghost btn-sm" id="newRoomBtn" onclick="openRoomModal()">
-                            <svg class="icon"><use href="#i-plus"/></svg><span>Raum</span>
-                        </button>
-                        <button class="btn btn-ghost btn-sm" id="duplicateRoomBtn" onclick="openDuplicateRoomModal()" title="Raum mit Tischen, Türen und Nummern kopieren — ohne Belegung">
-                            <svg class="icon"><use href="#i-copy"/></svg><span>Duplizieren</span>
-                        </button>
                         <button class="btn btn-secondary btn-sm" id="roomConfigToggle" onclick="toggleSection('roomConfigSection')">
                             <svg class="icon"><use href="#i-settings"/></svg><span>Raum bearbeiten</span>
                             <span class="collapse-icon" id="roomConfigIcon"><svg class="icon"><use href="#i-chevron"/></svg></span>
                         </button>
+                        <!-- Rarer room actions in one menu (app.js action menu behaviour) -->
+                        <details class="action-menu">
+                            <summary class="btn btn-ghost btn-icon" title="Weitere Raum-Aktionen" aria-label="Weitere Raum-Aktionen"><svg class="icon"><use href="#i-more"/></svg></summary>
+                            <div class="action-menu-list">
+                                <button type="button" class="action-menu-item" id="newRoomBtn" onclick="this.closest('details').open = false; openRoomModal()">
+                                    <svg class="icon"><use href="#i-plus"/></svg><span>Neuer Raum</span>
+                                </button>
+                                <button type="button" class="action-menu-item" id="duplicateRoomBtn" onclick="this.closest('details').open = false; openDuplicateRoomModal()" title="Raum mit Tischen, Türen und Nummern kopieren — ohne Belegung">
+                                    <svg class="icon"><use href="#i-copy"/></svg><span>Raum duplizieren</span>
+                                </button>
+                                <button type="button" class="action-menu-item is-danger" id="clearSeatsBtn" onclick="this.closest('details').open = false; clearRoomSeats()" title="Alle Plätze dieses Raums wieder freigeben">
+                                    <svg class="icon"><use href="#i-trash"/></svg><span>Alle Plätze freigeben</span>
+                                </button>
+                            </div>
+                        </details>
                     </div>
                 </div>
 
@@ -749,32 +807,37 @@
                         <p class="section-subtitle" id="seatSummary"></p>
                     </div>
                     <div class="section-actions" id="seatExportActions">
-                        <select id="seatPdfFormat" class="select-sm" aria-label="Papierformat">
-                            <option value="a4">A4</option>
-                            <option value="a3">A3</option>
-                        </select>
-                        <button class="btn btn-primary btn-sm" onclick="exportSeatPlanPdf()" title="Raumplan mit Namen und alphabetischer Liste zum Aushängen">
-                            <svg class="icon"><use href="#i-file"/></svg><span>Sitzplan (PDF)</span>
-                        </button>
-                        <button class="btn btn-secondary btn-sm" onclick="exportSeatSignsPdf()" title="Tischaufsteller zum Falten, zwei pro A4-Blatt">
-                            <svg class="icon"><use href="#i-file"/></svg><span>Platz-Schilder (PDF)</span>
-                        </button>
+                        <details class="action-menu">
+                            <summary class="btn btn-secondary btn-sm" aria-label="Exportieren" title="Exportieren"><svg class="icon"><use href="#i-download"/></svg><span class="label-long">Exportieren</span><svg class="icon label-long"><use href="#i-chevron"/></svg></summary>
+                            <div class="action-menu-list">
+                                <button type="button" class="action-menu-item" onclick="this.closest('details').open = false; exportSeatPlanPdf('a4')" title="Raumplan mit Namen und alphabetischer Liste zum Aushängen">
+                                    <svg class="icon"><use href="#i-file"/></svg><span>Sitzplan (PDF, A4)</span>
+                                </button>
+                                <button type="button" class="action-menu-item" onclick="this.closest('details').open = false; exportSeatPlanPdf('a3')" title="Raumplan mit Namen und alphabetischer Liste zum Aushängen">
+                                    <svg class="icon"><use href="#i-file"/></svg><span>Sitzplan (PDF, A3)</span>
+                                </button>
+                                <button type="button" class="action-menu-item" onclick="this.closest('details').open = false; exportSeatSignsPdf()" title="Tischaufsteller zum Falten, zwei pro A4-Blatt">
+                                    <svg class="icon"><use href="#i-file"/></svg><span>Platz-Schilder (PDF)</span>
+                                </button>
+                            </div>
+                        </details>
                     </div>
                 </div>
 
                 <div class="list-toolbar seat-toolbar">
                     <div class="search-field">
                         <svg class="icon"><use href="#i-search"/></svg>
-                        <input type="text" id="seatSearch" placeholder="Wer sitzt wo? Name, Clan, Nickname oder Platznummer…" oninput="renderSeating()" autocomplete="off">
+                        <input type="text" id="seatSearch" aria-keyshortcuts="/" title="Suchen (Taste /)" placeholder="Name oder Platz suchen" oninput="renderSeating()" autocomplete="off">
                     </div>
                     <div class="zoom-control" role="group" aria-label="Zoom">
-                        <button type="button" class="btn btn-ghost btn-sm" onclick="zoomSeating(-1)" aria-label="Verkleinern">−</button>
+                        <button type="button" class="btn btn-ghost btn-sm btn-icon" onclick="zoomSeating(-1)" aria-label="Verkleinern" title="Verkleinern"><svg class="icon"><use href="#i-minus"/></svg></button>
                         <button type="button" class="btn btn-ghost btn-sm zoom-fit" onclick="zoomSeating(0)" title="An Breite anpassen">Einpassen</button>
-                        <button type="button" class="btn btn-ghost btn-sm" onclick="zoomSeating(1)" aria-label="Vergrößern">+</button>
+                        <button type="button" class="btn btn-ghost btn-sm btn-icon" onclick="zoomSeating(1)" aria-label="Vergrößern" title="Vergrößern"><svg class="icon"><use href="#i-plus"/></svg></button>
                     </div>
                     <div class="segmented admin-only" role="group" aria-label="Modus">
-                        <button type="button" data-mode="assign" onclick="setSeatMode('assign')">Plätze vergeben</button>
-                        <button type="button" data-mode="layout" onclick="setSeatMode('layout')">Raum gestalten</button>
+                        <button type="button" data-mode="view" onclick="setSeatMode('view')">Ansehen</button>
+                        <button type="button" data-mode="assign" onclick="setSeatMode('assign')"><span class="label-long">Plätze vergeben</span><span class="label-short">Vergeben</span></button>
+                        <button type="button" data-mode="layout" onclick="setSeatMode('layout')"><span class="label-long">Raum gestalten</span><span class="label-short">Gestalten</span></button>
                     </div>
                 </div>
 
@@ -782,9 +845,6 @@
                     <span class="field-hint">Platz anklicken zum Vergeben — oder erst rechts einen Teilnehmer wählen, dann den Platz.</span>
                     <button type="button" class="btn btn-secondary btn-sm" onclick="autofillRoom()" title="Alle ohne Platz auf die freien Plätze dieses Raums setzen, Clans zusammen">
                         <svg class="icon"><use href="#i-shuffle"/></svg><span>Freie Plätze automatisch belegen</span>
-                    </button>
-                    <button type="button" class="btn btn-danger btn-sm" onclick="clearRoomSeats()" title="Alle Plätze dieses Raums wieder freigeben">
-                        <svg class="icon"><use href="#i-trash"/></svg><span>Alle Plätze freigeben</span>
                     </button>
                 </div>
 
@@ -820,9 +880,15 @@
                             <span><i class="legend-table"></i>Tisch mit Platznummer</span>
                             <span><i class="legend-seat"></i>Stuhl</span>
                             <span><i class="legend-taken"></i>vergeben</span>
+                            <span id="legendMe" hidden><i class="legend-me"></i>dein Platz</span>
                             <span><i class="legend-door"></i>Tür</span>
                             <span><i class="legend-area"></i>Fläche</span>
                         </div>
+                        <!-- Full names for small screens and screen readers; seating.js renderSeatList() -->
+                        <details class="seat-list" id="seatListBox">
+                            <summary><span>Alle Plätze als Liste</span><span class="collapse-icon"><svg class="icon"><use href="#i-chevron"/></svg></span></summary>
+                            <ol class="seat-list-items" id="seatList"></ol>
+                        </details>
                     </div>
                     <aside class="unseated admin-only" id="unseatedPanel">
                         <h3>Ohne Platz <span class="info-badge" id="unseatedCount">0</span></h3>
@@ -837,12 +903,19 @@
             <div class="modal-content confirm-modal">
                 <h2 id="confirmTitle">Bist du sicher?</h2>
                 <p id="confirmMessage" class="confirm-message"></p>
+                <div class="form-group confirm-type" id="confirmTypeGroup" hidden>
+                    <label for="confirmTyped">Zum Bestätigen den Namen eintippen: <strong id="confirmTypeTarget"></strong></label>
+                    <input type="text" id="confirmTyped" autocomplete="off" spellcheck="false">
+                </div>
                 <div class="form-actions form-actions-end">
                     <button type="button" class="btn btn-secondary" id="confirmCancel" onclick="answerConfirm(false)">Abbrechen</button>
                     <button type="button" class="btn btn-danger-solid" id="confirmOk" onclick="answerConfirm(true)">Löschen</button>
                 </div>
             </div>
         </div>
+
+        <!-- Screen reader announcements for changes elsewhere on the page: app.js announce() -->
+        <p class="sr-only" id="srStatus" role="status" aria-live="polite"></p>
 
         <!-- Messages instead of alert(): app.js notify() -->
         <div class="toast-stack" id="toastStack" aria-live="polite"></div>
@@ -860,13 +933,6 @@
             </div>
             <div class="footer-line footer-stats" id="footerStats"></div>
             <div class="footer-line footer-actions">
-                <a href="/api/backup" class="footer-action admin-only" download title="Datenbank als JSON herunterladen">
-                    <svg class="icon"><use href="#i-download"/></svg><span>Backup herunterladen</span>
-                </a>
-                <button type="button" class="footer-action admin-only" onclick="document.getElementById('importBackupInput').click()" title="Datenbank aus JSON wiederherstellen">
-                    <svg class="icon"><use href="#i-upload"/></svg><span>Backup einlesen</span>
-                </button>
-                <input type="file" id="importBackupInput" accept=".json" style="display:none;" onchange="importBackup(this)">
                 <button type="button" class="footer-action" id="loginButton" onclick="openLoginModal()" style="display: none;" title="Als Admin anmelden, um zu bearbeiten">
                     <svg class="icon"><use href="#i-lock"/></svg><span>Anmelden</span>
                 </button>
@@ -874,7 +940,6 @@
                     <svg class="icon"><use href="#i-logout"/></svg><span>Abmelden</span>
                 </button>
                 <span class="footer-note" id="footerAdminNote" hidden>Admin über die IP-Adresse dieses Geräts</span>
-                <span class="footer-hint" id="importStatus" role="status"></span>
             </div>
         </footer>
     </div>
@@ -1130,7 +1195,7 @@
             <button type="button" class="close" onclick="closeModal('scheduleModal')" aria-label="Schließen"><svg class="icon"><use href="#i-x"/></svg></button>
             <h2>Spielzeiten</h2>
             <p class="section-subtitle" id="scheduleStageName"></p>
-            <p class="field-hint">Bis wann eine Runde gespielt sein muss. Nach Rundenschluss entscheidet für jedes noch offene Match der Runde das Los, sobald beide Gegner feststehen; solche Ergebnisse sind im Bracket mit „Los“ markiert und lassen sich über „Ergebnis ändern“ korrigieren. Halbfinale, Finale und die Spiele um Platz 3 haben stattdessen eine Beginn-Zeit. Das Loser Bracket hat keine Spielzeiten. Leer = keine Zeit.</p>
+            <p class="field-hint">Bis wann eine Runde gespielt sein muss. Nach Rundenschluss entscheidet für jedes noch offene Match der Runde das Los, sobald beide Gegner feststehen; solche Ergebnisse sind im Bracket mit „Los“ markiert und lassen sich über „Ergebnis ändern“ korrigieren. Halbfinale, Finale und die Spiele um Platz 3 haben stattdessen eine Beginn-Zeit. Die Verliererrunde hat keine Spielzeiten. Leer = keine Zeit.</p>
             <p class="field-hint" id="scheduleModeHint"></p>
             <form id="scheduleForm">
                 <div class="schedule-list" id="scheduleList"></div>
@@ -1210,23 +1275,27 @@
 
     <!-- Quick Winner Modal -->
     <div id="winnerModal" class="modal">
-        <div class="modal-content winner-modal">
+        <div class="modal-content winner-modal" tabindex="-1">
             <button type="button" class="close" onclick="closeWinnerModal()" aria-label="Schließen"><svg class="icon"><use href="#i-x"/></svg></button>
             <h2>Gewinner wählen</h2>
+            <p class="winner-context" id="winnerModalMatch"></p>
             <p id="winnerModalInfo" class="match-info-text"></p>
 
             <div class="winner-selection">
                 <button type="button" class="winner-btn" id="winner1Btn" onclick="selectWinner(1)">
-                    <svg class="icon winner-icon"><use href="#i-trophy"/></svg>
+                    <svg class="icon winner-icon" aria-hidden="true"><use href="#i-trophy"/></svg>
                     <span class="winner-name" id="winner1Name">Opponent 1</span>
                 </button>
 
-                <div class="vs-large">VS</div>
+                <div class="vs-large" aria-hidden="true">gegen</div>
 
                 <button type="button" class="winner-btn" id="winner2Btn" onclick="selectWinner(2)">
-                    <svg class="icon winner-icon"><use href="#i-trophy"/></svg>
+                    <svg class="icon winner-icon" aria-hidden="true"><use href="#i-trophy"/></svg>
                     <span class="winner-name" id="winner2Name">Opponent 2</span>
                 </button>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeWinnerModal()">Abbrechen</button>
             </div>
         </div>
     </div>
