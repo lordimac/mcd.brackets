@@ -117,7 +117,7 @@ export async function relabelSchedules(): Promise<string[]> {
   const stages: AppStage[] = (await getStorage().select('stage')) ?? [];
   const changed: string[] = [];
   for (const stage of stages) {
-    if (!stage.schedule?.length) continue;
+    if (!stage.schedule?.length || stage.closed_at) continue;
     const rounds = await stageRounds(stage.id);
     let dirty = false;
     const schedule: RoundDeadline[] = stage.schedule.map(entry => {
@@ -177,8 +177,9 @@ export interface EventFinal {
   starts_at: string | null;
 }
 
+// Tournaments of the event that still take times (closed ones keep theirs, stages.ts)
 async function eventStages(eventName: string): Promise<AppStage[]> {
-  return (((await getStorage().select('stage')) ?? []) as AppStage[]).filter(s => s.event_name === eventName);
+  return (((await getStorage().select('stage')) ?? []) as AppStage[]).filter(s => s.event_name === eventName && !s.closed_at);
 }
 
 export async function eventFinals(eventName: string): Promise<EventFinal[]> {
@@ -247,7 +248,7 @@ export async function saveEventSchedule(eventName: string, slotsInput: unknown, 
 // no longer exists (rebuilt or deleted meanwhile)
 export async function findOverdueMatch(stageId: Id, now: number = Date.now()): Promise<Match | null> {
   const stage = await getStorage().select('stage', stageId) as AppStage | null;
-  if (!stage?.schedule?.length) return null;
+  if (!stage?.schedule?.length || stage.closed_at) return null;
   const due = new Set((await stageRounds(stageId)).filter(r => r.ends_at && Date.parse(r.ends_at) <= now).map(r => r.round_id));
   if (due.size === 0) return null;
   const matches: Match[] = (await getStorage().select('match', { stage_id: stageId })) ?? [];

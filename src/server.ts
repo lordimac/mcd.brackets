@@ -23,7 +23,7 @@ import { getStats, startUpdateChecks, updateFor } from './info';
 import { getEvent, playerNamesForEvent, syncEventsFromStages } from './lan-store';
 import { memorialByes, migrateMemorialStages, setConsolationFinal, setGrandFinalDouble } from './stage-sync';
 import { isStageType, normalizeNames } from './seeding';
-import { createStage, deleteStage, findStage, pickSettings } from './stages';
+import { assertMatchStageOpen, assertStageOpen, createStage, deleteStage, findStage, pickSettings, setStageClosed } from './stages';
 import { clearMatchResult, describeFollowing, updateMatchResult } from './results';
 import { decideOverdueMatches, eventFinals, eventSchedule, relabelSchedules, saveEventSchedule, saveSchedule, stageRounds, startScheduleChecks } from './schedule';
 import { getStandings } from './standings';
@@ -159,6 +159,7 @@ app.get('/api/stages/:id/schedule', async (req: Request<{ id: string }>, res: Re
 app.put('/api/stages/:id/schedule', async (req: Request<{ id: string }>, res: Response) => {
   const stageId = parseInt(req.params.id);
   const result = await withLock(() => withRollback(async () => {
+    assertStageOpen(await findStage(stageId));
     await saveSchedule(stageId, req.body?.rounds);
     const decided = await decideOverdueMatches(stageId); // deadlines in the past apply at once
     return { rounds: await stageRounds(stageId), decided };
@@ -181,6 +182,7 @@ app.put('/api/events/:id/schedule', async (req: Request<{ id: string }>, res: Re
 // { grandFinalDouble } — grand final with a second match (double elimination)
 app.put('/api/stages/:id/settings', async (req: Request<{ id: string }>, res: Response) => {
   const id = parseInt(req.params.id);
+  assertStageOpen(await findStage(id));
   if (typeof req.body?.consolationFinal === 'boolean') {
     res.json(await withLock(() => withRollback(() => setConsolationFinal(id, req.body.consolationFinal))));
   } else if (typeof req.body?.grandFinalDouble === 'boolean') {
@@ -246,6 +248,7 @@ app.post('/api/stages/:id/regenerate', async (req: Request<{ id: string }>, res:
 
   const stage = await withLock(() => withRollback(async () => {
     const stage = await findStage(parseInt(req.params.id));
+    assertStageOpen(stage);
     const fromEvent = await playerNamesForEvent(stage.event_name);
     const useEvent = !newNames && !!fromEvent?.players.length;
     // Fallback (tournaments without attendee list): previous players minus previous memorial entries
@@ -288,22 +291,37 @@ app.put('/api/matches/:id', async (req: Request<{ id: string }>, res: Response) 
   const { opponent1, opponent2, resetFollowing } = req.body ?? {};
   const matchId = parseInt(req.params.id);
 
-  const updatedMatch = await withLock(() => withRollback(() =>
-    updateMatchResult(matchId, { opponent1, opponent2, resetFollowing: resetFollowing === true })));
+  const updatedMatch = await withLock(() => withRollback(async () => {
+    await assertMatchStageOpen(matchId);
+    return updateMatchResult(matchId, { opponent1, opponent2, resetFollowing: resetFollowing === true });
+  }));
   res.json(updatedMatch ?? {});
 });
 
 // Undo a result just entered ("Rückgängig"), only while nothing builds on it
 app.delete('/api/matches/:id/result', async (req: Request<{ id: string }>, res: Response) => {
   const matchId = parseInt(req.params.id);
-  const match = await withLock(() => withRollback(() => clearMatchResult(matchId)));
+  const match = await withLock(() => withRollback(async () => {
+    await assertMatchStageOpen(matchId);
+    return clearMatchResult(matchId);
+  }));
   res.json(match ?? {});
 });
 
 // Delete a stage (including all participants for that tournament)
 app.delete('/api/stages/:id', async (req: Request<{ id: string }>, res: Response) => {
-  await withLock(() => withRollback(async () => deleteStage(await findStage(parseInt(req.params.id)))));
+  await withLock(() => withRollback(async () => {
+    const stage = await findStage(parseInt(req.params.id));
+    assertStageOpen(stage);
+    await deleteStage(stage);
+  }));
   res.status(204).send();
+});
+
+// Close a finished tournament ({ closed: true }) or open it again ({ closed: false })
+app.put('/api/stages/:id/closed', async (req: Request<{ id: string }>, res: Response) => {
+  if (typeof req.body?.closed !== 'boolean') throw new HttpError(400, 'closed fehlt');
+  res.json(await withLock(() => setStageClosed(parseInt(req.params.id), req.body.closed)));
 });
 
 // Players of all tournaments (they follow the event's attendees, stage-sync.ts)

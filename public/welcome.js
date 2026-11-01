@@ -94,8 +94,7 @@ function renderWelcome() {
     }
     const withNetwork = ['identified', 'unassigned', 'unknown'].includes(me.status);
     // During the event the own matches matter most; the network setup is done after the first hour
-    box.innerHTML = [
-        heroHtml(event),
+    const side = [
         me.status === 'identified' ? `
             <section class="card">
                 <div class="section-header">
@@ -106,6 +105,10 @@ function renderWelcome() {
         withNetwork ? networkHtml(event) : '',
         welcomeSharesHtml(event),
     ].join('');
+    // The card on the left third, the other blocks beside it (stacked on narrow screens)
+    box.innerHTML = side.trim()
+        ? `<div class="welcome-columns"><div class="welcome-main">${heroHtml(event)}</div><div class="welcome-side">${side}</div></div>`
+        : heroHtml(event);
 }
 
 function eventPeriod(event) {
@@ -118,7 +121,6 @@ function eventPeriod(event) {
 function heroHtml(event) {
     const period = eventPeriod(event);
     const kicker = `<p class="welcome-event">${icon('flag')}${escapeHtml(event.name)}${period ? `<span class="muted">${escapeHtml(period)}</span>` : ''}</p>`;
-    const logo = event.logo ? `<img class="welcome-logo" src="${escapeHtml(event.logo)}" alt="">` : '';
     const ip = `<code>${escapeHtml(me.ip ?? '–')}</code>`;
     const test = me.tested ? `<p class="welcome-test-note">${icon('search')}Testansicht für ${ip}</p>` : '';
 
@@ -142,7 +144,6 @@ function heroHtml(event) {
                 <p class="checkin-browse">Schon mal stöbern: <a href="#zeitplan">Zeitplan</a> · <a href="#sitzplan">Sitzplan</a> · <a href="#turniere">Turniere</a> · <a href="#burger">Burger bestellen</a></p>
                 ${test}
             </div>
-            ${logo}
         </section>`;
     }
 
@@ -155,7 +156,6 @@ function heroHtml(event) {
         }[me.status] ?? '';
         return `<section class="card welcome-hero">
             <div class="welcome-hero-main">${kicker}<h1 class="welcome-title">Willkommen!</h1><p class="welcome-lead">${lead}</p>${test}</div>
-            ${logo}
         </section>`;
     }
 
@@ -193,7 +193,6 @@ function heroHtml(event) {
                 <span class="welcome-fact-sub">wird geladen</span>
             </div>
         </div>
-        ${logo}
     </section>`;
 }
 

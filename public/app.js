@@ -374,9 +374,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadStages();
     await loadParticipants();
     await loadMatches();
-    // A detail page in the address (reload, shared link) needs the tournaments loaded first
+    // The tournament page (chosen bracket, detail pages) needs the tournaments loaded first
     tournamentDataReady = true;
-    if (location.hash.startsWith('#turniere/')) showView();
+    if (location.hash.startsWith('#turniere')) showView();
 });
 
 function setupEventListeners() {
@@ -419,58 +419,74 @@ function showView() {
     if (view === 'burger' && typeof showBurgerView === 'function') showBurgerView();
     if (view === 'welcome' && typeof showWelcomeView === 'function') showWelcomeView();
     if (view === 'tournaments') routeTournamentDetail(detailKind, detailKey === undefined ? undefined : decodeURIComponent(detailKey));
-    else closeTournamentDetail();
+    else {
+        closeTournamentDetail();
+        if (document.body.classList.contains('bracket-fullscreen')) toggleBracketFullscreen(false);
+    }
 }
 
-/* Tournament detail pages: bracket, ranking and match list replace the overview (cards, events,
-   settings) instead of opening far below it. The hash keeps the page, so back and reload work. */
+/* Tournament page: tabs for the tournaments on top, the chosen one below as bracket (#turniere/bracket/3)
+   with its placings beside it. Detail pages (whole ranking, overall ranking, match list) replace the
+   page instead of opening far below it. The hash keeps the page, so back and reload work. */
 
-const TOURNAMENT_DETAILS = { bracket: 'bracketViewerSection', rangliste: 'rankingsSection', gesamtwertung: 'rankingsSection', matches: 'matchesSection' };
+const TOURNAMENT_DETAILS = { rangliste: 'rankingsSection', gesamtwertung: 'rankingsSection', matches: 'matchesSection' };
 let tournamentDetailHash = null;
 let tournamentDataReady = false;
 
-// Called by viewBracket & co. when a detail page opens (not on a refresh)
+// Called by viewRankings & co. when a detail page opens (not on a refresh)
 function openTournamentDetail(kind, key) {
     const hash = `#turniere/${kind}/${encodeURIComponent(key)}`;
     const sectionId = TOURNAMENT_DETAILS[kind];
     for (const id of new Set(Object.values(TOURNAMENT_DETAILS))) {
         if (id !== sectionId) document.getElementById(id).style.display = 'none';
     }
-    if (sectionId !== 'bracketViewerSection') {
-        cancelCorrection();
-        scheduleBracketRefresh(null, false);
-    }
+    cancelCorrection();
+    scheduleBracketRefresh(null, false);
+    if (document.body.classList.contains('bracket-fullscreen')) toggleBracketFullscreen(false);
     document.body.classList.add('tournament-detail');
     tournamentDetailHash = hash;
     if (location.hash !== hash) history.pushState(null, '', hash);
     window.scrollTo(0, 0);
 }
 
-// From the hash (reload, back/forward, links): open the page unless it is already shown
+// From the hash (reload, back/forward, links): a detail page, a chosen bracket or the page itself
 function routeTournamentDetail(kind, key) {
-    if (!kind || !TOURNAMENT_DETAILS[kind] || key === undefined) {
-        closeTournamentDetail();
+    if (kind && TOURNAMENT_DETAILS[kind] && key !== undefined) {
+        if (tournamentDetailHash === location.hash || !tournamentDataReady) return;
+        if (kind === 'rangliste') viewRankings(Number(key));
+        else if (kind === 'gesamtwertung') viewEventRankings(key);
+        else if (kind === 'matches') viewStageMatches(Number(key));
         return;
     }
-    if (tournamentDetailHash === location.hash || !tournamentDataReady) return;
-    if (kind === 'bracket') viewBracket(Number(key));
-    else if (kind === 'rangliste') viewRankings(Number(key));
-    else if (kind === 'gesamtwertung') viewEventRankings(key);
-    else if (kind === 'matches') viewStageMatches(Number(key));
+    const fromDetail = closeTournamentDetail();
+    if (!tournamentDataReady) return;
+    const id = kind === 'bracket' ? Number(key) : null;
+    if (id != null && stages.some(s => s.id === id) && id !== currentBracketStageId) {
+        viewBracket(id);
+        return;
+    }
+    if (id != null && id === currentBracketStageId && typeof takeMyMatchJump === 'function') takeMyMatchJump();
+    // Back from a detail page: the bracket was not refreshed meanwhile
+    if (fromDetail && currentBracketStageId != null && stages.some(s => s.id === currentBracketStageId)) {
+        viewBracket(currentBracketStageId, true);
+        return;
+    }
+    ensureTournamentShown();
 }
 
+// true when a detail page was open
 function closeTournamentDetail() {
-    if (!document.body.classList.contains('tournament-detail')) return;
+    if (!document.body.classList.contains('tournament-detail')) return false;
     document.body.classList.remove('tournament-detail');
     tournamentDetailHash = null;
     for (const id of new Set(Object.values(TOURNAMENT_DETAILS))) document.getElementById(id).style.display = 'none';
-    cancelCorrection();
-    scheduleBracketRefresh(null, false);
+    return true;
 }
 
-// "Zurück zu den Turnieren" and the close buttons of the detail pages
+// "Zu den Turnieren" and the close buttons of the detail pages: back to the chosen tournament
 function leaveTournamentDetail() {
-    if (location.hash.startsWith('#turniere/')) location.hash = '#turniere';
+    if (!document.body.classList.contains('tournament-detail')) return;
+    if (location.hash.startsWith('#turniere/')) location.hash = currentBracketStageId != null ? `#turniere/bracket/${currentBracketStageId}` : '#turniere';
     else closeTournamentDetail();
 }
 
@@ -734,93 +750,197 @@ async function loadParticipants() {
     }
 }
 
-// Display functions
-function displayStages() {
-    const container = document.getElementById('stagesList');
+// Tournaments of the chosen event (or all), by tournament number: a rebuilt stage gets a new ID but
+// keeps its place
+function visibleStages() {
     const eventFilter = document.getElementById('eventFilter').value;
-    
-    // By tournament number: a rebuilt stage gets a new ID but keeps its place in the list
-    let filteredStages = [...stages].sort((a, b) => Number(a.tournament_id) - Number(b.tournament_id));
-    if (eventFilter) {
-        filteredStages = filteredStages.filter(s => s.event_name === eventFilter);
-    }
-    
-    if (!filteredStages || filteredStages.length === 0) {
-        container.innerHTML = '<p class="empty-state">Keine Turniere vorhanden. Erstelle ein neues Turnier!</p>';
-        return;
-    }
-
-    // The event line only helps when tournaments of several events are listed
-    const severalEvents = new Set(filteredStages.map(s => s.event_name)).size > 1;
-    // With own matches in several tournaments only the most urgent one (earliest time of the own
-    // match, like compareNextMatches on the welcome page) gets the orange main button; the others keep
-    // the orange frame, so one loud thing stays one
-    const urgent = filteredStages.filter(hasMyOpenMatch)
-        .sort((a, b) => myMatchTime(a) - myMatchTime(b) || Number(a.tournament_id) - Number(b.tournament_id))[0];
-    container.innerHTML = filteredStages.map(stage => {
-        const participantCount = participants.filter(p => p.tournament_id === stage.tournament_id && p.name).length;
-        const progress = stageProgress(stage);
-        const mine = hasMyOpenMatch(stage);
-        return `
-        <div class="stage-item type-${escapeHtml(stage.type)}${mine ? ' is-mine' : ''}">
-            <div class="stage-head">
-                <div>
-                    <h3>${escapeHtml(stage.name)}</h3>
-                    ${stage.event_name && severalEvents ? `<p class="event-name">${icon('flag')}${escapeHtml(stage.event_name)}</p>` : ''}
-                </div>
-            </div>
-            <p class="stage-status is-${progress.state}">${progress.html}</p>
-            ${progress.state === 'done' ? `<p class="stage-champion" data-stage="${stage.id}" hidden></p>` : ''}
-            <div class="stage-info">
-                <span class="info-badge badge-type">${formatType(stage.type)}</span>
-                <span class="info-badge badge-id" title="Spieler">${icon('users')}${participantCount}</span>
-            </div>
-            ${stageOptionHtml(stage)}
-            ${progress.state === 'done' ? '' : nextDeadlineHtml(stage)}
-            <div class="stage-actions">
-                <button class="btn ${stage === urgent ? 'btn-primary' : 'btn-secondary'} btn-sm" onclick="${mine ? 'openMyMatch' : 'viewBracket'}(${stage.id})">
-                    ${icon('bracket')}<span>${mine ? 'Zu meinem Match' : 'Bracket'}</span>
-                </button>
-                <button class="btn btn-secondary btn-sm" onclick="viewRankings(${stage.id})">
-                    ${icon('chart')}<span>Rangliste</span>
-                </button>
-                <span class="spacer"></span>
-                ${actionMenu([
-                    { icon: 'list', label: 'Matches anzeigen', onclick: `viewStageMatches(${stage.id})` },
-                    stage.type !== 'round_robin' && { icon: 'clock', label: 'Spielzeiten', onclick: `openScheduleModal(${stage.id})`, adminOnly: true },
-                    progress.state !== 'done' && stageOptionMenuItem(stage),
-                    { icon: 'shuffle', label: 'Neu auslosen', onclick: `resetBracket(${stage.id})`, adminOnly: true },
-                    { icon: 'trash', label: 'Turnier löschen', onclick: `deleteStage(${stage.id})`, adminOnly: true, danger: true },
-                ], `Weitere Aktionen für ${escapeHtml(stage.name)}`)}
-            </div>
-        </div>
-    `;
-    }).join('');
-    fillStageChampions();
+    return [...stages]
+        .sort((a, b) => Number(a.tournament_id) - Number(b.tournament_id))
+        .filter(s => !eventFilter || s.event_name === eventFilter);
 }
 
-// Finished tournaments name their winner on tape (standings per tournament, cached until the
-// number of played matches changes, e.g. after a correction)
-const championCache = new Map(); // stageId → { played, names }
+// The chosen tournament is remembered by its tournament number (rebuilds change the stage id)
+let selectedTournamentId = (() => {
+    try { return Number(localStorage.getItem('mcd.tournament')) || null; } catch { return null; }
+})();
 
-async function fillStageChampions() {
-    for (const slot of document.querySelectorAll('.stage-champion[data-stage]')) {
-        const stageId = Number(slot.dataset.stage);
-        const played = matches.filter(m => m.stage_id === stageId && m.status >= 4).length;
-        let cached = championCache.get(stageId);
-        if (!cached || cached.played !== played) {
-            try {
-                const standings = await fetchStandings(stageId);
-                cached = { played, names: standings.filter(s => s.placement === 1).map(s => s.participant_name) };
-                championCache.set(stageId, cached);
-            } catch {
-                continue; // the card works without it
-            }
-        }
-        if (!cached.names.length || !slot.isConnected) continue;
-        slot.innerHTML = `<span class="stage-champion-label">${icon('trophy')}Sieger</span><span class="tape-wrap"><span class="tape tape-yellow">${cached.names.map(escapeHtml).join(' & ')}</span></span>`;
-        slot.hidden = false;
+// Tabs: one per tournament with mode colour and status; the own playable match gets an orange frame
+function displayStages() {
+    const container = document.getElementById('stagesList');
+    // An open menu "⋯" of a tab would close under the user's finger; the next refresh catches up
+    if (container.querySelector('.action-menu[open]')) {
+        ensureTournamentShown();
+        return;
     }
+    const list = visibleStages();
+    if (!list.length) {
+        container.innerHTML = `<p class="empty-state">Noch keine Turniere.${isAdmin ? ' Unten unter „Neues Turnier“ anlegen.' : ''}</p>`;
+        document.getElementById('tourLayout').hidden = true;
+        return;
+    }
+    const severalEvents = new Set(list.map(s => s.event_name)).size > 1;
+    container.innerHTML = list.map(stage => {
+        const progress = stageProgress(stage);
+        const mine = hasMyOpenMatch(stage);
+        const active = stage.tournament_id === selectedTournamentId;
+        // The tab chooses the tournament; its menu "⋯" holds the rarer actions (a button cannot hold
+        // another one, so both sit side by side in the tab)
+        return `<div class="tour-tab type-${escapeHtml(stage.type)}${active ? ' is-active' : ''}${mine ? ' is-mine' : ''}">
+            <button type="button" class="tour-tab-main" data-stage="${stage.id}" aria-pressed="${active}" onclick="selectTournament(Number(this.dataset.stage))">
+                <span class="tour-tab-name">${escapeHtml(stage.name)}</span>
+                <span class="tour-tab-meta"><span class="tour-tab-type" aria-hidden="true"></span>${escapeHtml(formatType(stage.type))}${severalEvents ? ` · ${escapeHtml(stage.event_name)}` : ''}</span>
+                <span class="tour-tab-status is-${stage.closed_at ? 'closed' : progress.state}">${stage.closed_at ? `${icon('lock')}Abgeschlossen` : mine ? 'Dein Match ist dran' : TAB_STATUS[progress.state](stage)}</span>
+            </button>
+            ${actionMenu(stageMenuItems(stage), `Weitere Aktionen für ${escapeHtml(stage.name)}`)}
+        </div>`;
+    }).join('');
+    // On narrow screens the tabs scroll sideways: bring the chosen one into sight
+    const active = container.querySelector('.is-active');
+    if (active && container.scrollWidth > container.clientWidth) container.scrollLeft = active.offsetLeft - container.offsetLeft - 8;
+    ensureTournamentShown();
+}
+
+const TAB_STATUS = {
+    idle: () => 'Noch nicht begonnen',
+    running: stage => {
+        const own = matches.filter(m => m.stage_id === stage.id && m.opponent1 !== null && m.opponent2 !== null);
+        return `Läuft · ${own.filter(m => m.status >= 4).length} von ${own.length}`;
+    },
+    done: () => 'Fertig',
+};
+
+function selectTournament(stageId) {
+    viewBracket(stageId);
+}
+
+// Without a choice: the own playable match (most urgent), then the last choice, then a running
+// tournament, then one not started yet, else the last one
+function defaultTournamentStage(list) {
+    const mine = list.filter(hasMyOpenMatch).sort((a, b) => myMatchTime(a) - myMatchTime(b))[0];
+    return mine
+        ?? list.find(s => s.tournament_id === selectedTournamentId)
+        ?? list.find(s => stageProgress(s).state === 'running')
+        ?? list.find(s => stageProgress(s).state === 'idle')
+        ?? list.at(-1);
+}
+
+// On the tournament page a tournament is always shown (after loading, deleting, rebuilding, filtering)
+function ensureTournamentShown() {
+    if (!tournamentDataReady || document.body.dataset.view !== 'tournaments' || document.body.classList.contains('tournament-detail')) return;
+    const list = visibleStages();
+    if (!list.length) return;
+    const chosen = list.find(s => s.tournament_id === selectedTournamentId);
+    const stage = chosen ?? defaultTournamentStage(list);
+    // Same tournament with a new stage id (rebuilt): a refresh; another tournament: a fresh start
+    if (stage.id !== currentBracketStageId && bracketLoadingId !== stage.id) viewBracket(stage.id, Boolean(chosen) && currentBracketStageId != null);
+}
+
+// Placings of the chosen tournament beside the bracket: place, name, points; the whole ranking is a
+// page of its own ("Ganze Rangliste")
+async function loadSideStandings(stage) {
+    const list = document.getElementById('standingsList');
+    const link = document.getElementById('standingsLink');
+    link.href = `#turniere/rangliste/${stage.id}`;
+    let standings;
+    try {
+        standings = await fetchStandings(stage.id);
+    } catch (error) {
+        list.innerHTML = `<p class="field-hint is-warning">Die Platzierungen konnten nicht geladen werden: ${escapeHtml(error.message)}</p>`;
+        return;
+    }
+    if (link.getAttribute('href') !== `#turniere/rangliste/${stage.id}`) return; // another tournament meanwhile
+    const decided = standings.filter(s => s.placement != null).sort((a, b) => a.placement - b.placement);
+    const open = standings.filter(s => s.placement == null)
+        .sort((a, b) => a.participant_name.localeCompare(b.participant_name, 'de', { sensitivity: 'base' }));
+    const row = s => {
+        const mine = isMyPlayerName(s.participant_name);
+        return `<li class="tour-standing${mine ? ' is-me' : ''}">
+            ${rankBadge(s)}
+            <span class="tour-standing-name">${escapeHtml(s.participant_name)}${mine ? ' <span class="me-tag">du</span>' : ''}</span>
+            <span class="tour-standing-points${s.placement == null ? ' is-open' : ''}">${s.placement == null ? '–' : `${s.points}<span class="sr-only"> Punkte</span>`}</span>
+        </li>`;
+    };
+    list.innerHTML = `
+        ${podiumHtml(decided)}
+        ${!decided.length ? `<p class="rankings-note">${stage.type === 'round_robin' ? 'Die Plätze stehen fest, wenn alle Matches gespielt sind.' : 'Jeder bekommt seinen Platz, sobald er ausscheidet.'}</p>` : ''}
+        <div class="tour-standings-head" aria-hidden="true"><span>Platz</span><span>Name</span><span>Punkte</span></div>
+        <ol class="tour-standings-rows">
+            ${decided.map(row).join('')}
+            ${open.length ? `<li class="rankings-group">Noch im Turnier</li>${open.map(row).join('')}` : ''}
+        </ol>`;
+}
+
+/* Full screen for the bracket: the card covers the window (dialogs, menus and notes stay above it,
+   so entering results works), and where the browser allows it the page goes full screen too.
+   Esc or the button ends it; ending the browser's full screen ends it as well. */
+
+function toggleBracketFullscreen(on = !document.getElementById('bracketViewerSection').classList.contains('is-fullscreen')) {
+    const section = document.getElementById('bracketViewerSection');
+    section.classList.toggle('is-fullscreen', on);
+    document.body.classList.toggle('bracket-fullscreen', on);
+    const button = document.getElementById('bracketFullscreenBtn');
+    button.setAttribute('aria-pressed', String(on));
+    button.querySelector('use').setAttribute('href', on ? '#i-shrink' : '#i-expand');
+    setButtonLabel(button, on ? 'Vollbild beenden' : 'Vollbild');
+    if (on && !document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(() => { /* not allowed: the window is enough */ });
+    if (!on && document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+}
+
+document.addEventListener('fullscreenchange', () => {
+    if (!document.fullscreenElement && document.body.classList.contains('bracket-fullscreen')) toggleBracketFullscreen(false);
+});
+
+// Capture phase: runs before the dialog's own Esc handler, so an open dialog is still seen as open
+document.addEventListener('keydown', event => {
+    if (event.key !== 'Escape' || !document.body.classList.contains('bracket-fullscreen')) return;
+    if (document.querySelector('.modal.show') || document.querySelector('.action-menu[open]')) return; // Esc closes those first
+    toggleBracketFullscreen(false);
+}, true);
+
+// Podium for places 1–3 as soon as one of them is decided (2 left, 1 in the middle, 3 right; shared
+// places, e.g. 3–4 without a match for 3rd place, stand together on their step)
+function podiumHtml(decided) {
+    if (!decided.some(s => s.placement <= 3)) return '';
+    const step = place => {
+        const names = decided.filter(s => s.placement === place);
+        return `<li class="podium-step place-${place}${names.length ? '' : ' is-empty'}">
+            <span class="podium-names">${names.length
+                ? names.map(s => `<span class="podium-name${isMyPlayerName(s.participant_name) ? ' is-me' : ''}">${escapeHtml(s.participant_name)}</span>`).join('')
+                : '<span class="podium-name is-open">offen</span>'}</span>
+            <span class="podium-block"><span class="sr-only">Platz </span>${place}</span>
+        </li>`;
+    };
+    return `<ol class="podium" aria-label="Treppchen">${[1, 2, 3].map(step).join('')}</ol>`;
+}
+
+/* Zoom of the bracket: CSS zoom on the viewer's content (scroll sizes stay right), 40–150 %,
+   "Einpassen" fits the whole width; remembered on the device. Exports always use 100 %. */
+
+const BRACKET_ZOOM_STEPS = [0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.25, 1.5];
+let bracketZoom = (() => {
+    try { return Number(localStorage.getItem('mcd.bracketZoom')) || 1; } catch { return 1; }
+})();
+
+// step: -1 / +1 = one step smaller / larger, 0 = 100 %, 'fit' = the whole width
+function zoomBracket(step) {
+    if (step === 'fit') {
+        const viewer = document.querySelector('.brackets-viewer');
+        const natural = viewer.scrollWidth / bracketZoom;
+        bracketZoom = Math.max(0.3, Math.min(1, Math.floor((viewer.clientWidth - 8) / natural * 100) / 100));
+    } else if (step === 0) {
+        bracketZoom = 1;
+    } else if (step > 0) {
+        bracketZoom = BRACKET_ZOOM_STEPS.find(z => z > bracketZoom + 0.001) ?? BRACKET_ZOOM_STEPS.at(-1);
+    } else {
+        bracketZoom = [...BRACKET_ZOOM_STEPS].reverse().find(z => z < bracketZoom - 0.001) ?? BRACKET_ZOOM_STEPS[0];
+    }
+    try { localStorage.setItem('mcd.bracketZoom', String(bracketZoom)); } catch { /* storage unavailable */ }
+    applyBracketZoom();
+}
+
+function applyBracketZoom() {
+    document.querySelector('.brackets-viewer').style.setProperty('--bracket-zoom', String(bracketZoom));
+    document.getElementById('bracketZoomLevel').textContent = `${Math.round(bracketZoom * 100)} %`;
 }
 
 // Match for 3rd place (SE) and grand final with a second match (DE): shown as plain info on the
@@ -830,11 +950,6 @@ const STAGE_OPTIONS = {
     double_elimination: { setting: 'grandFinalDouble', name: 'Rückspiel im großen Finale', active: stage => stage.settings?.grandFinal === 'double' },
 };
 
-function stageOptionHtml(stage) {
-    const option = STAGE_OPTIONS[stage.type];
-    return option?.active(stage) ? `<p class="stage-option-info">mit ${option.name}</p>` : '';
-}
-
 function stageOptionMenuItem(stage) {
     const option = STAGE_OPTIONS[stage.type];
     if (!option) return null;
@@ -842,20 +957,15 @@ function stageOptionMenuItem(stage) {
     return { icon: active ? 'minus' : 'plus', label: `${option.name} ${active ? 'entfernen' : 'hinzufügen'}`, onclick: `toggleStageOption(${stage.id})`, adminOnly: true };
 }
 
-// Where a tournament stands: not started, x of y matches played, finished (BYE matches do not count)
+// Where a tournament stands: idle (not started), running, done (BYE matches do not count)
 function stageProgress(stage) {
     const own = matches.filter(m => m.stage_id === stage.id && m.opponent1 !== null && m.opponent2 !== null);
     const played = own.filter(m => m.status >= 4).length;
     // brackets-model Status: Waiting, Ready, Running = still to play; Locked ones that never get
     // opponents (an unneeded Grand Final reset) do not keep a tournament open
     const open = own.some(m => m.status >= 1 && m.status <= 3);
-    if (!own.length) return { state: 'idle', html: 'Noch keine Matches' };
-    if (!open && played) return { state: 'done', html: `${icon('check')}Fertig · ${played} ${played === 1 ? 'Match' : 'Matches'} gespielt` };
-    if (!played) return { state: 'idle', html: 'Noch nicht begonnen' };
-    return {
-        state: 'running',
-        html: `Läuft · ${played} von ${own.length} Matches<span class="stage-progress" aria-hidden="true"><span style="width: ${Math.round(played / own.length * 100)}%"></span></span>`,
-    };
+    if (!played) return { state: 'idle' };
+    return { state: open ? 'running' : 'done' };
 }
 
 // The visitor (recognised by IP, welcome.js) can play a match in this tournament right now
@@ -991,9 +1101,9 @@ function displayMatches() {
                     </div>
                 </div>
                 <div class="match-actions">
-                    <button class="btn btn-secondary btn-sm admin-only" onclick="showQuickWinnerSelectionById(${match.id})">
+                    ${stage?.closed_at ? `<span class="field-hint">${icon('lock')}Abgeschlossen</span>` : `<button class="btn btn-secondary btn-sm admin-only" onclick="showQuickWinnerSelectionById(${match.id})">
                         ${icon('trophy')}<span>${match.opponent1?.result || match.opponent2?.result ? 'Ergebnis ändern' : 'Ergebnis eingeben'}</span>
-                    </button>
+                    </button>`}
                 </div>
             </div>
         `;
@@ -1166,7 +1276,10 @@ function closeMatchesSection() {
 }
 
 // View bracket visualization
+let bracketLoadingId = null;
+
 async function viewBracket(stageId, preserveScroll = false) {
+    bracketLoadingId = stageId;
     try {
         const response = await fetch(`${API_URL}/viewer-data/${stageId}`);
         if (!response.ok) {
@@ -1181,20 +1294,28 @@ async function viewBracket(stageId, preserveScroll = false) {
         document.getElementById('bracketEventName').textContent = [stage?.event_name, stage && formatType(stage.type)].filter(Boolean).join(' · ');
         document.getElementById('bracketViewerSection').dataset.exportName = [stage?.event_name, stage?.name].filter(Boolean).join(' · ');
         
-        // Show the bracket as its own page (refreshes keep the page and the scroll position)
+        // The chosen tournament of the page (a refresh keeps an open detail page and the scroll position)
         const section = document.getElementById('bracketViewerSection');
         section.style.display = 'block';
-        if (!preserveScroll) openTournamentDetail('bracket', stageId);
-        else if (document.body.classList.contains('tournament-detail')) {
-            // A rebuild changes the stage id: keep the address in step
-            tournamentDetailHash = `#turniere/bracket/${stageId}`;
-            history.replaceState(null, '', tournamentDetailHash);
+        document.getElementById('tourLayout').hidden = false;
+        if (!preserveScroll) closeTournamentDetail();
+        if (stage) {
+            selectedTournamentId = stage.tournament_id;
+            try { localStorage.setItem('mcd.tournament', String(stage.tournament_id)); } catch { /* storage unavailable */ }
         }
+        // The address names the bracket (a rebuild changes the stage id); a tab is no history step
+        if (!document.body.classList.contains('tournament-detail') && location.hash.startsWith('#turniere')
+            && location.hash !== `#turniere/bracket/${stageId}`) {
+            history.replaceState(null, '', `#turniere/bracket/${stageId}`);
+        }
+        renderBracketHeader(stage);
         
         // Save current scroll position if preserving
         const scrollY = preserveScroll ? window.scrollY : null;
         
         // Render the bracket (German labels, see BRACKET_LOCALE_DE)
+        currentBracketClosed = Boolean(stage?.closed_at);
+        document.getElementById('bracketViewerSection').classList.toggle('is-closed', currentBracketClosed);
         await ensureBracketLocale();
         window.bracketsViewer.render({
             stages: data.stage,
@@ -1206,13 +1327,18 @@ async function viewBracket(stageId, preserveScroll = false) {
             participantOriginPlacement: 'before',
             customRoundName: bracketRoundName,
             onMatchClick: (match) => {
-                // Entering results needs the admin login
+                // Entering results needs the admin login and an open tournament
                 if (!isAdmin) return;
+                if (currentBracketClosed) {
+                    notify('Das Turnier ist abgeschlossen. Zum Ändern erst im Menü „⋯“ beim Turnier oben wieder öffnen.');
+                    return;
+                }
                 showQuickWinnerSelection(match);
             }
         });
         
         // A freshly opened bracket starts at round 1, not where the previous one was scrolled to
+        applyBracketZoom();
         if (!preserveScroll) document.querySelector('.brackets-viewer').scrollLeft = 0;
         wrapRoundHeads();
         labelBracketMatches(data.match, data.participant);
@@ -1227,6 +1353,8 @@ async function viewBracket(stageId, preserveScroll = false) {
 
         // A correction prepared for another tournament no longer applies
         currentBracketStageId = stageId;
+        displayStages(); // the chosen tab
+        if (stage) loadSideStandings(stage);
         if (pendingCorrection && pendingCorrection.stageId !== stageId) pendingCorrection = null;
         renderCorrection();
         highlightCorrection();
@@ -1240,8 +1368,69 @@ async function viewBracket(stageId, preserveScroll = false) {
     } catch (error) {
         notify(`❌ Das Bracket konnte nicht geladen werden (${error.message}).`, { retry: () => viewBracket(stageId, preserveScroll) });
         console.error('Error loading bracket:', error);
+    } finally {
+        if (bracketLoadingId === stageId) bracketLoadingId = null;
     }
 }
+
+// Head of the bracket: event, mode and options below the name, the next playing time or the lock
+function renderBracketHeader(stage) {
+    if (!stage) return;
+    const option = STAGE_OPTIONS[stage.type];
+    document.getElementById('bracketEventName').textContent = [
+        stage.event_name, formatType(stage.type), option?.active(stage) && `mit ${option.name}`,
+    ].filter(Boolean).join(' · ');
+    const progress = stageProgress(stage);
+    const closed = Boolean(stage.closed_at);
+    const deadline = document.getElementById('bracketDeadline');
+    deadline.innerHTML = closed
+        ? `<span class="stage-closed">${icon('lock')}Abgeschlossen am ${escapeHtml(formatDeadline(stage.closed_at))} · keine Änderungen möglich</span>`
+        : progress.state === 'done' ? '' : nextDeadlineHtml(stage);
+    deadline.hidden = !deadline.innerHTML;
+}
+
+// The rarer actions of a tournament, in the menu "⋯" of its tab (match list, playing times,
+// options, close, new draw, delete); a closed one only shows its matches and can be opened again
+function stageMenuItems(stage) {
+    const done = stageProgress(stage).state === 'done';
+    return stage.closed_at ? [
+        { icon: 'list', label: 'Matches anzeigen', onclick: `viewStageMatches(${stage.id})` },
+        { icon: 'unlock', label: 'Turnier wieder öffnen', onclick: `toggleStageClosed(${stage.id})`, adminOnly: true },
+    ] : [
+        { icon: 'list', label: 'Matches anzeigen', onclick: `viewStageMatches(${stage.id})` },
+        stage.type !== 'round_robin' && { icon: 'clock', label: 'Spielzeiten', onclick: `openScheduleModal(${stage.id})`, adminOnly: true },
+        !done && stageOptionMenuItem(stage),
+        done && { icon: 'lock', label: 'Turnier abschließen', onclick: `toggleStageClosed(${stage.id})`, adminOnly: true },
+        { icon: 'shuffle', label: 'Neu auslosen', onclick: `resetBracket(${stage.id})`, adminOnly: true },
+        { icon: 'trash', label: 'Turnier löschen', onclick: `deleteStage(${stage.id})`, adminOnly: true, danger: true },
+    ];
+}
+
+// A finished tournament can be closed: no results, playing times, options, new draw or deleting,
+// and changes to the event's attendees leave it alone, until it is opened again
+async function toggleStageClosed(stageId) {
+    const stage = stages.find(s => s.id === stageId);
+    if (!stage) return;
+    const closing = !stage.closed_at;
+    const question = closing
+        ? `„${stage.name}“ abschließen? Danach lassen sich weder Ergebnisse noch Spielzeiten ändern, es gibt kein Neu auslosen und kein Löschen, und Änderungen an den Teilnehmern wirken sich nicht mehr aus. Wieder öffnen geht jederzeit über dieses Menü.`
+        : `„${stage.name}“ wieder öffnen? Danach lassen sich Ergebnisse wieder ändern, und Änderungen an den Teilnehmern des Events wirken sich wieder auf das Turnier aus.`;
+    if (!(await confirmDialog(question, {
+        title: closing ? 'Turnier abschließen?' : 'Turnier wieder öffnen?',
+        confirmLabel: closing ? 'Abschließen' : 'Wieder öffnen',
+    }))) return;
+    try {
+        await apiFetch(`/stages/${stageId}/closed`, { method: 'PUT', body: JSON.stringify({ closed: closing }) });
+        await loadStages();
+        if (currentBracketStageId === stageId) await viewBracket(stageId, true);
+        notify(closing ? `„${stage.name}“ ist abgeschlossen.` : `„${stage.name}“ ist wieder offen.`);
+    } catch (error) {
+        notify('❌ ' + error.message);
+    }
+}
+
+// The bracket on screen belongs to a closed tournament: clicks on matches change nothing
+let currentBracketClosed = false;
 
 function closeBracketViewer() {
     leaveTournamentDetail();
@@ -1292,7 +1481,7 @@ function labelBracketMatches(list, players) {
         const state = winner ? `Sieger ${names.get(winner.id) ?? ''}${match.drawn ? ' (per Los)' : ''}` : match.status >= 2 ? 'offen' : 'wartet auf Gegner';
         el.setAttribute('aria-label', `${round ? `${round} · ` : ''}Match ${match.number}: ${name('opponent1')} gegen ${name('opponent2')}, ${state}`);
         const playable = match.opponent1.id != null && match.opponent2.id != null;
-        if (isAdmin && playable) {
+        if (isAdmin && playable && !currentBracketClosed) {
             el.setAttribute('role', 'button');
             el.tabIndex = 0;
         } else {
@@ -1381,7 +1570,7 @@ const BRACKET_LOCALE_DE = {
         locked: 'Gesperrt', waiting: 'Wartet', ready: 'Bereit', running: 'Läuft', completed: 'Beendet', archived: 'Archiviert',
     },
     abbreviations: {
-        win: 'S', loss: 'N', forfeit: 'K', position: 'P', seed: '#',
+        win: 'W', loss: 'L', forfeit: 'K', position: 'P', seed: '#',
         'winner-bracket': 'W', 'loser-bracket': 'L', match: 'M', 'grand-final': 'GF',
     },
     common: {
@@ -1454,7 +1643,7 @@ function scheduleBracketRefresh(stageId, enabled) {
     if (!enabled || stageId == null) return;
     bracketRefreshTimer = setInterval(async () => {
         const busy = pendingCorrection || document.querySelector('.modal.show');
-        if (busy || document.getElementById('bracketViewerSection').style.display === 'none') return;
+        if (busy || document.body.classList.contains('tournament-detail')) return;
         await loadMatches();
         await viewBracket(currentBracketStageId, true);
     }, 60_000);
@@ -1722,6 +1911,8 @@ let reloadRankings = null;
 let rankingsRefreshing = false;
 
 async function refreshOpenRankings() {
+    const shown = stages.find(s => s.id === currentBracketStageId);
+    if (shown) loadSideStandings(shown);
     if (!reloadRankings || document.getElementById('rankingsSection').style.display === 'none') return;
     rankingsRefreshing = true;
     try {
@@ -1814,8 +2005,8 @@ function showRankings(title, rankings, showTournaments = false, { heading = 'Ran
                     <div class="rank-cell">Platz</div>
                     <div class="name-cell">Teilnehmer</div>
                     <div class="stat-cell"><span class="label-long">Punkte</span><span class="label-short" title="Punkte">Pkt.</span></div>
-                    <div class="stat-cell"><span class="label-long">Siege</span><span class="label-short" title="Siege">S</span></div>
-                    <div class="stat-cell"><span class="label-long">Niederlagen</span><span class="label-short" title="Niederlagen">N</span></div>
+                    <div class="stat-cell"><span class="label-long">Siege</span><span class="label-short" title="Siege">W</span></div>
+                    <div class="stat-cell"><span class="label-long">Niederlagen</span><span class="label-short" title="Niederlagen">L</span></div>
                     <div class="stat-cell">Gespielt</div>
                     ${withPending ? '<div class="stat-cell">Ausstehend</div>' : ''}
                     ${showTournaments ? '<div class="stat-cell">Turniere</div>' : ''}

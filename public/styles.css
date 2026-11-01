@@ -987,12 +987,6 @@ textarea {
     gap: 0.75rem;
 }
 
-.stages-list {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-    gap: 1rem;
-}
-
 .matches-list {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -1000,7 +994,6 @@ textarea {
 }
 
 .event-item,
-.stage-item,
 .match-item {
     background: var(--surface-2);
     border: 1px solid var(--border-color);
@@ -1009,7 +1002,6 @@ textarea {
 }
 
 .event-item:hover,
-.stage-item:hover,
 .match-item:hover {
     border-color: var(--border-strong);
 }
@@ -1042,54 +1034,11 @@ textarea {
     min-width: 0;
 }
 
-/* Tournament card */
-.stage-item {
-    display: flex;
-    flex-direction: column;
-    padding: 1.1rem 1.1rem 0.9rem;
-    position: relative;
-    overflow: hidden;
-}
-
-.stage-item::before {
-    content: "";
-    position: absolute;
-    left: 0;
-    right: 0;
-    top: 0;
-    height: 4px;
-    background: var(--type-color, var(--primary-color));
-}
-
-/* Tournament mode colours (tournament cards and "Deine Turniere" on the welcome page) */
+/* Tournament mode colours (tournament tabs and "Deine Turniere" on the welcome page) */
 .type-double_elimination { --type-color: var(--band-white); --type-fg: #1d2023; }
 .type-single_elimination { --type-color: var(--band-blue); --type-fg: #f7f8f5; }
 .type-round_robin { --type-color: var(--band-brown); --type-fg: #f7f8f5; }
 
-.stage-head {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 0.75rem;
-}
-
-.stage-item h3 {
-    font-family: var(--font-title);
-    font-size: 1.45rem;
-    font-weight: 700;
-    overflow-wrap: anywhere;
-}
-
-.event-name {
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-    color: var(--text-secondary);
-    font-size: 0.85rem;
-    margin-top: 0.15rem;
-}
-
-.stage-info,
 .match-info {
     display: flex;
     flex-wrap: wrap;
@@ -1133,61 +1082,6 @@ textarea {
 .badge-waiting {
     background: var(--surface-3);
     color: var(--text-secondary);
-}
-
-/* Status line: the main information of a tournament card */
-.stage-status {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 0.35rem 0.6rem;
-    margin-top: 0.6rem;
-    font-family: var(--font-display);
-    font-weight: 600;
-    color: var(--text-secondary);
-}
-
-.stage-status.is-running {
-    color: var(--text-color);
-}
-
-.stage-status.is-done .icon {
-    color: var(--success-color);
-}
-
-.stage-progress {
-    flex: 1 1 100%;
-    height: 4px;
-    background: var(--surface-3);
-}
-
-.stage-progress > span {
-    display: block;
-    height: 100%;
-    background: var(--text-color);
-}
-
-/* The own tournament with an open match: the one orange frame on the page */
-.stage-item.is-mine {
-    border-color: var(--primary-color);
-}
-
-.stage-actions {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    margin-top: auto;
-    padding-top: 0.9rem;
-    border-top: 1px solid var(--border-color);
-}
-
-.stage-actions .spacer {
-    flex: 1;
-}
-
-.stage-actions .btn-icon {
-    width: 32px;
-    height: 32px;
 }
 
 /* Match card */
@@ -1775,39 +1669,6 @@ textarea {
     background: var(--surface-3);
 }
 
-/* Finished tournament card: the winner on tape (app.js fillStageChampions) */
-.stage-champion {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.4rem 0.6rem;
-    margin: 0.4rem 0 0.2rem;
-}
-
-.stage-champion[hidden] {
-    display: none;
-}
-
-.stage-champion-label {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
-    font-family: var(--font-display);
-    font-weight: 600;
-    font-size: 0.9rem;
-    color: var(--text-secondary);
-}
-
-.stage-champion-label .icon {
-    color: var(--gold);
-}
-
-.stage-champion .tape {
-    font-size: 1.2rem;
-    max-width: 100%;
-    overflow-wrap: anywhere;
-}
-
 /* End of a tournament: the winner on tape above the table */
 .rankings-champion {
     display: flex;
@@ -2061,62 +1922,267 @@ textarea {
     }
 }
 
-/* Timetable (#zeitplan) */
-.tt-list {
-    display: grid;
-    gap: 1.25rem;
+/* Timetable (#zeitplan): day tabs, then the chosen day as a timeline (timetable.js) */
+.tt-days {
+    display: flex;
+    gap: 0.4rem;
+    margin-bottom: 1.25rem;
+    padding-bottom: 0.35rem;
+    overflow-x: auto;
+    scrollbar-width: thin;
 }
 
-.tt-day-title {
-    margin-bottom: 0.5rem;
-    font-family: var(--font-display);
-    font-size: 1rem;
-    color: var(--view-color);
-}
-
-.tt-outside {
-    margin-left: 0.6rem;
-    font-family: var(--font);
-    font-size: 0.8rem;
-    font-weight: 400;
-    color: var(--warning-color);
-}
-
-.tt-item {
-    --tt-color: var(--violet);
-    display: grid;
-    grid-template-columns: 8.5rem minmax(0, 1fr) auto;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 0.6rem 0.75rem;
-    margin-bottom: 0.4rem;
+.tt-day-tab {
+    position: relative;
+    flex: 1 0 auto;
+    min-width: 7rem;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.05rem;
+    padding: 0.55rem 0.9rem 0.7rem;
     background: var(--surface-2);
     border: 1px solid var(--border-color);
     border-radius: var(--radius);
+    color: var(--text-secondary);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
 }
 
-/* The category as a small wire-coloured tag in front of the time */
-.tt-time::before {
+.tt-day-tab:hover {
+    border-color: var(--border-strong);
+    color: var(--text-color);
+}
+
+/* Chosen day: brighter, with the area's line underneath like the tabs in the topbar */
+.tt-day-tab.is-active {
+    background: var(--surface-3);
+    border-color: var(--border-strong);
+    color: var(--text-color);
+}
+
+/* The line runs across the whole tab, over the bottom border */
+.tt-day-tab.is-active::after {
     content: "";
-    display: inline-block;
-    width: 10px;
-    height: 10px;
-    margin-right: 0.5rem;
+    position: absolute;
+    left: -1px;
+    right: -1px;
+    bottom: -1px;
+    height: 4px;
+    background: var(--view-line);
+}
+
+.tt-day-tab:focus-visible {
+    outline: 2px solid var(--text-color);
+    outline-offset: 2px;
+}
+
+.tt-day-name {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 1.05rem;
+}
+
+.tt-day-date {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.85rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.tt-day-tab.is-outside .tt-day-date {
+    color: var(--warning-color);
+}
+
+.tt-today {
+    padding: 0 0.35rem;
+    border-radius: var(--radius-sm);
+    background: var(--band-white);
+    color: var(--panel);
+    font-family: var(--font-display);
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.tt-outside {
+    margin: -0.5rem 0 1rem;
+    font-size: 0.85rem;
+    color: var(--warning-color);
+}
+
+/* Time line and "Gut zu wissen" side by side; without notes the time line takes the whole width */
+.tt-layout {
+    display: grid;
+    gap: 1.5rem;
+    align-items: start;
+}
+
+.tt-layout.has-notes {
+    grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr);
+}
+
+@media (max-width: 960px) {
+    .tt-layout.has-notes {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+/* Date and time in the head of "Ablauf" */
+.tt-clock {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    text-align: right;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+.tt-clock strong {
+    font-family: var(--font-title);
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-color);
+}
+
+/* Vertical time line: time, a node on the rail, the entry; the rail runs through all rows */
+.tt-stream {
+    --tt-rail-x: 7.75rem;
+    position: relative;
+    list-style: none;
+}
+
+.tt-stream::before {
+    content: "";
+    position: absolute;
+    top: 0.5rem;
+    bottom: 0.5rem;
+    left: var(--tt-rail-x);
+    width: 2px;
+    margin-left: -1px;
+    background: var(--border-strong);
+}
+
+.tt-item,
+.tt-now-mark {
+    --tt-color: var(--violet);
+    position: relative;
+    display: grid;
+    grid-template-columns: 6.75rem 2rem minmax(0, 1fr) auto auto;
+    align-items: start;
+    column-gap: 0;
+    padding: 0.55rem 0;
+}
+
+.tt-item + .tt-item {
+    border-top: 1px solid var(--border-color);
+}
+
+.tt-time {
+    padding-top: 0.15rem;
+    padding-right: 0.75rem;
+    text-align: right;
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+/* The node: a dot in the category's wire colour */
+.tt-node {
+    justify-self: center;
+    position: relative;
+    z-index: 1;
+    width: 12px;
+    height: 12px;
+    margin-top: 0.4rem;
+    border-radius: 50%;
     background: var(--tt-line, var(--tt-color));
-    vertical-align: 0.05em;
+    box-shadow: 0 0 0 3px var(--surface);
 }
 
-/* Right now and next: where the day stands */
-.tt-item.is-now,
-.tt-item.is-next {
-    border-color: var(--text-color);
-    background: var(--surface);
+.tt-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    min-width: 0;
+    padding-left: 0.5rem;
 }
 
-/* What is running or comes next is the reason to open the timetable: a size up */
+.tt-title {
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+/* Category at the right edge of the entry, before the edit button */
+.tt-category {
+    padding: 0.2rem 0 0 0.75rem;
+    font-family: var(--font-display);
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--tt-color);
+    white-space: nowrap;
+}
+
+.tt-category + * {
+    margin-left: 0.5rem;
+}
+
+.tt-info {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    overflow-wrap: anywhere;
+}
+
+.tt-repeat {
+    margin-left: 0.5rem;
+    padding: 0 0.4rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    border-radius: var(--radius-sm);
+    background: var(--surface-3);
+    color: var(--text-secondary);
+}
+
+/* Generated round (no edit): a clock as wide as the edit button, so the categories line up */
+.tt-auto {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    color: var(--text-faint);
+}
+
+@media (pointer: coarse) {
+    .tt-auto {
+        width: 44px;
+        height: 44px;
+    }
+}
+
+/* Text tone for the category label, line tone for the node (brown and orange stay apart) */
+.tt-item.tt-meal { --tt-color: var(--text-brown); --tt-line: var(--line-brown); }
+.tt-item.tt-program { --tt-color: var(--text-green); --tt-line: var(--line-green); }
+.tt-item.tt-tournament { --tt-color: var(--text-yellow); --tt-line: var(--line-yellow); }
+.tt-item.tt-other { --tt-color: var(--text-secondary); --tt-line: var(--border-strong); }
+
+/* Over: dimmed */
+.tt-item.is-past {
+    opacity: 0.55;
+}
+
+/* Right now and next: a size up, the node gets a white ring */
 .tt-item.is-now .tt-title,
 .tt-item.is-next .tt-title {
     font-size: 1.1rem;
+}
+
+.tt-item.is-now .tt-node,
+.tt-item.is-next .tt-node {
+    box-shadow: 0 0 0 3px var(--surface), 0 0 0 5px var(--text-color);
 }
 
 .tt-now {
@@ -2128,6 +2194,7 @@ textarea {
     font-family: var(--font-display);
     font-size: 0.8rem;
     font-weight: 700;
+    white-space: nowrap;
 }
 
 .tt-now.is-next {
@@ -2136,54 +2203,44 @@ textarea {
     border: 1px solid var(--border-strong);
 }
 
-/* Text tone for the category label, line tone for the edge (brown and orange stay apart) */
-.tt-item.tt-meal { --tt-color: var(--text-brown); --tt-line: var(--line-brown); }
-.tt-item.tt-program { --tt-color: var(--text-green); --tt-line: var(--line-green); }
-.tt-item.tt-tournament { --tt-color: var(--text-yellow); --tt-line: var(--line-yellow); }
-.tt-item.tt-other { --tt-color: var(--text-secondary); --tt-line: var(--border-strong); }
-
-/* Over: dimmed */
-.tt-item.is-past {
-    opacity: 0.55;
+/* "Jetzt": a white line from the rail to the right edge, between what has started and what comes */
+.tt-now-mark {
+    align-items: center;
+    padding: 0.35rem 0;
 }
 
-.tt-time {
-    font-family: var(--font-display);
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
+.tt-now-mark .tt-time {
+    padding-top: 0;
+    color: var(--text-color);
 }
 
-.tt-body {
+.tt-now-mark .tt-node {
+    width: 14px;
+    height: 14px;
+    margin-top: 0;
+    border-radius: 50%;
+    background: var(--band-white);
+}
+
+.tt-now-label {
+    grid-column: 3 / -1;
     display: flex;
-    flex-direction: column;
-    gap: 0.15rem;
-    min-width: 0;
+    align-items: center;
+    gap: 0.6rem;
+    padding-left: 0.5rem;
+    font-family: var(--font-display);
+    font-weight: 700;
 }
 
-.tt-title {
-    font-weight: 600;
+.tt-now-label::after {
+    content: "";
+    flex: 1;
+    height: 2px;
+    background: var(--band-white);
 }
 
-.tt-category {
-    margin-left: 0.5rem;
-    font-size: 0.8rem;
-    font-weight: 400;
-    color: var(--tt-color);
-}
-
-.tt-info {
-    font-size: 0.85rem;
-    color: var(--text-secondary);
-}
-
-.tt-repeat {
-    margin-left: 0.5rem;
-    padding: 0 0.4rem;
-    font-size: 0.8rem;
-    font-weight: 600;
-    border-radius: var(--radius-sm);
-    background: var(--surface-3);
-    color: var(--text-secondary);
+.tt-now-mark + .tt-item {
+    border-top: 0;
 }
 
 /* Day picker in the entry dialog: one chip per event day */
@@ -2235,14 +2292,9 @@ textarea {
     margin: 0;
 }
 
-.tt-auto {
-    font-size: 0.8rem;
-    color: var(--text-faint);
-}
-
 .tt-notes {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
     gap: 0.75rem;
 }
 
@@ -2273,13 +2325,82 @@ textarea {
 }
 
 @media (max-width: 640px) {
-    .tt-item {
-        grid-template-columns: minmax(0, 1fr) auto;
+    .tt-day-tab {
+        min-width: 5.5rem;
+        padding: 0.45rem 0.7rem 0.6rem;
     }
 
-    .tt-time {
-        grid-column: 1 / -1;
+    /* Narrow: time above the title, the rail on the left edge */
+    .tt-stream {
+        --tt-rail-x: 0.75rem;
     }
+
+    .tt-item,
+    .tt-now-mark {
+        grid-template-columns: 1.5rem minmax(0, 1fr) auto auto;
+    }
+
+    .tt-item .tt-node,
+    .tt-now-mark .tt-node {
+        grid-column: 1;
+        grid-row: 1 / span 2;
+    }
+
+    .tt-item .tt-time {
+        grid-column: 2;
+        grid-row: 1;
+        padding: 0 0 0 0.5rem;
+        text-align: left;
+        font-size: 0.9rem;
+    }
+
+    .tt-item .tt-body {
+        grid-column: 2 / 4;
+        grid-row: 2;
+    }
+
+    .tt-item .tt-category {
+        grid-column: 3;
+        grid-row: 1;
+        padding-top: 0;
+    }
+
+    .tt-item > :last-child:not(.tt-category) {
+        grid-column: 4;
+        grid-row: 1 / span 2;
+    }
+
+    .tt-now-mark .tt-time {
+        grid-column: 2;
+        grid-row: 1;
+        padding: 0 0 0 0.5rem;
+        text-align: left;
+    }
+
+    .tt-now-mark .tt-node {
+        grid-row: 1;
+    }
+
+    .tt-now-label {
+        grid-column: 2 / -1;
+        grid-row: 1;
+        padding-left: 3.5rem;
+    }
+
+    /* Clock in one line under the heading: date, then the time */
+    .tt-clock {
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: baseline;
+        gap: 0 0.6rem;
+        text-align: left;
+    }
+
+    .tt-clock strong {
+        order: -1;
+        font-size: 1.5rem;
+    }
+
 }
 
 /* Option on the tournament card (match for 3rd place, second grand final match) */
@@ -2288,11 +2409,6 @@ textarea {
     transform-origin: left center;
 }
 
-.stage-option-info {
-    margin: -0.25rem 0 0.75rem;
-    font-size: 0.8rem;
-    color: var(--text-secondary);
-}
 
 /* Deadlines per round */
 .stage-deadline {
@@ -2715,9 +2831,6 @@ input[type="time"] {
         grid-column: 1 / -1;
     }
 
-    /* Turniere: the tournaments (with "Zu meinem Match") before the event overview */
-    #view-tournaments > .view-title { order: -2; }
-    #view-tournaments > .stages-card { order: -1; }
 
     .card {
         padding: 1.1rem;
@@ -2727,19 +2840,9 @@ input[type="time"] {
         flex-wrap: wrap;
     }
 
-    .stages-list,
     .events-list,
     .matches-list {
         grid-template-columns: minmax(0, 1fr);
-    }
-
-    /* Bracket and Rangliste share the line, the action menu stays at its end */
-    .stage-actions .btn-sm {
-        flex: 1 1 0;
-    }
-
-    .stage-actions .spacer {
-        display: none;
     }
 
     .winner-selection {
@@ -2747,7 +2850,361 @@ input[type="time"] {
     }
 }
 
-/* Tournament detail pages (#turniere/bracket/3 …): only the opened bracket, ranking or match
+/* Tournament page (#turniere): tabs on top, the chosen tournament below as bracket (2/3) and
+   placings (1/3); one column on narrow screens
+   ========================================================================== */
+
+/* With one event there is nothing to pick above the tabs */
+body.single-event .tour-picker .section-header {
+    display: none;
+}
+
+.tour-tabs {
+    display: flex;
+    gap: 0.4rem;
+    padding-bottom: 0.35rem;
+    overflow-x: auto;
+    scrollbar-width: thin;
+}
+
+.tour-tab {
+    position: relative;
+    flex: 1 0 auto;
+    min-width: 11rem;
+    max-width: 20rem;
+    display: flex;
+    align-items: flex-start;
+    background: var(--surface-2);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    color: var(--text-secondary);
+}
+
+.tour-tab:hover {
+    border-color: var(--border-strong);
+    color: var(--text-color);
+}
+
+/* The tab's button chooses the tournament; its menu "⋯" sits beside it in the top right corner */
+.tour-tab-main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.05rem;
+    padding: 0.55rem 0.4rem 0.7rem 0.9rem;
+    background: none;
+    border: 0;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.tour-tab-main:focus-visible {
+    outline: 2px solid var(--text-color);
+    outline-offset: 2px;
+}
+
+.tour-tab > .action-menu {
+    flex: none;
+    margin: 0.3rem 0.3rem 0 0;
+}
+
+/* Chosen tournament: brighter, the area's line across the whole tab */
+.tour-tab.is-active {
+    background: var(--surface-3);
+    border-color: var(--border-strong);
+    color: var(--text-color);
+}
+
+.tour-tab.is-active::after {
+    content: "";
+    position: absolute;
+    left: -1px;
+    right: -1px;
+    bottom: -1px;
+    height: 4px;
+    background: var(--view-line);
+}
+
+/* Own playable match: orange frame, like the own match in the bracket */
+.tour-tab.is-mine {
+    border-color: var(--primary-color);
+}
+
+.tour-tab.is-mine .tour-tab-status {
+    color: var(--primary-text);
+}
+
+.tour-tab-name {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 1.05rem;
+}
+
+.tour-tab-meta,
+.tour-tab-status {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.85rem;
+    white-space: nowrap;
+}
+
+/* Mode as a small square in its colour (Doppel-K.-o. white, K.-o. blue, Jeder gegen jeden brown) */
+.tour-tab-type {
+    width: 10px;
+    height: 10px;
+    background: var(--type-color);
+}
+
+.tour-tab-status.is-done {
+    color: var(--success-color);
+}
+
+.tour-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr);
+    gap: 1.5rem;
+    align-items: start;
+}
+
+.tour-layout[hidden],
+body.tournament-detail .tour-layout {
+    display: none;
+}
+
+@media (max-width: 960px) {
+    .tour-layout {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+/* Full screen: the bracket card covers the window, the bracket takes all the height left; below
+   dialogs (1000), menus (900) and notes, so entering results still works */
+#bracketViewerSection.is-fullscreen {
+    position: fixed;
+    inset: 0;
+    z-index: 800;
+    display: flex !important;
+    flex-direction: column;
+    border: 0;
+    border-radius: 0;
+    overflow: hidden;
+}
+
+#bracketViewerSection.is-fullscreen .brackets-viewer {
+    flex: 1;
+    min-height: 0;
+    max-height: none;
+}
+
+body.bracket-fullscreen {
+    overflow: hidden;
+}
+
+/* Zoom: the viewer's content scales, the box and its scroll bars stay */
+.brackets-viewer:not(.is-exporting) > * {
+    zoom: var(--bracket-zoom, 1);
+}
+
+.zoom-level {
+    min-width: 3.6rem;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Placings beside the bracket: place, name, points */
+.tour-standings-head,
+.tour-standing {
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.tour-standings-head {
+    padding: 0 0.5rem 0.4rem;
+    border-bottom: 1px solid var(--border-strong);
+    font-family: var(--font-display);
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.tour-standings-head span:last-child {
+    text-align: right;
+}
+
+.tour-standings-rows {
+    list-style: none;
+}
+
+.tour-standing {
+    padding: 0.35rem 0.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.tour-standing:nth-child(even) {
+    background: var(--surface-2);
+}
+
+.tour-standing.is-me {
+    background: var(--me-row);
+}
+
+.tour-standing .rank-badge {
+    min-width: 40px;
+    height: 30px;
+    font-size: 1.2rem;
+}
+
+.tour-standing-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 500;
+}
+
+.tour-standing-points {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 1.05rem;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
+
+.tour-standing-points.is-open {
+    color: var(--text-faint);
+}
+
+.tour-standings-rows .rankings-group {
+    margin-top: 0.5rem;
+}
+
+.tour-standings-link {
+    display: inline-block;
+    margin-top: 1rem;
+    color: var(--secondary-color);
+    font-family: var(--font-display);
+    font-weight: 600;
+    text-underline-offset: 3px;
+}
+
+/* Podium for places 1–3: 2 left, 1 in the middle and highest, 3 right; the names stand on the steps */
+.podium {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: end;
+    gap: 0.4rem;
+    margin: 0 0 1.25rem;
+    list-style: none;
+}
+
+.podium-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.4rem;
+    min-width: 0;
+}
+
+.podium-step.place-1 { order: 2; }
+.podium-step.place-2 { order: 1; }
+.podium-step.place-3 { order: 3; }
+
+.podium-names {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    max-width: 100%;
+    text-align: center;
+}
+
+.podium-name {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--font-display);
+    font-weight: 600;
+}
+
+.podium-step.place-1 .podium-name {
+    font-size: 1.1rem;
+}
+
+.podium-name.is-me {
+    color: var(--primary-text);
+}
+
+.podium-name.is-open {
+    color: var(--text-faint);
+    font-weight: 400;
+}
+
+.podium-block {
+    display: grid;
+    place-items: start center;
+    width: 100%;
+    padding-top: 0.35rem;
+    border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+    font-family: var(--font-title);
+    font-weight: 700;
+    font-size: 1.8rem;
+    line-height: 1;
+}
+
+.podium-step.place-1 .podium-block { height: 84px; background: var(--gold); color: #2e2300; }
+.podium-step.place-2 .podium-block { height: 62px; background: var(--silver); color: #1d2023; }
+.podium-step.place-3 .podium-block { height: 46px; background: var(--bronze); color: #2e1606; }
+
+.podium-step.is-empty .podium-block {
+    opacity: 0.35;
+}
+
+/* Closed tournament: a lock in the tab and in the head, matches are not clickable */
+.tour-tab-status.is-closed {
+    color: var(--text-secondary);
+}
+
+.tour-tab-status .icon,
+.stage-closed .icon {
+    width: 14px;
+    height: 14px;
+}
+
+.stage-closed {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-weight: 600;
+    color: var(--text-color);
+}
+
+#bracketViewerSection.is-closed .brackets-viewer .opponents {
+    cursor: default;
+}
+
+/* Legend: W green, L red, Freilos grey (like in the bracket) */
+.bracket-legend .legend-win {
+    color: var(--success-color);
+}
+
+.bracket-legend .legend-loss {
+    color: var(--danger-color);
+}
+
+.bracket-legend .legend-bye {
+    color: var(--text-faint);
+}
+
+/* Tournament detail pages (#turniere/rangliste/3 …): only the opened ranking or match
    list is shown, with a way back to the overview
    ========================================================================== */
 
@@ -2852,7 +3309,7 @@ body:not(.attendee-config) .config-title {
     --match-background: #30363a;
     --font-color: var(--text-color);
     --win-color: var(--success-color);
-    --loss-color: var(--text-secondary);
+    --loss-color: var(--danger-color);
     --label-color: var(--text-faint);
     --hint-color: var(--text-secondary);
     --connector-color: var(--border-strong);
@@ -3137,12 +3594,12 @@ body:not(.attendee-config) .config-title {
 }
 
 .brackets-viewer .participant.win .name {
-    color: var(--font-color);
+    color: var(--win-color);
     font-weight: 600;
 }
 
 .brackets-viewer .participant.loss .name {
-    color: var(--text-secondary);
+    color: var(--danger-color);
     font-weight: 500;
 }
 
@@ -3187,13 +3644,29 @@ body:not(.attendee-config) .config-title {
     color: var(--loss-color);
 }
 
-/* Completed matches get a green edge on the left (the link is up) */
-.brackets-viewer .opponents:has(.participant.win) {
-    border-left: 4px solid var(--line-green);
+/* Played matches: an edge on the left of each row in the colour of its outcome (winner green,
+   loser red), like the link light of a port */
+.brackets-viewer .participant.win {
+    box-shadow: inset 4px 0 0 var(--line-green);
+}
+
+.brackets-viewer .participant.loss {
+    box-shadow: inset 4px 0 0 var(--danger-color);
+}
+
+/* Freilos: the BYE row is grey (name and edge); whoever moves on is a winner like any other */
+.brackets-viewer .participant .name.bye {
+    color: var(--text-faint);
+    font-style: italic;
+    font-weight: 400;
+}
+
+.brackets-viewer .participant:has(.name.bye) {
+    box-shadow: inset 4px 0 0 var(--border-strong);
 }
 
 /* Correcting a result: the corrected match and the ones whose results will be reset
-   (after the green edge above, which they override) */
+   (after the result edges above, which they override) */
 .brackets-viewer .match.is-correction-target .opponents {
     border-color: var(--primary-color);
     outline: 2px solid var(--primary-color);
@@ -3261,7 +3734,12 @@ body:not(.attendee-config) .config-title {
 /* Scrollbars */
 .brackets-viewer::-webkit-scrollbar,
 .rankings-list::-webkit-scrollbar {
+    width: 8px; /* right, the same as at the bottom */
     height: 8px;
+}
+
+.brackets-viewer::-webkit-scrollbar-corner {
+    background: var(--bg-color);
 }
 
 .brackets-viewer::-webkit-scrollbar-track,
@@ -3278,7 +3756,7 @@ body:not(.attendee-config) .config-title {
 
 .brackets-viewer::-webkit-scrollbar-thumb:hover,
 .rankings-list::-webkit-scrollbar-thumb:hover {
-    background: var(--primary-color);
+    background: var(--text-secondary);
 }
 
 /* OPNsense connection (Konfiguration) and transfer dialog */
@@ -4363,6 +4841,41 @@ body:not(.read-only) #seatPlanCard:not(.is-layout):not(.is-view) .cell-seat:hove
     gap: 1.5rem;
 }
 
+/* The card on the left third, the other blocks on the right two thirds; one column on narrow screens */
+.welcome-columns {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+    gap: 1.5rem;
+    align-items: start;
+}
+
+.welcome-side {
+    display: grid;
+    gap: 1.5rem;
+    min-width: 0;
+}
+
+/* In the narrow column the tiles fill the card: seat and IP side by side, the next match below */
+.welcome-main .welcome-facts {
+    width: 100%;
+}
+
+.welcome-main .welcome-fact {
+    flex: 1 1 150px;
+    min-width: 0;
+}
+
+.welcome-main .welcome-fact.is-next {
+    flex-basis: 100%;
+    max-width: none;
+}
+
+@media (max-width: 960px) {
+    .welcome-columns {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
 .welcome-hero {
     display: flex;
     align-items: center;
@@ -4603,12 +5116,6 @@ body:not(.read-only) #seatPlanCard:not(.is-layout):not(.is-view) .cell-seat:hove
 
 .welcome-fact.is-next.is-link .welcome-fact-label .icon {
     color: var(--primary-text);
-}
-
-.welcome-logo {
-    max-width: 160px;
-    max-height: 110px;
-    object-fit: contain;
 }
 
 .check-list {
@@ -6037,11 +6544,6 @@ body.burger-kitchen-open {
     .site-footer {
         position: static;
         margin: 2.5rem -1rem 0;
-    }
-
-    /* The event logo is in the topbar already; on the badge it would cost a whole screen */
-    .welcome-hero .welcome-logo {
-        display: none;
     }
 }
 

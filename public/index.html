@@ -33,6 +33,9 @@
         <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 6a1 1 0 0 1 1-1h5l2 2h9a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/></symbol>
         <symbol id="i-copy" viewBox="0 0 24 24"><path d="M9 9h12v12H9zM5 15H3V3h12v2"/></symbol>
         <symbol id="i-lock" viewBox="0 0 24 24"><path d="M5 11h14v10H5zM8 11V7a4 4 0 0 1 8 0v4"/></symbol>
+        <symbol id="i-unlock" viewBox="0 0 24 24"><path d="M5 11h14v10H5zM8 11V7a4 4 0 0 1 7.5-2"/></symbol>
+        <symbol id="i-expand" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></symbol>
+        <symbol id="i-shrink" viewBox="0 0 24 24"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></symbol>
         <symbol id="i-logout" viewBox="0 0 24 24"><path d="M9 21H5V3h4M16 17l5-5-5-5M21 12H9"/></symbol>
         <symbol id="i-external" viewBox="0 0 24 24"><path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></symbol>
         <symbol id="i-seat" viewBox="0 0 24 24"><path d="M19 9V6a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v3M3 16a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5a2 2 0 0 0-4 0v1.5a.5.5 0 0 1-.5.5h-9a.5.5 0 0 1-.5-.5V11a2 2 0 0 0-4 0zM5 18v2M19 18v2"/></symbol>
@@ -260,22 +263,25 @@
                 </div>
             </section>
 
-            <section class="card">
-                <div class="section-header">
-                    <div>
-                        <h2><svg class="icon icon-accent"><use href="#i-clock"/></svg>Ablauf</h2>
-                        <p class="section-subtitle" id="ttPeriod"></p>
+            <div class="tt-layout" id="ttLayout">
+                <section class="card">
+                    <div class="section-header">
+                        <div>
+                            <h2><svg class="icon icon-accent"><use href="#i-clock"/></svg>Ablauf</h2>
+                            <p class="section-subtitle" id="ttPeriod"></p>
+                        </div>
+                        <p class="tt-clock" aria-label="Aktuelles Datum und Uhrzeit"><span id="ttClockDate"></span><strong id="ttClockTime"></strong></p>
                     </div>
-                </div>
-                <div id="ttList" class="tt-list"><p class="loading">Lade Zeitplan…</p></div>
-            </section>
+                    <div id="ttList" class="tt-list"><p class="loading">Lade Zeitplan…</p></div>
+                </section>
 
-            <section class="card" id="ttNotesCard" style="display: none;">
-                <div class="section-header">
-                    <h2><svg class="icon icon-accent"><use href="#i-info"/></svg>Hinweise</h2>
-                </div>
-                <div class="tt-notes" id="ttNotes"></div>
-            </section>
+                <section class="card tt-notes-card" id="ttNotesCard" style="display: none;">
+                    <div class="section-header">
+                        <h2><svg class="icon icon-accent"><use href="#i-info"/></svg>Gut zu wissen</h2>
+                    </div>
+                    <div class="tt-notes" id="ttNotes"></div>
+                </section>
+            </div>
         </main>
 
         <main class="layout view" id="view-tournaments">
@@ -290,24 +296,6 @@
                 </div>
                 <div id="eventsList" class="events-list">
                     <p class="loading">Lade Events...</p>
-                </div>
-            </section>
-
-            <!-- Tournament List Section -->
-            <section class="card stages-card">
-                <div class="section-header">
-                    <h2><svg class="icon icon-accent"><use href="#i-trophy"/></svg>Alle Turniere</h2>
-                    <div class="section-actions">
-                        <select id="eventFilter" class="select-sm" onchange="filterStages()" aria-label="Nach Event filtern">
-                            <option value="">Alle Events</option>
-                        </select>
-                        <button class="btn btn-ghost btn-icon" onclick="loadStages()" title="Aktualisieren" aria-label="Aktualisieren">
-                            <svg class="icon"><use href="#i-refresh"/></svg>
-                        </button>
-                    </div>
-                </div>
-                <div id="stagesList" class="stages-list">
-                    <p class="loading">Lade Turniere...</p>
                 </div>
             </section>
 
@@ -383,38 +371,76 @@
                 </div>
             </section>
 
-            <!-- Bracket Viewer Section -->
-            <section class="card card-wide tournament-detail-section" id="bracketViewerSection" style="display: none;">
-                <button class="btn btn-ghost btn-sm detail-back" onclick="leaveTournamentDetail()">
-                    <svg class="icon icon-back"><use href="#i-chevron"/></svg><span>Alle Turniere</span>
-                </button>
-                <div class="section-header">
-                    <div>
-                        <h2><svg class="icon icon-accent"><use href="#i-bracket"/></svg><span id="bracketTitle">Bracket</span></h2>
-                        <p class="section-subtitle" id="bracketEventName"></p>
+            <!-- Which tournament: one tab each; the chosen one below as bracket and placings -->
+            <section class="card toolbar-card tour-picker">
+                <div class="section-header event-bar">
+                    <div class="event-picker">
+                        <h2><svg class="icon icon-accent"><use href="#i-flag"/></svg>Event</h2>
+                        <select id="eventFilter" class="select-sm" onchange="filterStages()" aria-label="Nach Event filtern">
+                            <option value="">Alle Events</option>
+                        </select>
                     </div>
                     <div class="section-actions">
-                        <button class="btn btn-primary btn-sm" id="myMatchBtn" onclick="scrollToMyMatch()" hidden>
-                            <svg class="icon"><use href="#i-search"/></svg><span>Zu meinem Match</span>
-                        </button>
-                        <button class="btn btn-secondary btn-sm" id="exportBracketBtn" onclick="exportBracketAsImage()">
-                            <svg class="icon"><use href="#i-image"/></svg><span class="btn-label">JPG</span>
-                        </button>
-                        <button class="btn btn-secondary btn-sm" id="exportBracketPdfBtn" onclick="exportBracketAsPdf()">
-                            <svg class="icon"><use href="#i-file"/></svg><span class="btn-label">PDF</span>
+                        <button class="btn btn-ghost btn-icon" onclick="loadStages()" title="Aktualisieren" aria-label="Aktualisieren">
+                            <svg class="icon"><use href="#i-refresh"/></svg>
                         </button>
                     </div>
                 </div>
-                <!-- Correcting a result: shows what will change, the bracket keeps the current state until confirmed -->
-                <p class="bracket-legend"><span><strong>S</strong> Sieg</span><span><strong>N</strong> Niederlage</span><span><strong>Los</strong> per Los entschieden, weil die Spielzeit abgelaufen war</span><span id="memorialLegend" hidden><em class="memorial-sample">Name</em> in Gedenken — zählt als Freilos</span></p>
-                <div id="correctionPanel" class="correction-panel admin-only" style="display: none;"></div>
-                <div class="brackets-viewer"></div>
+                <div id="stagesList" class="tour-tabs" role="group" aria-label="Turnier wählen">
+                    <p class="loading">Lade Turniere...</p>
+                </div>
             </section>
+
+            <div class="tour-layout" id="tourLayout" hidden>
+                <!-- Bracket Viewer Section -->
+                <section class="card" id="bracketViewerSection" style="display: none;">
+                    <div class="section-header">
+                        <div>
+                            <h2><svg class="icon icon-accent"><use href="#i-bracket"/></svg><span id="bracketTitle">Bracket</span></h2>
+                            <p class="section-subtitle" id="bracketEventName"></p>
+                            <p class="section-subtitle" id="bracketDeadline" hidden></p>
+                        </div>
+                        <div class="section-actions">
+                            <button class="btn btn-primary btn-sm" id="myMatchBtn" onclick="scrollToMyMatch()" hidden>
+                                <svg class="icon"><use href="#i-search"/></svg><span>Zu meinem Match</span>
+                            </button>
+                            <div class="zoom-control" role="group" aria-label="Zoom des Turnierbaums">
+                                <button type="button" class="btn btn-ghost btn-sm btn-icon" onclick="zoomBracket(-1)" aria-label="Verkleinern" title="Verkleinern"><svg class="icon"><use href="#i-minus"/></svg></button>
+                                <button type="button" class="btn btn-ghost btn-sm zoom-level" id="bracketZoomLevel" onclick="zoomBracket(0)" title="Auf 100 % zurücksetzen">100 %</button>
+                                <button type="button" class="btn btn-ghost btn-sm btn-icon" onclick="zoomBracket(1)" aria-label="Vergrößern" title="Vergrößern"><svg class="icon"><use href="#i-plus"/></svg></button>
+                                <button type="button" class="btn btn-ghost btn-sm zoom-fit" onclick="zoomBracket('fit')" title="Ganzen Turnierbaum in die Breite einpassen">Einpassen</button>
+                            </div>
+                            <button type="button" class="btn btn-ghost btn-sm" id="bracketFullscreenBtn" onclick="toggleBracketFullscreen()" aria-pressed="false">
+                                <svg class="icon"><use href="#i-expand"/></svg><span class="btn-label">Vollbild</span>
+                            </button>
+                            <button class="btn btn-secondary btn-sm" id="exportBracketBtn" onclick="exportBracketAsImage()">
+                                <svg class="icon"><use href="#i-image"/></svg><span class="btn-label">JPG</span>
+                            </button>
+                            <button class="btn btn-secondary btn-sm" id="exportBracketPdfBtn" onclick="exportBracketAsPdf()">
+                                <svg class="icon"><use href="#i-file"/></svg><span class="btn-label">PDF</span>
+                            </button>
+                        </div>
+                    </div>
+                    <!-- Correcting a result: shows what will change, the bracket keeps the current state until confirmed -->
+                    <p class="bracket-legend"><span><strong class="legend-win">W</strong> Sieg</span><span><strong class="legend-loss">L</strong> Niederlage</span><span><em class="legend-bye">Freilos</em> kampflos weiter</span><span><strong>Los</strong> per Los entschieden, weil die Spielzeit abgelaufen war</span><span id="memorialLegend" hidden><em class="memorial-sample">Name</em> in Gedenken — zählt als Freilos</span></p>
+                    <div id="correctionPanel" class="correction-panel admin-only" style="display: none;"></div>
+                    <div class="brackets-viewer"></div>
+                </section>
+
+                <!-- Placings of the chosen tournament: place, name, points -->
+                <section class="card tour-standings" id="standingsCard">
+                    <div class="section-header">
+                        <h2><svg class="icon icon-accent"><use href="#i-chart"/></svg>Platzierungen</h2>
+                    </div>
+                    <div id="standingsList" class="tour-standings-list"><p class="loading">Lade Platzierungen…</p></div>
+                    <a href="#" id="standingsLink" class="tour-standings-link">Ganze Rangliste</a>
+                </section>
+            </div>
 
             <!-- Rankings Section -->
             <section class="card card-wide tournament-detail-section" id="rankingsSection" style="display: none;">
                 <button class="btn btn-ghost btn-sm detail-back" onclick="leaveTournamentDetail()">
-                    <svg class="icon icon-back"><use href="#i-chevron"/></svg><span>Alle Turniere</span>
+                    <svg class="icon icon-back"><use href="#i-chevron"/></svg><span>Zu den Turnieren</span>
                 </button>
                 <div class="section-header">
                     <div>
@@ -436,7 +462,7 @@
             <!-- Matches Section -->
             <section class="card card-wide tournament-detail-section" id="matchesSection" style="display: none;">
                 <button class="btn btn-ghost btn-sm detail-back" onclick="leaveTournamentDetail()">
-                    <svg class="icon icon-back"><use href="#i-chevron"/></svg><span>Alle Turniere</span>
+                    <svg class="icon icon-back"><use href="#i-chevron"/></svg><span>Zu den Turnieren</span>
                 </button>
                 <div class="section-header">
                     <h2><svg class="icon icon-accent"><use href="#i-list"/></svg>Matches</h2>

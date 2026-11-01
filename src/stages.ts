@@ -15,6 +15,7 @@ import type { RoundDeadline } from './schedule';
 export type AppStage = Stage & {
   event_name?: string; memorial_names?: string[]; withdrawn_names?: string[]; late_names?: string[]; schedule?: RoundDeadline[];
   memorial_seats?: Record<string, string>;
+  closed_at?: string; // closed by an admin after the end: no changes until opened again
 };
 
 // Round 1 layout of an elimination bracket, from its seed orderings: who meets whom (seed position
@@ -206,4 +207,34 @@ export async function findStage(id: Id): Promise<AppStage> {
   const stage = await getStorage().select('stage', id);
   if (!stage) throw new HttpError(404, 'Stage not found');
   return stage;
+}
+
+/* Closing a finished tournament: results, playing times, options, a new draw, deleting and the
+   attendee sync (stage-sync.ts) leave it alone until an admin opens it again. Renaming a player or
+   the event still applies, that is the identity of the player, not a change to the tournament. */
+
+export function assertStageOpen(stage: AppStage): void {
+  if (stage.closed_at) throw new HttpError(409, `„${stage.name}“ ist abgeschlossen. Zum Ändern erst wieder öffnen.`);
+}
+
+// The stage of a match, which must be open
+export async function assertMatchStageOpen(matchId: Id): Promise<void> {
+  const match = await getStorage().select('match', matchId);
+  if (!match) throw new HttpError(404, 'Match nicht gefunden');
+  assertStageOpen(await findStage(match.stage_id));
+}
+
+// Only a finished tournament can be closed: no match between two known opponents still open
+// (Waiting, Ready, Running); an unneeded second grand final match stays Locked and does not count
+export async function setStageClosed(stageId: Id, closed: boolean): Promise<AppStage> {
+  const stage = await findStage(stageId);
+  if (closed && !stage.closed_at) {
+    const matches = (await getStorage().select('match', { stage_id: stageId })) ?? [];
+    const open = matches.some(m => m.opponent1 !== null && m.opponent2 !== null && m.status >= 1 && m.status <= 3);
+    if (open) throw new HttpError(409, `„${stage.name}“ ist noch nicht fertig gespielt.`);
+  }
+  const { closed_at: _previous, ...rest } = stage;
+  const updated: AppStage = closed ? { ...rest, closed_at: stage.closed_at ?? new Date().toISOString() } : rest;
+  await getStorage().update('stage', stageId, updated);
+  return updated;
 }

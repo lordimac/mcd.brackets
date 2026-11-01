@@ -118,7 +118,7 @@ function buildTimetablePdf(event, data) {
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(13);
         doc.setTextColor(...SLIP.text);
-        doc.text('Hinweise', margin, y + 4.5);
+        doc.text('Gut zu wissen', margin, y + 4.5);
         doc.setDrawColor(...SLIP.text);
         doc.setLineWidth(0.4);
         doc.line(margin, y + 6.5, width - margin, y + 6.5);

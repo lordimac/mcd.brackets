@@ -53,7 +53,8 @@ export async function syncEventStages(eventName: string): Promise<StageSyncRepor
   if (!names) return [];
   const stages = ((await getStorage().select('stage')) ?? []) as AppStage[];
   const reports: StageSyncReport[] = [];
-  for (const stage of stages.filter(s => s.event_name === eventName)) {
+  // A closed tournament keeps its players (stages.ts setStageClosed)
+  for (const stage of stages.filter(s => s.event_name === eventName && !s.closed_at)) {
     try {
       const report = await withRollback(() => syncStage(stage.id, names.players, names.memorial));
       if (report) reports.push(report);
@@ -431,6 +432,7 @@ async function improveMemorialSeats(stage: AppStage): Promise<boolean> {
 export async function migrateMemorialStages(): Promise<string[]> {
   const changed: string[] = [];
   for (const stage of ((await getStorage().select('stage')) ?? []) as AppStage[]) {
+    if (stage.closed_at) continue; // closed: stays as it was
     const memorial = new Set(stage.memorial_names ?? []);
     const participants: Participant[] = (await getStorage().select('participant', { tournament_id: stage.tournament_id })) ?? [];
     const matches: Match[] = (await getStorage().select('match', { stage_id: stage.id })) ?? [];

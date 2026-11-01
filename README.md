@@ -2,7 +2,7 @@
 
 Ein vollständiges Turnierverwaltungssystem mit Event-basiertem Meisterschafts-Punktesystem, entwickelt mit [brackets-manager](https://www.npmjs.com/package/brackets-manager).
 
-**Version:** 0.31.1-beta
+**Version:** 0.32.0-beta
 
 ---
 
@@ -281,13 +281,15 @@ Die Zugangsdaten gelten für alle Events und liegen in der Datenbank (`db.json`,
 1. Event auswählen — alle Teilnehmer des Events spielen mit
 2. Turnier-Name eingeben
 3. Typ wählen (K.-o.-System, Doppel-K.-o. oder Jeder gegen jeden)
-4. Optional: Grand Final mit Rückspiel (Double Elimination) bzw. Spiel um Platz 3 (Single Elimination). Beides lässt sich auch später im Menü „⋯“ der Turnierkarte hinzufügen oder entfernen (mit Bestätigung, nicht bei fertigen Turnieren) — das Bracket wird dann mit derselben Auslosung neu aufgebaut, alle Ergebnisse bleiben (beim Ausschalten nur das des Platz-3-Spiels bzw. des Rückspiels nicht)
+4. Optional: Grand Final mit Rückspiel (Double Elimination) bzw. Spiel um Platz 3 (Single Elimination). Beides lässt sich auch später im Menü „⋯“ am Turnier-Reiter hinzufügen oder entfernen (mit Bestätigung, nicht bei fertigen Turnieren) — das Bracket wird dann mit derselben Auslosung neu aufgebaut, alle Ergebnisse bleiben (beim Ausschalten nur das des Platz-3-Spiels bzw. des Rückspiels nicht)
 
 ### Bracket anzeigen & bearbeiten
 - **Gewinner auswählen**: Klick auf Match → Gewinner wählen
 - **Ergebnisse korrigieren**: Jedes Ergebnis lässt sich ändern, im Bracket per Klick oder in der Match-Liste über „Ergebnis ändern“. Hängen schon Folgeergebnisse davon ab (Winner- und Loser-Pfad bis zum Finale), zeigt eine Vorschau über dem Bracket alle betroffenen Matches. Im Bracket ist das geänderte Match orange markiert, die betroffenen Folge-Matches gelb gestrichelt. Das Bracket zeigt dabei noch den bisherigen Stand. Erst „Änderung übernehmen“ setzt die Folgeergebnisse zurück; sie müssen dann neu eingetragen werden. Nicht betroffene Matches behalten ihr Ergebnis, Gedenk-Matches werden wieder automatisch entschieden. Round-Robin-Ergebnisse lassen sich direkt ändern
 - **BYE-Matches**: Werden automatisch entschieden
-- **Spielzeiten**: Über das Uhr-Symbol am Turnier lässt sich festlegen, bis wann eine Runde gespielt sein muss — nur bei Single Elimination und im Winner Bracket von Double Elimination (Tag aus dem Event-Zeitraum + Uhrzeit; ohne Zeitraum Datum frei wählbar; nur eine Uhrzeit übernimmt den Tag der Zeile darüber). Das Loser Bracket und Round Robin haben keine Spielzeiten. „Spielzeiten“ beim Event setzt dieselben Zeiten für alle Turniere des Events über gemeinsame Spielrunden (Runde n → Spielrunde n); einzelne Turniere lassen sich danach noch anpassen, Spielrunden mit unterschiedlichen Zeiten bleiben unverändert, solange man dort nichts einträgt. Die Spiele um Platz 1–3 — Halbfinale, Finale und Spiel um Platz 3, bei Double Elimination Grand Final und Loser-Bracket-Finale (dessen Verlierer wird Dritter) — haben stattdessen eine Beginn-Zeit („ab …“, im Event-Dialog je Turnier unter „Finalspiele“) und werden nie ausgelost. Die Zeit steht im Bracket unter dem Rundennamen, die nächste auch auf der Turnierkarte. Nach Rundenschluss entscheidet für jedes noch offene Match der Runde das Los (geprüft alle 30 Sekunden, sobald beide Gegner feststehen). Solche Ergebnisse sind mit „Los“ markiert und lassen sich über „Ergebnis ändern“ korrigieren; wählt man dort denselben Gewinner, gilt das Ergebnis als bestätigt und die Markierung verschwindet. Ein offenes Bracket mit Spielzeiten lädt jede Minute neu. Nach Schluss von Runde 1 können keine neuen Spieler mehr einsteigen
+- **Zoom und Vollbild**: Über dem Bracket verkleinern/vergrößern (40–150 %), „Einpassen“ zeigt den ganzen Baum in der Breite; „Vollbild“ nutzt den ganzen Bildschirm, Esc beendet es
+- **Turnier abschließen**: Ein fertig gespieltes Turnier lässt sich im Menü „⋯“ am Turnier-Reiter abschließen. Danach sind keine Änderungen mehr möglich — keine Ergebnisse, Spielzeiten, Optionen, kein Neu auslosen oder Löschen, und Änderungen an den Teilnehmern wirken sich nicht mehr aus. „Turnier wieder öffnen“ im selben Menü hebt das auf
+- **Spielzeiten**: Über das Uhr-Symbol am Turnier lässt sich festlegen, bis wann eine Runde gespielt sein muss — nur bei Single Elimination und im Winner Bracket von Double Elimination (Tag aus dem Event-Zeitraum + Uhrzeit; ohne Zeitraum Datum frei wählbar; nur eine Uhrzeit übernimmt den Tag der Zeile darüber). Das Loser Bracket und Round Robin haben keine Spielzeiten. „Spielzeiten“ beim Event setzt dieselben Zeiten für alle Turniere des Events über gemeinsame Spielrunden (Runde n → Spielrunde n); einzelne Turniere lassen sich danach noch anpassen, Spielrunden mit unterschiedlichen Zeiten bleiben unverändert, solange man dort nichts einträgt. Die Spiele um Platz 1–3 — Halbfinale, Finale und Spiel um Platz 3, bei Double Elimination Grand Final und Loser-Bracket-Finale (dessen Verlierer wird Dritter) — haben stattdessen eine Beginn-Zeit („ab …“, im Event-Dialog je Turnier unter „Finalspiele“) und werden nie ausgelost. Die Zeit steht im Bracket unter dem Rundennamen, die nächste auch im Kopf des Brackets. Nach Rundenschluss entscheidet für jedes noch offene Match der Runde das Los (geprüft alle 30 Sekunden, sobald beide Gegner feststehen). Solche Ergebnisse sind mit „Los“ markiert und lassen sich über „Ergebnis ändern“ korrigieren; wählt man dort denselben Gewinner, gilt das Ergebnis als bestätigt und die Markierung verschwindet. Ein offenes Bracket mit Spielzeiten lädt jede Minute neu. Nach Schluss von Runde 1 können keine neuen Spieler mehr einsteigen
 - **TBD-Matches**: Noch nicht spielbar, warte auf vorherige Matches
 
 ### Rankings
@@ -328,6 +330,7 @@ Ist `ADMIN_PASSWORD` gesetzt, sind alle Anfragen außer GET/HEAD (und `GET /api/
 | POST   | `/api/stages` | Neue Stage erstellen — Body: `{ name, type, eventName, settings?, participants? }`; ohne `participants` spielen alle Teilnehmer des Events. Turnier-ID, Auslosung und BYEs vergibt der Server |
 | POST   | `/api/stages/:id/regenerate` | Stage neu auslosen mit den aktuellen Teilnehmern des Events (oder `{ participants: string[] }`); Einstellungen und Event bleiben erhalten, bei Fehlern wird zurückgerollt |
 | DELETE | `/api/stages/:id` | Stage + Participants löschen |
+| PUT    | `/api/stages/:id/closed` | `{ closed: true }` schließt ein fertiges Turnier ab (danach 409 bei jeder Änderung), `{ closed: false }` öffnet es wieder |
 
 ### Matches
 | Method | Endpoint | Beschreibung |
