@@ -2929,11 +2929,7 @@ body.single-event .tour-picker .section-header {
     background: var(--view-line);
 }
 
-/* Own playable match: orange frame, like the own match in the bracket */
-.tour-tab.is-mine {
-    border-color: var(--primary-color);
-}
-
+/* Own playable match: the frame stays like every tab, only the status line says it in orange */
 .tour-tab.is-mine .tour-tab-status {
     color: var(--primary-text);
 }
