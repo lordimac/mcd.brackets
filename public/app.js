@@ -1267,10 +1267,11 @@ function nextDeadlineHtml(stage) {
 }
 
 // Round name and playing time in one head per column; on wide screens it stays at the top of the
-// bracket box while scrolling down (styles.css), so deep in a bracket the round is never lost
+// bracket box while scrolling down (styles.css), so deep in a bracket the round is never lost.
+// A <header>, not a <div>: the connectors use .match:nth-of-type(odd/even) among the match divs.
 function wrapRoundHeads() {
     for (const h3 of document.querySelectorAll('.brackets-viewer article.round > h3')) {
-        const head = document.createElement('div');
+        const head = document.createElement('header');
         head.className = 'round-head';
         h3.before(head);
         head.append(h3);

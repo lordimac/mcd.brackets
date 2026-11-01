@@ -2,7 +2,7 @@
 
 Ein vollständiges Turnierverwaltungssystem mit Event-basiertem Meisterschafts-Punktesystem, entwickelt mit [brackets-manager](https://www.npmjs.com/package/brackets-manager).
 
-**Version:** 0.31.0-beta
+**Version:** 0.31.1-beta
 
 ---
 
