@@ -2,28 +2,47 @@
 
 Ein vollständiges Turnierverwaltungssystem mit Event-basiertem Meisterschafts-Punktesystem, entwickelt mit [brackets-manager](https://www.npmjs.com/package/brackets-manager).
 
-**Version:** 0.32.1-beta
+**Version:** 0.32.2-beta
 
 ---
 
 ## Screenshots
 
+**Willkommen** — das Gerät wird über seine IP-Adresse erkannt: Name, Sitzplatz, Adresse, nächstes Match und die eigenen Turniere auf einen Blick
+
+![Willkommens-Seite](docs/screenshots/willkommen.png)
+
+**Turniere** — oben ein Reiter je Turnier mit Status und Menü „⋯“, links der Turnierbaum mit Zoom und Vollbild, rechts die Platzierungen mit Treppchen
+
+![Turniere](docs/screenshots/turniere.png)
+
+<table>
+  <tr>
+    <td width="45%" valign="top"><b>Doppel-K.-o. mit Spielzeiten je Runde</b><br>Sieger grün (W), Verlierer rot (L), Ergebnis per Klick<br><img src="docs/screenshots/bracket.png" alt="Turnierbaum Doppel-K.-o."></td>
+    <td width="55%" valign="top"><b>Gesamtwertung eines Events</b><br>Meisterschaftspunkte über alle Turniere<br><img src="docs/screenshots/rangliste.png" alt="Gesamtwertung"></td>
+  </tr>
+</table>
+
 **Teilnehmer-Verwaltung** — Teilnehmer mit Clan, Nickname, drei IP-Adressen und DNS-Namen; sortier- und filterbar, Export als IP-Zettel (PDF), CSV, hosts oder BIND-Zone; Kurzanleitung „feste IP-Adresse“ für Windows und macOS als PDF
 
 ![Teilnehmer-Verwaltung](docs/screenshots/teilnehmer.png)
 
-**Sitzplan** — Räume frei aus Tischreihen, U-Formen und Flächen zusammenstellen, Plätze per Klick vergeben; die Suche zeigt, wer wo sitzt
+**Sitzplan** — Räume aus Tischreihen, U-Formen, Flächen und Türen zusammenstellen, Plätze per Klick vergeben; die Suche zeigt, wer wo sitzt
 
 ![Sitzplan](docs/screenshots/sitzplan.png)
 
-**Bracket** — Double Elimination mit Click-to-Win; ein Eintrag „In Gedenken“ steht an Stelle eines BYE, sein Gegner kommt automatisch weiter
+**Zeitplan** — je Tag ein Zeitstrahl mit Essen, Programm und den Spielrunden der Turniere, Marke „Jetzt“ und „Gut zu wissen“ daneben
 
-![Bracket](docs/screenshots/bracket.png)
+![Zeitplan](docs/screenshots/zeitplan.png)
+
+**Burger** — Burger zusammenklicken und bestellen; die Küche bekommt Etiketten oder eine Tablet-Anzeige
+
+![Burger-Designer](docs/screenshots/burger.png)
 
 <table>
   <tr>
-    <td width="62%" valign="top"><b>Gesamtwertung eines Events</b><br><img src="docs/screenshots/rangliste.png" alt="Rangliste"></td>
-    <td width="38%" valign="top"><b>IP-Zettel (A4-PDF pro Teilnehmer)</b><br><img src="docs/screenshots/ip-zettel.png" alt="IP-Zettel"></td>
+    <td width="42%" valign="top"><b>IP-Zettel (A4-PDF pro Teilnehmer)</b><br><img src="docs/screenshots/ip-zettel.png" alt="IP-Zettel"></td>
+    <td width="58%" valign="top"><b>Auf dem Handy</b><br><img src="docs/screenshots/mobil.png" alt="Willkommens-Seite auf dem Handy" width="300"></td>
   </tr>
 </table>
 

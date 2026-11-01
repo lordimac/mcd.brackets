@@ -1382,6 +1382,12 @@ textarea {
     box-shadow: -8px 0 12px -10px rgba(0, 0, 0, 0.6);
 }
 
+/* A sticky cell is a layer of its own: the open menu "⋯" would end up under the action cells of
+   the rows below, so the cell with the open menu comes to the front */
+.attendee-table:not(.bulk-table) .col-actions:has(.action-menu[open]) {
+    z-index: 5;
+}
+
 .attendee-table thead .col-actions {
     background: var(--surface-2);
 }
