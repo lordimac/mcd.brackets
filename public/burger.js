@@ -175,14 +175,20 @@ function toggleBurgerExtra(optionId) {
 
 // Same text as summarizeOrder() in src/burger.ts
 // withEmpty: also name the empty categories ("ohne Sauce") — the stored summary and the labels do,
-// the live preview only says what is on the burger
-function burgerSummary(choices, extra, { withEmpty = true } = {}) {
+// the live preview only says what is on the burger, with the names of the chips (fullNames: the name
+// without a bracketed note, e.g. "Single" for "Single (ein Patty)") instead of the short label text
+function burgerSummary(choices, extra, { withEmpty = true, fullNames = false } = {}) {
     const parts = [];
     for (const category of burgerCategories()) {
         const ids = choices[category.id] ?? [];
         const options = category.options.filter(o => ids.includes(o.id));
         if (!options.length && category.empty_label && withEmpty) parts.push(category.empty_label);
-        for (const option of options) parts.push(`${extra.has(option.id) ? 'extra viel ' : ''}${option.short || option.name}`);
+        for (const option of options) {
+            const label = fullNames
+                ? (option.name.replace(/\s*\([^)]*\)\s*$/, '') || option.name).replace(/^Ohne /, 'ohne ') // "ohne Käse" mid-sentence
+                : option.short || option.name;
+            parts.push(`${extra.has(option.id) ? 'extra viel ' : ''}${label}`);
+        }
     }
     return parts.join(', ');
 }
@@ -367,7 +373,9 @@ function renderBurgerDesigner() {
 
     preview.innerHTML = burgerSvg(burgerSelection.choices, burgerSelection.extra, { animate: true });
     document.getElementById('burgerSummary').textContent =
-        burgerSummary(burgerSelection.choices, burgerSelection.extra, { withEmpty: false }) || 'Noch nichts ausgewählt';
+        burgerSummary(burgerSelection.choices, burgerSelection.extra, { withEmpty: false, fullNames: true }) || 'Noch nichts ausgewählt';
+    const whoStep = document.getElementById('burgerWhoStepNo');
+    if (whoStep) whoStep.textContent = String(burgerCategories().length + 1);
     const editing = burgerEditingId != null; // IDs start at 0
     document.getElementById('burgerFormTitle').textContent = editing ? `Bestellung #${burgerOrders.find(o => o.id === burgerEditingId)?.number ?? ''} ändern` : 'Dein Burger';
     setButtonLabel(document.getElementById('burgerSubmit'), editing ? 'Änderung speichern' : 'Bestellen');
@@ -566,13 +574,14 @@ function renderBurgerAdmin() {
     `).join('') : `<p class="empty-state">${burgerOrders.length ? 'Alles erledigt.' : 'Noch keine Bestellungen.'}</p>`;
 }
 
-// What the grill needs: patties per kind (size × patty) and how often each option was chosen
+// What the grill still needs: open orders only (handled ones are done), patties per kind
+// (size × patty) and how often each option was chosen
 function renderBurgerTotals() {
     const counts = new Map();
     const add = (label, n = 1) => counts.set(label, (counts.get(label) ?? 0) + n);
     const sizeCategory = burgerCategories().find(c => c.visual === 'size');
     const pattyCategory = burgerCategories().find(c => c.visual === 'patty');
-    for (const order of burgerOrders) {
+    for (const order of burgerOrders.filter(o => !isBurgerHandled(o))) {
         const size = sizeCategory?.options.find(o => (order.choices[sizeCategory.id] ?? []).includes(o.id));
         const patty = pattyCategory?.options.find(o => (order.choices[pattyCategory.id] ?? []).includes(o.id));
         if (size || patty) add(`Patty ${patty ? patty.short || patty.name : ''}`.trim(), size ? size.count : 1);

@@ -1,25 +1,40 @@
-// Game servers of an event (#server): status and current players for everyone (polled while the
-// view is open), for admins the server list and the administration (quick actions and RCON/WebAdmin
-// console). Passwords never come from the server: an empty field keeps the stored one (src/gameservers.ts).
+// Game servers of an event (#server). Two modes like the seat plan: "Ansehen" (default, everyone) is a
+// live board — who plays where, joining with one tap; "Verwalten" (admins) adds IPs, the container
+// state, quick actions and the RCON/WebAdmin console. The card frame stays, only the live part is
+// redrawn on every poll (typed text and console output survive). Passwords never come from the
+// server: an empty field keeps the stored one (src/gameservers.ts).
 // Shares currentEventId/ensureCurrentEvent with lan.js; uses apiFetch, escapeHtml, icon, openModal,
-// closeModal, confirmDialog, notify, isAdmin from app.js, isMe from welcome.js, copyText from shares.js.
+// closeModal, confirmDialog, notify, announce, isAdmin from app.js, me/isMe from welcome.js, copyText from shares.js.
 
 const GS_GAMES = {
-    ut99: { label: 'Unreal Tournament', short: 'UT99', port: 7777, query: '+1', unreal: true },
-    ut2004: { label: 'Unreal Tournament 2004', short: 'UT2004', port: 7777, query: '+1', unreal: true },
+    ut99: { label: 'Unreal Tournament', short: 'UT99', port: 7777, unreal: true, link: 'unreal' },
+    ut2004: { label: 'Unreal Tournament 2004', short: 'UT2004', port: 7777, unreal: true, link: 'ut2004' },
     cod2: { label: 'Call of Duty 2', short: 'CoD2', port: 28960 },
     cod4: { label: 'Call of Duty 4', short: 'CoD4', port: 28960 },
-    cs2: { label: 'Counter-Strike 2', short: 'CS2', port: 27015 },
+    cs2: { label: 'Counter-Strike 2', short: 'CS2', port: 27015, link: 'steam' },
     q3: { label: 'Quake III Arena', short: 'Q3', port: 27960 },
 };
+// Readable names for the short game types the servers report
+const GS_GAMETYPES = {
+    cod: { sd: 'Search & Destroy', dm: 'Deathmatch', tdm: 'Team Deathmatch', war: 'Team Deathmatch', ctf: 'Capture the Flag', dom: 'Domination', koth: 'Hauptquartier', hq: 'Hauptquartier', sab: 'Sabotage', bel: 'Behind Enemy Lines' },
+    q3: { 0: 'Free for All', 1: 'Turnier', 2: 'Einzelspieler', 3: 'Team Deathmatch', 4: 'Capture the Flag' },
+};
+const GS_TEAMS = { rot: 'red', red: 'red', blau: 'blue', blue: 'blue', grün: 'green', green: 'green', gold: 'gold' };
 const GS_POLL_MS = 10000;
+const GS_OUTPUT_ENTRIES = 15;
 
 let gsServers = [];          // GET /events/:id/gameservers
 let gsStatus = new Map();    // server id → status
 let gsSeats = new Map();     // attendee id → { room, key, label } (final rooms only)
 let gsTimer = null;
 let gsLoading = false;
+let gsStale = false;         // last poll failed: the shown state is old
 let gsListKey = '';          // re-render the cards only when the list itself changes
+let gsMode = 'view';         // 'view' or 'manage' (admins)
+const gsWasOnline = new Map(); // server id → online at the last poll (announce changes)
+const gsHistory = new Map();   // server id → { list: [commands], pos }
+
+try { if (localStorage.getItem('mcd.gsMode') === 'manage') gsMode = 'manage'; } catch { /* storage unavailable */ }
 
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('gsForm').addEventListener('submit', saveGameServer);
@@ -40,6 +55,7 @@ async function showGameServerView() {
         ? events.map(e => `<option value="${e.id}">${escapeHtml(e.name)}</option>`).join('')
         : '<option value="">Noch kein Event — unter „Teilnehmer“ anlegen</option>';
     if (currentEventId != null) select.value = String(currentEventId);
+    applyGameServerMode();
     await loadGameServers();
     startGameServerPolling();
 }
@@ -63,9 +79,31 @@ function startGameServerPolling() {
     }, GS_POLL_MS);
 }
 
+/* Modes: the admin parts are always rendered for admins and only shown in "Verwalten"
+   ========================================================================== */
+
+function setGameServerMode(mode) {
+    gsMode = mode === 'manage' && isAdmin ? 'manage' : 'view';
+    try { localStorage.setItem('mcd.gsMode', gsMode); } catch { /* storage unavailable */ }
+    applyGameServerMode();
+    orderGameServerCards();
+}
+
+function applyGameServerMode() {
+    if (!isAdmin) gsMode = 'view';
+    document.getElementById('view-servers').classList.toggle('is-manage', gsMode === 'manage');
+    document.querySelectorAll('#gsModeSwitch button').forEach(button => {
+        const active = button.dataset.mode === gsMode;
+        button.classList.toggle('active', active);
+        button.setAttribute('aria-pressed', String(active));
+    });
+}
+
 async function loadGameServers() {
     gsListKey = '';
     gsStatus = new Map();
+    gsWasOnline.clear();
+    gsStale = false;
     if (currentEventId == null) {
         gsServers = [];
         renderGameServers();
@@ -102,20 +140,58 @@ async function refreshGameServerStatus(manual = false) {
         const statuses = await apiFetch(`/events/${eventId}/gameservers/status`);
         if (eventId !== currentEventId) return;
         gsStatus = new Map(statuses.map(s => [s.id, s]));
+        gsStale = false;
+        announceGameServerChanges();
         for (const server of gsServers) renderGameServerLive(server);
-        renderGameServerSummary();
+        orderGameServerCards();
+        filterGameServerPlayers();
         if (manual) announce('Serverstatus aktualisiert');
     } catch (error) {
+        gsStale = true;
         if (manual) notify(`Status konnte nicht abgefragt werden: ${error.message}`);
     } finally {
         gsLoading = false;
         button?.classList.remove('is-busy');
+        renderGameServerSummary();
     }
 }
 
-/* Rendering: the card frame (and the admin panel with typed text and console output) stays,
-   only the live part is redrawn on every poll
+// Screen readers hear when a server goes offline or comes back (not on the first poll)
+function announceGameServerChanges() {
+    const changes = [];
+    for (const server of gsServers) {
+        const status = gsStatus.get(server.id);
+        if (!status) continue;
+        const before = gsWasOnline.get(server.id);
+        if (before !== undefined && before !== status.online) changes.push(`${server.name} ist ${status.online ? 'wieder online' : 'offline'}`);
+        gsWasOnline.set(server.id, status.online);
+    }
+    if (changes.length) announce(changes.join('. '));
+}
+
+/* Rendering
    ========================================================================== */
+
+const gsConnectAddress = server => `${server.host}:${server.port}`;
+
+// Join: games that register a URL scheme get a link, the others the console command to copy
+function gsJoin(server) {
+    const address = gsConnectAddress(server);
+    const link = { steam: `steam://connect/${address}`, unreal: `unreal://${address}`, ut2004: `ut2004://${address}` }[GS_GAMES[server.game]?.link];
+    return link ? { link } : { command: `/connect ${address}` };
+}
+
+function gameServerJoinHtml(server) {
+    const join = gsJoin(server);
+    const address = escapeHtml(gsConnectAddress(server));
+    const button = join.link
+        ? `<a class="btn btn-sm gs-join" href="${escapeHtml(encodeURI(join.link))}" title="Startet das Spiel und verbindet mit ${address}">${icon('login')}<span>Beitreten</span></a>`
+        : `<button type="button" class="btn btn-sm gs-join" data-command="${escapeHtml(join.command)}" onclick="copyGameServerJoin(this)" title="Kopiert ${escapeHtml(join.command)} für die Spielkonsole">${icon('login')}<span>Beitreten</span></button>`;
+    return `<div class="gs-join-row">
+        ${button}
+        <button type="button" class="btn btn-ghost btn-icon btn-sm" data-address="${address}" onclick="copyGameServerAddress(this)" title="Adresse ${address} kopieren" aria-label="Adresse ${address} kopieren">${icon('copy')}</button>
+    </div>`;
+}
 
 function renderGameServers() {
     const list = document.getElementById('gsList');
@@ -128,47 +204,127 @@ function renderGameServers() {
         return;
     }
     if (!gsServers.length) {
-        list.innerHTML = `<p class="empty-state">Noch keine Server eingetragen.${isAdmin ? ' Über „Server“ oben fügst du UT99, UT2004, CoD2, CoD4, CS2 und Quake 3 hinzu.' : ''}</p>`;
+        list.innerHTML = `<p class="empty-state">Noch keine Server eingetragen.${isAdmin ? ' Unter „Verwalten“ trägst du sie von Hand ein oder übernimmst sie aus Dockhand.' : ''}</p>`;
         renderGameServerSummary();
         return;
     }
     list.innerHTML = gsServers.map(server => `
-        <article class="card gs-card gs-${escapeHtml(server.game)}" data-id="${escapeHtml(server.id)}">
+        <article class="card gs-card gs-${escapeHtml(server.game)}" data-id="${escapeHtml(server.id)}" id="gs-${escapeHtml(server.id)}" aria-labelledby="gsName-${escapeHtml(server.id)}">
             <header class="gs-head">
-                <span class="gs-game" title="${escapeHtml(server.game_label)}">${escapeHtml(server.game_short)}</span>
                 <div class="gs-title">
-                    <h2>${escapeHtml(server.name)}</h2>
-                    <p class="gs-address">
-                        <code>${escapeHtml(gsConnectAddress(server))}</code>
-                        <button type="button" class="btn btn-ghost btn-icon btn-sm" data-address="${escapeHtml(gsConnectAddress(server))}" onclick="copyGameServerAddress(this)" title="Adresse kopieren" aria-label="Adresse kopieren">${icon('copy')}</button>
-                        ${server.game === 'cs2' ? `<a class="btn btn-ghost btn-sm" href="steam://connect/${encodeURI(gsConnectAddress(server))}">${icon('external')}<span>Verbinden</span></a>` : ''}
-                    </p>
-                    ${server.info ? `<p class="gs-info">${escapeHtml(server.info)}</p>` : ''}
+                    <h2 id="gsName-${escapeHtml(server.id)}">${escapeHtml(server.name)}</h2>
+                    <p class="gs-meta"><span class="gs-game" title="${escapeHtml(server.game_label)}">${escapeHtml(server.game_short)}</span> <code>${escapeHtml(gsConnectAddress(server))}</code></p>
                 </div>
-                <button type="button" class="btn btn-ghost btn-icon admin-only" data-id="${escapeHtml(server.id)}" onclick="openGameServerModal(this.dataset.id)" title="Server bearbeiten" aria-label="Server bearbeiten">${icon('edit')}</button>
+                ${gameServerJoinHtml(server)}
+                <button type="button" class="btn btn-ghost btn-icon gs-manage-only" data-id="${escapeHtml(server.id)}" onclick="openGameServerModal(this.dataset.id)" title="Server bearbeiten" aria-label="${escapeHtml(server.name)} bearbeiten">${icon('edit')}</button>
             </header>
-            <div class="gs-live" aria-live="off"><p class="gs-pending">Frage Server ab…</p></div>
+            ${server.info ? `<p class="gs-info">${escapeHtml(server.info)}</p>` : ''}
+            <div class="gs-live"><p class="gs-pending">Frage Server ab…</p></div>
             ${gameServerAdminHtml(server)}
         </article>`).join('');
     for (const server of gsServers) renderGameServerLive(server);
+    orderGameServerCards();
     renderGameServerSummary();
 }
 
-const gsConnectAddress = server => `${server.host}:${server.port}`;
+// Problems an admin should see first (manage mode sorts them to the top)
+function gsProblem(server, status) {
+    if (!status) return 0;
+    if (!status.online) return 3;
+    if (status.container && status.container.state !== 'running') return 2;
+    if (status.rcon === 'error') return 1;
+    return 0;
+}
+
+// Board order: busy servers first, offline last; in "Verwalten" broken ones first
+function sortedGameServers() {
+    const index = new Map(gsServers.map((s, i) => [s.id, i]));
+    return [...gsServers].sort((a, b) => {
+        const sa = gsStatus.get(a.id);
+        const sb = gsStatus.get(b.id);
+        if (gsMode === 'manage') {
+            const problem = gsProblem(b, sb) - gsProblem(a, sa);
+            if (problem) return problem;
+        } else if (sa && sb && sa.online !== sb.online) {
+            return sa.online ? -1 : 1;
+        }
+        return (sb?.player_count ?? 0) - (sa?.player_count ?? 0) || index.get(a.id) - index.get(b.id);
+    });
+}
+
+// Moves the cards (keeps their DOM, so open forms and console output stay) and redraws the jump chips
+function orderGameServerCards() {
+    const list = document.getElementById('gsList');
+    const order = sortedGameServers();
+    const cards = order.map(s => list.querySelector(`.gs-card[data-id="${CSS.escape(s.id)}"]`)).filter(Boolean);
+    const current = [...list.querySelectorAll('.gs-card')];
+    if (cards.some((card, i) => current[i] !== card)) cards.forEach(card => list.appendChild(card));
+    renderGameServerJump(order);
+}
+
+// Chips above the list (from three servers): game, name, players — tap jumps to the card
+function renderGameServerJump(order = sortedGameServers()) {
+    const nav = document.getElementById('gsJump');
+    if (gsServers.length < 3) {
+        nav.hidden = true;
+        nav.innerHTML = '';
+        return;
+    }
+    nav.hidden = false;
+    nav.innerHTML = order.map(server => {
+        const status = gsStatus.get(server.id);
+        const count = status?.online ? `<span class="gs-jump-count">${status.player_count}<span class="sr-only"> Spieler</span></span>` : status ? '<span class="gs-jump-count is-offline">offline</span>' : '';
+        return `<button type="button" class="gs-jump-chip gs-${escapeHtml(server.game)}${status && !status.online ? ' is-offline' : ''}" data-id="${escapeHtml(server.id)}" onclick="jumpToGameServer(this.dataset.id)"><span class="gs-swatch" aria-hidden="true"></span><span class="gs-jump-name">${escapeHtml(server.name)}</span> ${count}</button>`;
+    }).join('');
+}
+
+function jumpToGameServer(id) {
+    const card = document.getElementById(`gs-${id}`);
+    if (!card) return;
+    card.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+    card.querySelector('h2').setAttribute('tabindex', '-1');
+    card.querySelector('h2').focus({ preventScroll: true });
+}
+
+const gsClock = iso => new Date(iso).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
 function renderGameServerSummary() {
     const target = document.getElementById('gsSummary');
+    renderGameServerMeHint();
     if (!gsServers.length) {
-        target.textContent = '';
+        target.innerHTML = '';
         return;
     }
     const statuses = gsServers.map(s => gsStatus.get(s.id)).filter(Boolean);
+    if (!statuses.length) {
+        target.textContent = `${gsServers.length} Server · frage ab…`;
+        return;
+    }
     const online = statuses.filter(s => s.online).length;
+    const offline = gsServers.filter(s => gsStatus.get(s.id) && !gsStatus.get(s.id).online);
     const players = statuses.reduce((sum, s) => sum + (s.player_count ?? 0), 0);
-    const time = statuses[0] ? new Date(statuses[0].queried_at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '';
-    target.textContent = statuses.length
-        ? `${online} von ${gsServers.length} online · ${players} ${players === 1 ? 'Spieler' : 'Spieler'} · Stand ${time}`
-        : `${gsServers.length} ${gsServers.length === 1 ? 'Server' : 'Server'}`;
+    const latest = statuses.reduce((max, s) => (s.queried_at > max ? s.queried_at : max), statuses[0].queried_at);
+    target.innerHTML = [
+        `<span>${online} von ${gsServers.length} online</span>`,
+        offline.length ? `<button type="button" class="gs-summary-alert" data-id="${escapeHtml(offline[0].id)}" onclick="jumpToGameServer(this.dataset.id)">${icon('alert')}<span>${offline.length} offline</span></button>` : '',
+        `<span>${players} Spieler</span>`,
+        `<span class="${gsStale ? 'gs-stale' : ''}">Stand ${gsClock(latest)}${gsStale ? ' · veraltet, Abfrage fehlgeschlagen' : ''}</span>`,
+    ].filter(Boolean).join('<span class="gs-sep" aria-hidden="true">·</span>');
+}
+
+// Unrecognized devices never see "du": say so once and point to the check-in on the start page
+function renderGameServerMeHint() {
+    const hint = document.getElementById('gsMeHint');
+    hint.hidden = !(gsServers.length && (me?.status === 'unknown' || me?.status === 'unassigned'));
+}
+
+const gsSame = (a, b) => String(a ?? '').trim().toLowerCase() === String(b ?? '').trim().toLowerCase();
+
+function gameTypeLabel(server, status) {
+    const type = String(status.gametype ?? '').trim();
+    if (!type || gsSame(type, server.game_label) || gsSame(type, server.game_short) || gsSame(type, GS_GAMES[server.game]?.label)) return '';
+    const family = server.game.startsWith('cod') ? 'cod' : server.game;
+    return GS_GAMETYPES[family]?.[type.toLowerCase()] ?? type;
 }
 
 function renderGameServerLive(server) {
@@ -176,30 +332,32 @@ function renderGameServerLive(server) {
     if (!card) return;
     const status = gsStatus.get(server.id);
     card.classList.toggle('is-offline', status ? !status.online : false);
+    card.classList.toggle('has-problem', gsProblem(server, status) > 0);
     const live = card.querySelector('.gs-live');
     if (!status) return;
     if (!status.online) {
-        live.innerHTML = `<p class="gs-state is-offline"><span class="gs-dot"></span>Offline <span class="muted">· ${escapeHtml(status.error ?? '')}</span></p>${gameServerContainerHtml(server, status)}`;
+        live.innerHTML = `<p class="gs-state is-offline"><span class="gs-online"><span class="gs-dot" aria-hidden="true"></span>Offline</span> <span class="gs-reason">${escapeHtml(status.error ?? 'antwortet nicht')}</span></p>${gameServerContainerHtml(server, status)}`;
         return;
     }
-    const max = status.max_players ? ` / ${status.max_players}` : '';
-    const bots = status.bot_count ? ` · ${status.bot_count} ${status.bot_count === 1 ? 'Bot' : 'Bots'}` : '';
-    const rconHint = isAdmin && status.rcon === 'error' ? `<p class="gs-warning">${icon('alert')}<span>RCON: ${escapeHtml(status.rcon_error ?? 'Fehler')} — Spieler ohne IP-Zuordnung</span></p>` : '';
+    const max = status.max_players ? `<span class="muted"> / ${status.max_players}</span>` : '';
+    const bots = status.bot_count ? `<span class="muted"> · ${status.bot_count} ${status.bot_count === 1 ? 'Bot' : 'Bots'}</span>` : '';
+    const type = gameTypeLabel(server, status);
+    const rconHint = isAdmin && status.rcon === 'error' ? `<p class="gs-warning gs-manage-only">${icon('alert')}<span>RCON: ${escapeHtml(status.rcon_error ?? 'Fehler')} — Spieler ohne IP-Zuordnung</span></p>` : '';
     live.innerHTML = `
-        <div class="gs-facts">
-            <p class="gs-state"><span class="gs-dot"></span>Online</p>
-            <p><span class="gs-fact-label">Map</span><strong>${escapeHtml(status.map || '–')}</strong></p>
-            ${status.gametype ? `<p><span class="gs-fact-label">Modus</span><span>${escapeHtml(status.gametype)}</span></p>` : ''}
-            <p><span class="gs-fact-label">Spieler</span><strong>${status.player_count}${max}</strong><span class="muted">${bots}</span></p>
-        </div>
-        ${status.hostname && status.hostname !== server.name ? `<p class="gs-hostname">${escapeHtml(status.hostname)}</p>` : ''}
+        <p class="gs-state">
+            <span class="gs-online"><span class="gs-dot" aria-hidden="true"></span>Online</span>
+            <span class="gs-fact"><span class="gs-fact-label">Map</span><span class="gs-map">${escapeHtml(status.map || '–')}</span></span>
+            ${type ? `<span class="gs-fact">${escapeHtml(type)}</span>` : ''}
+            <span class="gs-fact"><strong class="gs-count">${status.player_count}</strong>${max} Spieler${bots}</span>
+        </p>
+        ${status.hostname && status.hostname !== server.name ? `<p class="gs-hostname gs-manage-only">Name im Spiel: ${escapeHtml(status.hostname)}</p>` : ''}
         ${rconHint}
         ${gameServerContainerHtml(server, status)}
         ${gamePlayersHtml(server, status)}`;
 }
 
 function gamePlayersHtml(server, status) {
-    if (!status.players.length) return '<p class="gs-empty">Gerade spielt niemand.</p>';
+    if (!status.players.length) return '<p class="gs-empty">Gerade spielt niemand — sei der Erste.</p>';
     const hasTeams = status.players.some(p => p.team);
     const canKick = isAdmin && server.manageable && server.actions.includes('kick');
     const rows = status.players.map(p => {
@@ -207,17 +365,18 @@ function gamePlayersHtml(server, status) {
         const seat = p.attendee_id != null ? gsSeats.get(p.attendee_id) : null;
         const shownName = p.display_name ?? p.name;
         const ingame = p.display_name && p.name !== p.display_name && p.name !== p.nickname ? `<span class="gs-ingame">als ${escapeHtml(p.name)}</span>` : '';
-        const ip = isAdmin && p.ip ? `<span class="gs-ip">${escapeHtml(p.ip)}</span>` : '';
+        const ip = isAdmin && p.ip ? `<span class="gs-ip gs-manage-only">${escapeHtml(p.ip)}</span>` : '';
+        const team = GS_TEAMS[String(p.team ?? '').toLowerCase()];
         const actions = [
-            seat ? `<button type="button" class="btn btn-ghost btn-sm" data-attendee="${p.attendee_id}" onclick="showGameServerSeat(Number(this.dataset.attendee))" title="Sitzplatz zeigen">${icon('seat')}<span>${escapeHtml(seat.label || 'Platz')}</span></button>` : '',
-            canKick && p.num != null && !p.bot ? `<button type="button" class="btn btn-ghost btn-icon btn-sm gs-kick" data-server="${escapeHtml(server.id)}" data-num="${p.num}" data-name="${escapeHtml(shownName)}" onclick="kickGameServerPlayer(this)" title="Kicken" aria-label="${escapeHtml(shownName)} kicken">${icon('logout')}</button>` : '',
+            seat ? `<button type="button" class="btn btn-ghost btn-sm" data-attendee="${p.attendee_id}" onclick="showGameServerSeat(Number(this.dataset.attendee))" title="Sitzplatz zeigen" aria-label="Sitzplatz ${escapeHtml(seat.label || '')} von ${escapeHtml(shownName)} zeigen">${icon('seat')}<span>${escapeHtml(seat.label || 'Platz')}</span></button>` : '',
+            canKick && p.num != null && !p.bot ? `<button type="button" class="btn btn-ghost btn-sm gs-kick gs-manage-only" data-server="${escapeHtml(server.id)}" data-num="${p.num}" data-name="${escapeHtml(shownName)}" onclick="kickGameServerPlayer(this)" title="Vom Server werfen" aria-label="${escapeHtml(shownName)} kicken">${icon('user-x')}<span class="gs-kick-label">Kicken</span></button>` : '',
         ].join('');
-        return `<tr class="${mine ? 'is-me' : ''}${p.bot ? ' is-bot' : ''}">
+        return `<tr class="${mine ? 'is-me' : ''}${p.bot ? ' is-bot' : ''}" data-search="${escapeHtml([shownName, p.name, p.nickname].filter(Boolean).join(' ').toLowerCase())}">
             <td class="gs-player">
-                <span class="gs-name">${escapeHtml(shownName)}</span>${mine ? '<span class="me-tag">du</span>' : ''}${p.bot ? '<span class="gs-bot">Bot</span>' : ''}
+                <span class="gs-name">${escapeHtml(shownName)}</span>${mine ? '<span class="me-tag"><span class="sr-only">, </span>du</span>' : ''}${p.bot ? '<span class="gs-bot"><span class="sr-only">, </span>Bot</span>' : ''}
                 ${ingame}${ip}
             </td>
-            ${hasTeams ? `<td class="gs-team">${p.team ? `<span class="gs-team-tag gs-team-${escapeHtml(p.team.toLowerCase())}">${escapeHtml(p.team)}</span>` : ''}</td>` : ''}
+            ${hasTeams ? `<td class="gs-team">${p.team ? `<span class="gs-team-tag${team ? ` gs-team-${team}` : ''}">${escapeHtml(p.team)}</span>` : ''}</td>` : ''}
             <td class="num">${p.score ?? '–'}</td>
             <td class="num gs-ping">${p.ping ?? '–'}</td>
             <td class="gs-actions">${actions}</td>
@@ -229,41 +388,66 @@ function gamePlayersHtml(server, status) {
     </table></div>`;
 }
 
+// Search across all servers ("/" focuses it): rows and cards without a match are hidden
+function filterGameServerPlayers() {
+    const query = document.getElementById('gsSearch').value.trim().toLowerCase();
+    let matches = 0;
+    document.querySelectorAll('#gsList .gs-card').forEach(card => {
+        let found = 0;
+        card.querySelectorAll('.gs-players tbody tr').forEach(row => {
+            const hit = !query || row.dataset.search.includes(query);
+            row.hidden = !hit;
+            if (hit) found += 1;
+        });
+        card.hidden = !!query && found === 0;
+        matches += found;
+    });
+    const result = document.getElementById('gsSearchResult');
+    result.hidden = !query;
+    result.textContent = query ? (matches ? `${matches} Spieler gefunden` : `Niemand namens „${query}“ spielt gerade.`) : '';
+}
+
 function gameServerAdminHtml(server) {
     if (!isAdmin) return '';
     const unreal = GS_GAMES[server.game]?.unreal;
-    if (!server.manageable) {
-        return `<p class="gs-admin-missing admin-only">${icon('lock')}<span>${unreal ? 'Für die Verwaltung WebAdmin-Port, Benutzer und Passwort eintragen' : 'Für die Verwaltung das RCON-Passwort eintragen'} (Stift oben rechts).</span></p>`;
-    }
     const id = escapeHtml(server.id);
+    if (!server.manageable) {
+        return `<div class="gs-admin-missing gs-manage-only">${icon('lock')}<span>${unreal ? 'Für die Verwaltung fehlen WebAdmin-Port, Benutzer und Passwort.' : 'Für die Verwaltung fehlt das RCON-Passwort.'}</span>
+            <button type="button" class="btn btn-secondary btn-sm" data-id="${id}" onclick="openGameServerModal(this.dataset.id)">${unreal ? 'WebAdmin eintragen' : 'RCON-Passwort eintragen'}</button></div>`;
+    }
     const has = action => server.actions.includes(action);
-    return `<details class="gs-admin admin-only">
-        <summary>${icon('settings')}<span>Verwalten</span><span class="muted">${unreal ? 'über WebAdmin' : 'über RCON'}</span></summary>
-        <div class="gs-admin-body">
-            <form class="gs-action-row" data-server="${id}" data-action="say" onsubmit="runGameServerAction(event)">
-                <label class="sr-only" for="gsSay-${id}">Nachricht an alle</label>
-                <input type="text" id="gsSay-${id}" name="value" maxlength="150" placeholder="Nachricht an alle" autocomplete="off" required>
-                <button type="submit" class="btn btn-secondary btn-sm">Senden</button>
-            </form>
-            <form class="gs-action-row" data-server="${id}" data-action="map" onsubmit="runGameServerAction(event)">
-                <label class="sr-only" for="gsMap-${id}">Map wechseln</label>
-                <input type="text" id="gsMap-${id}" name="value" maxlength="64" placeholder="Map, z.B. ${escapeHtml(gsMapExample(server.game))}" autocomplete="off" spellcheck="false" required>
-                <button type="submit" class="btn btn-secondary btn-sm">Map wechseln</button>
-            </form>
-            <div class="gs-action-buttons">
-                ${has('restart') ? `<button type="button" class="btn btn-ghost btn-sm" data-server="${id}" data-action="restart" onclick="runGameServerButton(this)">${icon('refresh')}<span>Map neu starten</span></button>` : ''}
-                ${has('next') ? `<button type="button" class="btn btn-ghost btn-sm" data-server="${id}" data-action="next" onclick="runGameServerButton(this)">${icon('chevron')}<span>Nächste Map</span></button>` : ''}
-            </div>
-            <form class="gs-console" data-server="${id}" onsubmit="runGameServerConsole(event)">
-                <label for="gsCmd-${id}">Konsole <span class="label-hint">${unreal ? 'Befehl an die Server-Konsole der WebAdmin' : 'RCON-Befehl, z.B. status'}</span></label>
+    return `<section class="gs-admin gs-manage-only" aria-label="${escapeHtml(server.name)} verwalten">
+        <h3 class="gs-admin-title">${icon('settings')}<span>Verwalten</span> <span class="muted">${unreal ? 'über WebAdmin' : 'über RCON'}</span></h3>
+        <form class="gs-action-row" data-server="${id}" data-action="say" onsubmit="runGameServerAction(event)">
+            <label class="sr-only" for="gsSay-${id}">Nachricht an alle</label>
+            <input type="text" id="gsSay-${id}" name="value" maxlength="150" placeholder="Nachricht an alle" autocomplete="off" required>
+            <button type="submit" class="btn btn-secondary btn-sm">Senden</button>
+        </form>
+        <form class="gs-action-row" data-server="${id}" data-action="map" onsubmit="runGameServerAction(event)">
+            <label class="sr-only" for="gsMap-${id}">Map wechseln</label>
+            <input type="text" id="gsMap-${id}" name="value" maxlength="64" placeholder="Map, z.B. ${escapeHtml(gsMapExample(server.game))}" autocomplete="off" spellcheck="false" required>
+            <button type="submit" class="btn btn-secondary btn-sm">Map wechseln</button>
+        </form>
+        ${has('restart') || has('next') ? `<div class="gs-action-buttons">
+            ${has('restart') ? `<button type="button" class="btn btn-ghost btn-sm" data-server="${id}" data-action="restart" onclick="runGameServerButton(this)">${icon('refresh')}<span>Map neu starten</span></button>` : ''}
+            ${has('next') ? `<button type="button" class="btn btn-ghost btn-sm" data-server="${id}" data-action="next" onclick="runGameServerButton(this)">${icon('skip')}<span>Nächste Map</span></button>` : ''}
+        </div>` : ''}
+        <details class="gs-console">
+            <summary>${icon('chevron')}<span>Konsole</span> <span class="muted">${unreal ? 'Befehl an die WebAdmin-Konsole' : 'freier RCON-Befehl'}</span></summary>
+            <form data-server="${id}" onsubmit="runGameServerConsole(event)">
+                <label class="sr-only" for="gsCmd-${id}">Befehl</label>
                 <div class="gs-action-row">
-                    <input type="text" id="gsCmd-${id}" name="command" maxlength="300" autocomplete="off" spellcheck="false" placeholder="${unreal ? 'z.B. say Hallo' : 'z.B. status'}" required>
-                    <button type="submit" class="btn btn-primary btn-sm">Ausführen</button>
+                    <input type="text" id="gsCmd-${id}" name="command" maxlength="300" autocomplete="off" spellcheck="false" placeholder="${unreal ? 'z.B. say Hallo' : 'z.B. status'}" data-server="${id}" onkeydown="gameServerHistoryKey(event)" required>
+                    <button type="submit" class="btn btn-secondary btn-sm">Ausführen</button>
                 </div>
-                <pre class="gs-output" hidden></pre>
+                <p class="field-hint">Pfeil hoch/runter holt frühere Befehle zurück.</p>
             </form>
-        </div>
-    </details>`;
+            <div class="gs-output-box" hidden>
+                <div class="gs-output" role="log" aria-label="Ausgabe"></div>
+                <button type="button" class="btn btn-ghost btn-sm" onclick="clearGameServerOutput(this)">${icon('x')}<span>Ausgabe leeren</span></button>
+            </div>
+        </details>
+    </section>`;
 }
 
 const gsMapExample = game => ({ ut99: 'DM-Deck16][', ut2004: 'ONS-Torlan', cod2: 'mp_toujane', cod4: 'mp_crash', cs2: 'de_dust2', q3: 'q3dm17' }[game] ?? '');
@@ -271,6 +455,11 @@ const gsMapExample = game => ({ ut99: 'DM-Deck16][', ut2004: 'ONS-Torlan', cod2:
 async function copyGameServerAddress(button) {
     await copyText(button.dataset.address);
     notify(`${button.dataset.address} kopiert`);
+}
+
+async function copyGameServerJoin(button) {
+    await copyText(button.dataset.command);
+    notify(`„${button.dataset.command}“ kopiert — im Spiel die Konsole öffnen (Taste ^ bzw. ~) und einfügen.`);
 }
 
 function showGameServerSeat(attendeeId) {
@@ -285,15 +474,25 @@ function showGameServerSeat(attendeeId) {
 /* Administration
    ========================================================================== */
 
-// Output of the last command below the console of that server
+// Console output of a server: the last entries stay, newest at the bottom
 function showGameServerOutput(serverId, text, isError = false) {
     const card = document.querySelector(`.gs-card[data-id="${CSS.escape(serverId)}"]`);
     const output = card?.querySelector('.gs-output');
     if (!output) return;
-    output.hidden = false;
-    output.classList.toggle('is-error', isError);
-    output.textContent = text.replace(/\^\d/g, '') || '(keine Ausgabe)'; // without Quake 3/CoD color codes
-    card.querySelector('.gs-admin').open = true;
+    const entry = document.createElement('pre');
+    entry.className = `gs-output-entry${isError ? ' is-error' : ''}`;
+    entry.textContent = text.replace(/\^\d/g, '') || '(keine Ausgabe)'; // without Quake 3/CoD color codes
+    output.appendChild(entry);
+    while (output.children.length > GS_OUTPUT_ENTRIES) output.firstElementChild.remove();
+    output.closest('.gs-output-box').hidden = false;
+    card.querySelector('.gs-console').open = true;
+    output.scrollTop = output.scrollHeight;
+}
+
+function clearGameServerOutput(button) {
+    const box = button.closest('.gs-output-box');
+    box.querySelector('.gs-output').innerHTML = '';
+    box.hidden = true;
 }
 
 async function postGameServer(serverId, path, body) {
@@ -335,16 +534,34 @@ async function runGameServerButton(button) {
 async function runGameServerConsole(event) {
     event.preventDefault();
     const form = event.target;
-    const button = form.querySelector('button');
+    const button = form.querySelector('button[type=submit]');
+    const input = form.elements.command;
+    const serverId = form.dataset.server;
+    const history = gsHistory.get(serverId) ?? { list: [], pos: 0 };
+    if (history.list.at(-1) !== input.value) history.list.push(input.value);
+    history.list = history.list.slice(-30);
+    history.pos = history.list.length;
+    gsHistory.set(serverId, history);
     button.disabled = true;
     try {
-        await postGameServer(form.dataset.server, 'rcon', { command: form.elements.command.value });
-        form.elements.command.select();
+        await postGameServer(serverId, 'rcon', { command: input.value });
+        input.value = '';
     } catch (error) {
-        showGameServerOutput(form.dataset.server, error.message, true);
+        showGameServerOutput(serverId, error.message, true);
     } finally {
         button.disabled = false;
+        input.focus();
     }
+}
+
+// Arrow up/down in the console input walks through the commands sent before
+function gameServerHistoryKey(event) {
+    if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+    const history = gsHistory.get(event.target.dataset.server);
+    if (!history?.list.length) return;
+    event.preventDefault();
+    history.pos = Math.max(0, Math.min(history.list.length, history.pos + (event.key === 'ArrowUp' ? -1 : 1)));
+    event.target.value = history.list[history.pos] ?? '';
 }
 
 async function kickGameServerPlayer(button) {
@@ -356,6 +573,7 @@ async function kickGameServerPlayer(button) {
         notify(`Kicken fehlgeschlagen: ${error.message}`);
     }
 }
+
 
 /* Server list (admins): dialog, the whole list goes to PUT /events/:id/gameservers
    ========================================================================== */
@@ -385,6 +603,11 @@ function openGameServerModal(id = null) {
     document.getElementById('gsWebClear').checked = false;
     document.getElementById('gsWebClearRow').hidden = !server?.has_webadmin_password;
     document.getElementById('gsInfo').value = server?.info ?? '';
+    const containerInfo = document.getElementById('gsContainerInfo');
+    containerInfo.hidden = !server?.container;
+    containerInfo.innerHTML = server?.container
+        ? `${icon('server')}<span>Verknüpft mit Container <code>${escapeHtml(server.container.name)}</code> — Adresse, Port und Passwörter kommen bei „Aus Dockhand“ von dort.</span>`
+        : '';
     document.getElementById('gsDelete').hidden = !server;
     document.getElementById('gsError').textContent = '';
     updateGameServerForm();
@@ -397,7 +620,7 @@ function updateGameServerForm() {
     document.getElementById('gsRconFields').hidden = !!game.unreal;
     document.getElementById('gsWebFields').hidden = !game.unreal;
     document.getElementById('gsPort').placeholder = String(game.port);
-    document.getElementById('gsQueryPort').placeholder = game.unreal ? '+1' : 'wie Spielport';
+    document.getElementById('gsQueryPort').placeholder = game.unreal ? 'Spielport+1' : 'Spielport';
     document.getElementById('gsName').placeholder = game.label;
 }
 
@@ -459,6 +682,7 @@ async function deleteGameServer() {
 
 // Login/logout (loadAuth in app.js): admins get more fields and the administration
 function onGameServerAuth() {
+    applyGameServerMode();
     if (document.body.dataset.view === 'servers') loadGameServers();
     else gsListKey = '';
 }
@@ -483,7 +707,7 @@ function gameServerContainerHtml(server, status) {
         <button type="button" class="btn btn-ghost btn-sm" data-server="${id}" data-action="stop" onclick="runContainerAction(this)">${icon('stop')}<span>Stoppen</span></button>` : ''}
     </span>` : '';
     const error = isAdmin && status.dockhand_error ? `<span class="gs-container-error">${escapeHtml(status.dockhand_error)}</span>` : '';
-    return `<div class="gs-container is-${escapeHtml(container.state)}">
+    return `<div class="gs-container gs-manage-only is-${escapeHtml(container.state)}">
         <p>${icon('server')}<span>Container <code>${escapeHtml(container.name)}</code> · <strong>${escapeHtml(GS_CONTAINER_STATES[container.state] ?? container.state)}</strong>${container.status ? ` <span class="muted">(${escapeHtml(container.status)})</span>` : ''}</span></p>
         ${buttons}${error}
     </div>`;
@@ -614,7 +838,7 @@ function dockhandItemHtml(item, index) {
         .filter(secret => secret && !item.changes.includes(`${secret} aus dem Container`));
     const details = [
         c.host ? `<code>${escapeHtml(c.host)}${port ? `:${port}` : ''}</code>` : '<span class="is-warning">keine LAN-IP (Label mcd.host setzen)</span>',
-        secrets.length ? `${escapeHtml(secrets.join(' + '))} gefunden` : c.game && !c.env_read ? 'Umgebungsvariablen nicht lesbar' : '',
+        secrets.length ? `${escapeHtml(secrets.join(' + '))} gefunden` : c.game && !c.env_read ? 'Port und Passwörter nicht lesbar — der Token braucht das Recht, Container zu inspizieren' : '',
         item.changes.length && item.action !== 'create' ? escapeHtml(item.changes.join(' · ')) : '',
     ].filter(Boolean).join(' · ');
     return `<li class="dh-item is-${item.action}">

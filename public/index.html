@@ -39,6 +39,9 @@
         <symbol id="i-unlock" viewBox="0 0 24 24"><path d="M5 11h14v10H5zM8 11V7a4 4 0 0 1 7.5-2"/></symbol>
         <symbol id="i-expand" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></symbol>
         <symbol id="i-shrink" viewBox="0 0 24 24"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></symbol>
+        <symbol id="i-login" viewBox="0 0 24 24"><path d="M15 3h4v18h-4M10 17l5-5-5-5M15 12H3"/></symbol>
+        <symbol id="i-user-x" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="m17 8 5 5M22 8l-5 5"/></symbol>
+        <symbol id="i-skip" viewBox="0 0 24 24"><path d="m5 4 10 8-10 8zM19 5v14"/></symbol>
         <symbol id="i-logout" viewBox="0 0 24 24"><path d="M9 21H5V3h4M16 17l5-5-5-5M21 12H9"/></symbol>
         <symbol id="i-external" viewBox="0 0 24 24"><path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></symbol>
         <symbol id="i-seat" viewBox="0 0 24 24"><path d="M19 9V6a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v3M3 16a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5a2 2 0 0 0-4 0v1.5a.5.5 0 0 1-.5.5h-9a.5.5 0 0 1-.5-.5V11a2 2 0 0 0-4 0zM5 18v2M19 18v2"/></symbol>
@@ -120,7 +123,7 @@
                     <div class="burger-form">
                         <div id="burgerSteps" class="burger-steps"><p class="loading">Lade Speisekarte…</p></div>
                         <div class="burger-step" id="burgerWhoStep">
-                            <h3><span class="burger-step-no">+</span>Für wen &amp; Anmerkung</h3>
+                            <h3><span class="burger-step-no" id="burgerWhoStepNo">7</span>Für wen &amp; Anmerkung</h3>
                             <div class="form-row">
                                 <div class="form-group">
                                     <label for="burgerWho">Für</label>
@@ -233,31 +236,43 @@
         <!-- Game servers of an event: status and players for everyone, RCON/WebAdmin for admins -->
         <main class="layout view" id="view-servers" style="display: none;">
             <h1 class="view-title"><span class="tape-wrap"><span class="tape">Server</span></span></h1>
-            <section class="card toolbar-card">
-                <div class="section-header event-bar">
+            <section class="card toolbar-card gs-toolbar">
+                <div class="gs-toolbar-row">
                     <div class="event-picker">
                         <h2><svg class="icon icon-accent"><use href="#i-flag"/></svg>Event</h2>
                         <select id="gsEventSelect" onchange="selectGameServerEvent(this.value)" aria-label="Event auswählen"></select>
                     </div>
-                    <div class="section-actions">
-                        <p class="gs-summary" id="gsSummary"></p>
-                        <button class="btn btn-ghost btn-sm" id="gsRefreshBtn" onclick="refreshGameServerStatus(true)" title="Status jetzt abfragen (sonst alle 10 Sekunden)">
-                            <svg class="icon"><use href="#i-refresh"/></svg><span>Aktualisieren</span>
-                        </button>
-                        <button class="btn btn-ghost btn-sm admin-only" onclick="openGameServerModal()">
-                            <svg class="icon"><use href="#i-plus"/></svg><span>Server</span>
-                        </button>
-                        <span class="btn-group admin-only">
-                            <button class="btn btn-ghost btn-sm" onclick="openDockhandImport()" title="Gameserver-Container aus Dockhand übernehmen (IP, Port, RCON-Passwort)">
-                                <svg class="icon"><use href="#i-download"/></svg><span>Aus Dockhand</span>
-                            </button>
-                            <button class="btn btn-ghost btn-sm btn-icon" onclick="openDockhandSettings()" title="Dockhand verbinden" aria-label="Dockhand verbinden">
-                                <svg class="icon"><use href="#i-settings"/></svg>
-                            </button>
-                        </span>
+                    <div class="search-field gs-search">
+                        <svg class="icon"><use href="#i-search"/></svg>
+                        <label class="sr-only" for="gsSearch">Spieler suchen</label>
+                        <input type="text" id="gsSearch" aria-keyshortcuts="/" title="Suchen (Taste /)" placeholder="Spieler suchen" autocomplete="off" oninput="filterGameServerPlayers()">
+                    </div>
+                    <div class="segmented admin-only gs-mode" id="gsModeSwitch" role="group" aria-label="Modus">
+                        <button type="button" data-mode="view" aria-pressed="true" onclick="setGameServerMode('view')">Ansehen</button>
+                        <button type="button" data-mode="manage" aria-pressed="false" onclick="setGameServerMode('manage')">Verwalten</button>
                     </div>
                 </div>
+                <div class="gs-toolbar-row gs-status-row">
+                    <p class="gs-summary" id="gsSummary"></p>
+                    <button class="btn btn-ghost btn-sm" id="gsRefreshBtn" onclick="refreshGameServerStatus(true)" title="Status jetzt abfragen (sonst alle 10 Sekunden)" aria-label="Aktualisieren">
+                        <svg class="icon"><use href="#i-refresh"/></svg><span>Aktualisieren</span>
+                    </button>
+                </div>
+                <div class="gs-toolbar-row gs-manage-tools gs-manage-only">
+                    <button class="btn btn-secondary btn-sm" onclick="openGameServerModal()">
+                        <svg class="icon"><use href="#i-plus"/></svg><span>Server hinzufügen</span>
+                    </button>
+                    <button class="btn btn-secondary btn-sm" onclick="openDockhandImport()">
+                        <svg class="icon"><use href="#i-download"/></svg><span>Aus Dockhand übernehmen</span>
+                    </button>
+                    <button class="btn btn-ghost btn-sm" onclick="openDockhandSettings()">
+                        <svg class="icon"><use href="#i-settings"/></svg><span>Dockhand verbinden</span>
+                    </button>
+                </div>
+                <nav class="gs-jump" id="gsJump" aria-label="Zu einem Server springen" hidden></nav>
             </section>
+            <p class="gs-me-hint" id="gsMeHint" hidden><svg class="icon"><use href="#i-info"/></svg><span>Dein Gerät ist nicht erkannt, deshalb siehst du dich hier nicht markiert. <a href="#willkommen">Zum Check-in</a></span></p>
+            <p class="gs-search-result" id="gsSearchResult" role="status" hidden></p>
             <div id="gsList" class="gs-list"><p class="loading">Lade Server…</p></div>
         </main>
 
@@ -307,91 +322,6 @@
 
         <main class="layout view" id="view-tournaments">
             <h1 class="view-title"><span class="tape-wrap"><span class="tape">Turniere</span></span></h1>
-            <!-- Events List Section -->
-            <section class="card events-card">
-                <div class="section-header">
-                    <h2><svg class="icon icon-accent"><use href="#i-flag"/></svg>Events</h2>
-                    <button class="btn btn-ghost btn-icon" onclick="loadStages()" title="Aktualisieren" aria-label="Aktualisieren">
-                        <svg class="icon"><use href="#i-refresh"/></svg>
-                    </button>
-                </div>
-                <div id="eventsList" class="events-list">
-                    <p class="loading">Lade Events...</p>
-                </div>
-            </section>
-
-            <!-- Create Tournament (collapsible) -->
-            <section class="card admin-only">
-                <div class="section-header collapsible-header" onclick="toggleSection('createTournamentSection')">
-                    <h2><svg class="icon icon-accent"><use href="#i-plus"/></svg>Neues Turnier</h2>
-                    <span class="collapse-icon" id="createTournamentIcon"><svg class="icon"><use href="#i-chevron"/></svg></span>
-                </div>
-                <div id="createTournamentSection" class="collapsible-content" style="display: none;">
-                <form id="createTournamentForm" class="create-form">
-                    <div class="form-group">
-                        <label for="eventName">Event</label>
-                        <select id="eventName" required>
-                            <option value="">Event auswählen...</option>
-                        </select>
-                        <p class="field-hint" id="eventPlayersHint">Spieler sind automatisch alle Teilnehmer des Events.</p>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="stageName">Turniername</label>
-                        <input type="text" id="stageName" required placeholder="z.B. UT2004">
-                    </div>
-
-                    <div class="form-group">
-                        <label for="tournamentType">Modus</label>
-                        <select id="tournamentType" required>
-                            <option value="single_elimination">K.-o.-System</option>
-                            <option value="double_elimination">Doppel-K.-o. (Gewinner- und Verliererrunde)</option>
-                            <option value="round_robin">Jeder gegen jeden</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group form-group-inline" id="settingsGroup">
-                        <label class="toggle" id="grandFinalToggle">
-                            <input type="checkbox" id="grandFinalDouble">
-                            <span>Großes Finale mit Rückspiel</span>
-                        </label>
-                        <label class="toggle" id="consolationToggle" style="display: none;">
-                            <input type="checkbox" id="consolationFinal">
-                            <span>Spiel um Platz 3</span>
-                        </label>
-                    </div>
-
-                    <div class="form-group form-group-inline">
-                        <button type="submit" class="btn btn-primary">
-                            <svg class="icon"><use href="#i-plus"/></svg><span>Turnier erstellen</span>
-                        </button>
-                    </div>
-                </form>
-                </div>
-            </section>
-
-            <!-- Championship points (collapsible, global for all tournaments) -->
-            <section class="card">
-                <div class="section-header collapsible-header" onclick="toggleSection('pointsSection')">
-                    <h2><svg class="icon icon-accent"><use href="#i-chart"/></svg>Punktesystem</h2>
-                    <span class="collapse-icon" id="pointsIcon"><svg class="icon"><use href="#i-chevron"/></svg></span>
-                </div>
-                <div id="pointsSection" class="collapsible-content" style="display: none;">
-                    <p class="field-hint points-intro">Meisterschaftspunkte je Platzierung, gleich für alle Turniere. Änderungen gelten sofort für alle Ranglisten — auch laufende und abgeschlossene Turniere werden neu berechnet.</p>
-                    <form id="pointsForm">
-                        <div class="points-grid" id="pointsGrid"></div>
-                        <div class="form-actions admin-only">
-                            <button type="button" class="btn btn-ghost btn-sm" id="pointsResetBtn" onclick="resetPointsToDefault()">
-                                <svg class="icon"><use href="#i-refresh"/></svg><span>Standardwerte eintragen</span>
-                            </button>
-                            <button type="submit" class="btn btn-primary btn-sm">
-                                <svg class="icon"><use href="#i-settings"/></svg><span>Punkte speichern</span>
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </section>
-
             <!-- Which tournament: one tab each; the chosen one below as bracket and placings -->
             <section class="card toolbar-card tour-picker">
                 <div class="section-header event-bar">
@@ -457,6 +387,95 @@
                     <a href="#" id="standingsLink" class="tour-standings-link">Ganze Rangliste</a>
                 </section>
             </div>
+
+            <!-- Events List Section -->
+            <section class="card events-card">
+                <div class="section-header">
+                    <h2><svg class="icon icon-accent"><use href="#i-flag"/></svg>Events</h2>
+                    <button class="btn btn-ghost btn-icon" onclick="loadStages()" title="Aktualisieren" aria-label="Aktualisieren">
+                        <svg class="icon"><use href="#i-refresh"/></svg>
+                    </button>
+                </div>
+                <div id="eventsList" class="events-list">
+                    <p class="loading">Lade Events...</p>
+                </div>
+            </section>
+
+            <!-- Create Tournament (collapsible) -->
+            <section class="card admin-only">
+                <h2 class="section-header collapsible-title">
+                    <button type="button" class="collapsible-header" aria-expanded="false" aria-controls="createTournamentSection" onclick="toggleSection('createTournamentSection')">
+                        <span class="collapsible-label"><svg class="icon icon-accent"><use href="#i-plus"/></svg>Neues Turnier</span>
+                        <span class="collapse-icon" id="createTournamentIcon" aria-hidden="true"><svg class="icon"><use href="#i-chevron"/></svg></span>
+                    </button>
+                </h2>
+                <div id="createTournamentSection" class="collapsible-content" style="display: none;">
+                <form id="createTournamentForm" class="create-form">
+                    <div class="form-group">
+                        <label for="eventName">Event</label>
+                        <select id="eventName" required>
+                            <option value="">Event auswählen...</option>
+                        </select>
+                        <p class="field-hint" id="eventPlayersHint">Spieler sind automatisch alle Teilnehmer des Events.</p>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="stageName">Turniername</label>
+                        <input type="text" id="stageName" required placeholder="z.B. UT2004">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="tournamentType">Modus</label>
+                        <select id="tournamentType" required>
+                            <option value="single_elimination">K.-o.-System</option>
+                            <option value="double_elimination">Doppel-K.-o. (Gewinner- und Verliererrunde)</option>
+                            <option value="round_robin">Jeder gegen jeden</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group form-group-inline" id="settingsGroup">
+                        <label class="toggle" id="grandFinalToggle">
+                            <input type="checkbox" id="grandFinalDouble">
+                            <span>Großes Finale mit Rückspiel</span>
+                        </label>
+                        <label class="toggle" id="consolationToggle" style="display: none;">
+                            <input type="checkbox" id="consolationFinal">
+                            <span>Spiel um Platz 3</span>
+                        </label>
+                    </div>
+
+                    <div class="form-group form-group-inline">
+                        <button type="submit" class="btn btn-primary">
+                            <svg class="icon"><use href="#i-plus"/></svg><span>Turnier erstellen</span>
+                        </button>
+                    </div>
+                </form>
+                </div>
+            </section>
+
+            <!-- Championship points (collapsible, global for all tournaments) -->
+            <section class="card">
+                <h2 class="section-header collapsible-title">
+                    <button type="button" class="collapsible-header" aria-expanded="false" aria-controls="pointsSection" onclick="toggleSection('pointsSection')">
+                        <span class="collapsible-label"><svg class="icon icon-accent"><use href="#i-chart"/></svg>Punktesystem</span>
+                        <span class="collapse-icon" id="pointsIcon" aria-hidden="true"><svg class="icon"><use href="#i-chevron"/></svg></span>
+                    </button>
+                </h2>
+                <div id="pointsSection" class="collapsible-content" style="display: none;">
+                    <p class="field-hint points-intro">Meisterschaftspunkte je Platzierung, gleich für alle Turniere. Änderungen gelten sofort für alle Ranglisten — auch laufende und abgeschlossene Turniere werden neu berechnet.</p>
+                    <form id="pointsForm">
+                        <div class="points-grid" id="pointsGrid"></div>
+                        <div class="form-actions admin-only">
+                            <button type="button" class="btn btn-ghost btn-sm" id="pointsResetBtn" onclick="resetPointsToDefault()">
+                                <svg class="icon"><use href="#i-refresh"/></svg><span>Standardwerte eintragen</span>
+                            </button>
+                            <button type="submit" class="btn btn-primary btn-sm">
+                                <svg class="icon"><use href="#i-settings"/></svg><span>Punkte speichern</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </section>
 
             <!-- Rankings Section -->
             <section class="card card-wide tournament-detail-section" id="rankingsSection" style="display: none;">
@@ -792,7 +811,7 @@
                     </div>
                     <div class="room-tabs" id="roomTabs" role="tablist" aria-label="Räume"></div>
                     <div class="section-actions admin-only">
-                        <button class="btn btn-secondary btn-sm" id="roomConfigToggle" onclick="toggleSection('roomConfigSection')">
+                        <button class="btn btn-secondary btn-sm" id="roomConfigToggle" aria-expanded="false" aria-controls="roomConfigSection" onclick="toggleSection('roomConfigSection')">
                             <svg class="icon"><use href="#i-settings"/></svg><span>Raum bearbeiten</span>
                             <span class="collapse-icon" id="roomConfigIcon"><svg class="icon"><use href="#i-chevron"/></svg></span>
                         </button>
@@ -1062,7 +1081,7 @@
                         <input type="password" id="gsRcon" maxlength="128" autocomplete="new-password">
                     </div>
                     <label class="toggle" id="gsRconClearRow"><input type="checkbox" id="gsRconClear"><span>Gespeichertes Passwort entfernen</span></label>
-                    <p class="field-hint">CS2 braucht beim Start <code>-usercon</code> und <code>rcon_password</code>, CoD und Quake 3 <code>rcon_password</code> in der Config.</p>
+                    <p class="field-hint gs-field-note">CS2 braucht beim Start <code>-usercon</code> und <code>rcon_password</code>, CoD und Quake 3 <code>rcon_password</code> in der Config.</p>
                 </div>
                 <div id="gsWebFields" hidden>
                     <p class="field-hint">UT99 und UT2004 haben kein RCON — verwaltet wird über die WebAdmin (in der Server-INI unter <code>[UWeb.WebServer]</code> <code>bEnabled=True</code>).</p>
@@ -1092,6 +1111,7 @@
                     <label for="gsInfo">Hinweis <span class="label-hint">optional, z.B. Mod oder Mappool</span></label>
                     <input type="text" id="gsInfo" maxlength="200" autocomplete="off">
                 </div>
+                <p class="gs-container-info" id="gsContainerInfo" hidden></p>
                 <p class="field-hint is-warning" id="gsError" role="alert"></p>
                 <div class="modal-actions">
                     <button type="button" class="btn btn-danger modal-action-left" id="gsDelete" onclick="deleteGameServer()">Entfernen</button>
@@ -1125,7 +1145,17 @@
                     </div>
                     <p class="field-hint" id="dhTestResult" role="status"></p>
                 </div>
-                <p class="field-hint">Erkannt werden Container mit cs2, cod2, cod4, quake3/ioquake3, ut99 oder ut2004 im Image- oder Containernamen. Eindeutig geht es mit Labels am Container: <code>mcd.game</code> (ut99, ut2004, cod2, cod4, cs2, q3), optional <code>mcd.port</code>, <code>mcd.host</code>, <code>mcd.name</code>, <code>mcd.webadmin_port</code>.</p>
+                <details class="help-box">
+                    <summary><svg class="icon"><use href="#i-info"/></svg>Welche Container werden erkannt?</summary>
+                    <p class="field-hint">Container mit cs2, cod2, cod4, quake3/ioquake3, ut99 oder ut2004 im Image- oder Containernamen.</p>
+                    <p class="field-hint">Eindeutig geht es mit Labels am Container:</p>
+                    <ul class="gs-label-list">
+                        <li><code>mcd.game</code> Spiel: ut99, ut2004, cod2, cod4, cs2 oder q3</li>
+                        <li><code>mcd.host</code> Adresse, wenn die IP nicht aus dem macvlan kommt</li>
+                        <li><code>mcd.port</code>, <code>mcd.webadmin_port</code> abweichende Ports</li>
+                        <li><code>mcd.name</code> Name auf der Server-Seite</li>
+                    </ul>
+                </details>
                 <p class="field-hint is-warning" id="dhError" role="alert"></p>
                 <div class="modal-actions">
                     <button type="button" class="btn btn-ghost" onclick="closeModal('dockhandModal')">Abbrechen</button>

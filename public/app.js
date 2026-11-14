@@ -215,7 +215,7 @@ document.addEventListener('click', event => {
     }
 });
 // "/" jumps to the search of the current view (attendees, seating), like in many web apps
-const VIEW_SEARCH = { attendees: 'attendeeSearch', seating: 'seatSearch' };
+const VIEW_SEARCH = { attendees: 'attendeeSearch', seating: 'seatSearch', servers: 'gsSearch' };
 document.addEventListener('keydown', event => {
     if (event.key !== '/' || event.ctrlKey || event.metaKey || event.altKey) return;
     const target = event.target;
@@ -642,6 +642,7 @@ function toggleSection(sectionId, open) {
     const shouldOpen = open ?? section.style.display === 'none';
     section.style.display = shouldOpen ? 'block' : 'none';
     if (iconEl) iconEl.classList.toggle('is-open', shouldOpen);
+    document.querySelectorAll(`[aria-controls="${sectionId}"]`).forEach(toggle => toggle.setAttribute('aria-expanded', String(shouldOpen)));
     try { localStorage.setItem(`mcd.open.${sectionId}`, shouldOpen ? '1' : '0'); } catch { /* storage unavailable */ }
 }
 
@@ -864,14 +865,19 @@ async function loadSideStandings(stage) {
             <span class="tour-standing-points${s.placement == null ? ' is-open' : ''}">${s.placement == null ? '–' : `${s.points}<span class="sr-only"> Punkte</span>`}</span>
         </li>`;
     };
+    // Who is still in: one folded line of names instead of a row each without place or points
+    const meOpen = open.some(s => isMyPlayerName(s.participant_name));
+    const openHtml = open.length ? `<details class="tour-open">
+            <summary><svg class="icon" aria-hidden="true"><use href="#i-chevron"/></svg><span>Noch im Turnier: ${open.length}</span>${meOpen ? ' <span class="me-tag">du auch</span>' : ''}</summary>
+            <p class="tour-open-names">${open.map(s => isMyPlayerName(s.participant_name) ? `<strong class="is-me">${escapeHtml(s.participant_name)}</strong>` : escapeHtml(s.participant_name)).join('<span aria-hidden="true"> · </span><span class="sr-only">, </span>')}</p>
+        </details>` : '';
     list.innerHTML = `
         ${podiumHtml(decided)}
+        <p class="tour-standings-progress">${decided.length} von ${standings.length} Plätzen vergeben</p>
         ${!decided.length ? `<p class="rankings-note">${stage.type === 'round_robin' ? 'Die Plätze stehen fest, wenn alle Matches gespielt sind.' : 'Jeder bekommt seinen Platz, sobald er ausscheidet.'}</p>` : ''}
-        <div class="tour-standings-head" aria-hidden="true"><span>Platz</span><span>Name</span><span>Punkte</span></div>
-        <ol class="tour-standings-rows">
-            ${decided.map(row).join('')}
-            ${open.length ? `<li class="rankings-group">Noch im Turnier</li>${open.map(row).join('')}` : ''}
-        </ol>`;
+        ${decided.length ? `<div class="tour-standings-head" aria-hidden="true"><span>Platz</span><span>Name</span><span>Punkte</span></div>
+        <ol class="tour-standings-rows">${decided.map(row).join('')}</ol>` : ''}
+        ${openHtml}`;
 }
 
 /* Full screen for the bracket: the card covers the window (dialogs, menus and notes stay above it,

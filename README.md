@@ -2,7 +2,7 @@
 
 Ein vollständiges Turnierverwaltungssystem mit Event-basiertem Meisterschafts-Punktesystem, entwickelt mit [brackets-manager](https://www.npmjs.com/package/brackets-manager).
 
-**Version:** 0.34.0-beta
+**Version:** 0.35.0-beta
 
 ---
 
@@ -175,13 +175,15 @@ Standardwerte:
 
 ### 🎮 Gameserver (Reiter „Server“)
 - Pro Event eine Liste der Dedicated Server: **UT99, UT2004, Call of Duty 2, Call of Duty 4, Counter-Strike 2, Quake III Arena**
-- Für alle sichtbar: online/offline, Map, Modus, Spielerzahl und die **aktuellen Spieler** mit Punkten und Ping, Adresse zum Kopieren (CS2 mit „Verbinden“-Link); aktualisiert sich alle 10 Sekunden
+- **Live-Tafel für alle** (Modus „Ansehen“): online/offline, Map, Modus (z.B. „Search & Destroy“ statt `sd`), Spielerzahl und die **aktuellen Spieler** mit Punkten und Ping; volle Server zuerst, ausgefallene am Ende; aktualisiert sich alle 10 Sekunden
+- **„Beitreten“** auf jeder Karte: CS2 (`steam://`), UT99 (`unreal://`) und UT2004 (`ut2004://`) starten das Spiel direkt, bei CoD und Quake 3 kopiert der Button `/connect host:port` für die Spielkonsole
+- **Spieler suchen** über alle Server (Taste `/`), Sprungmarken zu den Servern ab drei Servern, ausgefallene Server werden in der Zusammenfassung gezählt („1 offline“) und Bildschirmlesern angesagt
 - Spieler werden **den Teilnehmern zugeordnet** — über die IP aus RCON `status` (CoD, Quake 3, CS2), sonst über den Namen (auch mit Clan-Tag wie `[M4E]lordimac`). Dann stehen dort Clan-Nickname, „du“ und ein Sprung zum Sitzplatz
-- **Verwaltung (Admins):** Nachricht an alle, Map wechseln, Map neu starten, nächste Map (CoD/Q3), Spieler kicken (CoD/Q3/CS2) und eine freie **RCON-Konsole** mit Ausgabe
+- **Verwaltung (Admins, Modus „Verwalten“):** kaputte Server zuerst, dazu Spieler-IPs, Containerstatus, Nachricht an alle, Map wechseln, Map neu starten, nächste Map (CoD/Q3), Spieler kicken (CoD/Q3/CS2) und eine freie **RCON-Konsole** (eingeklappt, mit Befehls-History per Pfeiltasten, die letzten Ausgaben bleiben stehen)
 - UT99 und UT2004 haben kein RCON: Verwaltet wird über die **WebAdmin** (Konsole; Kicken geht dort nicht über die App)
 - Abfrage: Quake-3-Protokoll (`getstatus`/`rcon`, UDP) für CoD2/CoD4/Q3, A2S + Source-RCON (TCP) für CS2, GameSpy (UT99) bzw. UT2-Query (UT2004) auf Spielport + 1
 - Passwörter bleiben auf dem Server (nie an den Browser, leeres Feld = behalten); ein neues Event übernimmt die Serverliste des letzten Events
-- **Dockhand:** „Aus Dockhand“ liest die Container einer Docker-Umgebung, erkennt die Gameserver (Image-/Containername oder Label `mcd.game`) und legt sie an bzw. aktualisiert sie — IP aus dem macvlan-Netz, Port und RCON-/WebAdmin-Passwort aus Umgebungsvariablen oder Startparametern. Danach zeigt jede Karte den Containerstatus, Admins können Container starten, stoppen und neu starten
+- **Dockhand:** „Aus Dockhand“ liest die Container einer Docker-Umgebung, erkennt die Gameserver (Image-/Containername oder Label `mcd.game`) und legt sie an bzw. aktualisiert sie — IP aus dem macvlan-Netz, Port und RCON-/WebAdmin-Passwort aus Umgebungsvariablen oder Startparametern. Danach zeigt jede Karte im Modus „Verwalten“ den Containerstatus, Admins können Container starten, stoppen und neu starten
 
 ### 🔥 OPNsense / Unbound
 - Überträgt die DNS-Namen eines Events per OPNsense-API als **Host Overrides** nach Unbound (getestet gegen die API von OPNsense 26.7)
@@ -307,7 +309,7 @@ Umgebungsvariablen:
 Die Zugangsdaten gelten für alle Events und liegen in der Datenbank (`db.json`, damit auch im Backup). Das Secret wird nach dem Speichern nie wieder an den Browser geschickt; die Einstellungen sind nur angemeldet sichtbar. Der Container muss die Firewall im Netz erreichen können.
 
 ### Gameserver eintragen (Reiter „Server“)
-1. „+ Server“: Spiel wählen, Adresse und Spielport (leer = Standard: CS2 27015, CoD 28960, Q3 27960, UT 7777). Der Query-Port ist nur nötig, wenn er vom Standard abweicht (UT: Spielport + 1)
+1. Oben auf **„Verwalten“** umschalten, dann „Server hinzufügen“: Spiel wählen, Adresse und Spielport (leer = Standard: CS2 27015, CoD 28960, Q3 27960, UT 7777). Der Query-Port ist nur nötig, wenn er vom Standard abweicht (UT: Spielport + 1)
 2. **CoD2/CoD4/Quake 3:** `rcon_password` in der Server-Config setzen und hier eintragen
 3. **CS2:** Server mit `-usercon` starten und `rcon_password` setzen (RCON läuft per TCP auf dem Spielport)
 4. **UT99/UT2004:** WebAdmin aktivieren (`[UWeb.WebServer]` `bEnabled=True`, `ListenPort=…`) und Port, Benutzer und Passwort der WebAdmin eintragen
@@ -317,9 +319,9 @@ Der Container muss die Server per UDP (und TCP für CS2-RCON/WebAdmin) erreichen
 
 ### Gameserver aus Dockhand übernehmen
 1. In Dockhand einen **API-Token** anlegen (beginnt mit `dh_`). Rechte: Container ansehen und inspizieren (für Port und Passwörter aus den Umgebungsvariablen), für die Buttons zusätzlich starten, stoppen, neu starten
-2. Reiter „Server“ → Zahnrad neben **„Aus Dockhand“**: Adresse von Dockhand (z.B. `http://192.168.120.2:3000`) und Token eintragen, „Verbindung testen“, Docker-Umgebung mit den Gameservern wählen, speichern
-3. **„Aus Dockhand“** zeigt alle Container: erkannte Gameserver sind vorausgewählt, bei anderen wählt man das Spiel von Hand. „Übernehmen“ legt neue Server an und aktualisiert bestehende (IP, Port, Passwort). Name und Hinweis bleiben. Verknüpft wird über den Containernamen, deshalb übersteht die Verknüpfung ein Neu-Erstellen per Compose
-4. Nach einer neuen IP im macvlan einfach noch einmal „Aus Dockhand“
+2. Reiter „Server“ → **„Verwalten“** → **„Dockhand verbinden“**: Adresse von Dockhand (z.B. `http://192.168.120.2:3000`) und Token eintragen, „Verbindung testen“, Docker-Umgebung mit den Gameservern wählen, speichern
+3. **„Aus Dockhand übernehmen“** zeigt alle Container: erkannte Gameserver sind vorausgewählt, bei anderen wählt man das Spiel von Hand. „Übernehmen“ legt neue Server an und aktualisiert bestehende (IP, Port, Passwort). Name und Hinweis bleiben. Verknüpft wird über den Containernamen, deshalb übersteht die Verknüpfung ein Neu-Erstellen per Compose
+4. Nach einer neuen IP im macvlan einfach noch einmal „Aus Dockhand übernehmen“
 
 Erkennung und Werte (Labels am Container gewinnen):
 
