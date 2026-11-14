@@ -9,6 +9,7 @@ import {
 import { HttpError } from './http-error';
 import { detachOrphanedOrders } from './burger';
 import { validateAttendeeShares, validateEventShares, type AttendeeShare, type EventShare } from './shares';
+import { copyServers } from './gameservers';
 
 type StageWithEvent = Stage & { event_name?: string };
 
@@ -102,6 +103,8 @@ export async function createEvent(input: EventSettingsInput): Promise<LanEvent> 
     for (const room of (await getAppStore().select('room', { event_id: latest.id })) ?? []) {
       await getAppStore().insert('room', { event_id: id, name: room.name, width: room.width, height: room.height, groups: room.groups.map(g => ({ ...g })), doors: (room.doors ?? []).map(d => ({ ...d })), seats: {} });
     }
+    // The game servers usually stay the same too
+    await copyServers(latest.id, id);
   }
   return getEvent(id);
 }
@@ -147,6 +150,7 @@ export async function deleteEvent(id: number): Promise<void> {
   await getAppStore().delete('room', { event_id: id });
   await getAppStore().delete('timetable', { event_id: id });
   await getAppStore().delete('burger_order', { event_id: id });
+  await getAppStore().delete('gameservers', { event_id: id });
   await getAppStore().delete('event', { id });
 }
 

@@ -50,6 +50,7 @@ async function loadAuth() {
     document.getElementById('footerAdminNote').hidden = auth.via !== 'ip';
     renderPoints(); // fields are editable only for admins
     if (typeof syncDebugMode === 'function') syncDebugMode(); // debug.js: admins only
+    if (typeof onGameServerAuth === 'function') onGameServerAuth(); // gameservers.js: more fields for admins
 }
 
 function openLoginModal() {
@@ -392,8 +393,8 @@ function setupEventListeners() {
     window.addEventListener('hashchange', showView);
 }
 
-// Views: #willkommen (default), #teilnehmer, #sitzplan, #zeitplan, #burger and #turniere
-const VIEWS = { '#turniere': 'tournaments', '#teilnehmer': 'attendees', '#sitzplan': 'seating', '#zeitplan': 'timetable', '#burger': 'burger' };
+// Views: #willkommen (default), #teilnehmer, #sitzplan, #zeitplan, #burger, #turniere and #server
+const VIEWS = { '#turniere': 'tournaments', '#teilnehmer': 'attendees', '#sitzplan': 'seating', '#zeitplan': 'timetable', '#burger': 'burger', '#server': 'servers' };
 
 function showView() {
     // "#turniere/bracket/3": tournaments view with a detail page (bracket, ranking, match list)
@@ -405,6 +406,7 @@ function showView() {
     document.getElementById('view-seating').style.display = view === 'seating' ? '' : 'none';
     document.getElementById('view-timetable').style.display = view === 'timetable' ? '' : 'none';
     document.getElementById('view-burger').style.display = view === 'burger' ? '' : 'none';
+    document.getElementById('view-servers').style.display = view === 'servers' ? '' : 'none';
     // Another area starts at its top; staying within one (detail pages, reload) keeps the position
     if (document.body.dataset.view && document.body.dataset.view !== view) window.scrollTo(0, 0);
     document.body.dataset.view = view;
@@ -418,6 +420,7 @@ function showView() {
     if (view === 'seating' && typeof showSeatingView === 'function') showSeatingView();
     if (view === 'timetable' && typeof showTimetableView === 'function') showTimetableView();
     if (view === 'burger' && typeof showBurgerView === 'function') showBurgerView();
+    if (view === 'servers' && typeof showGameServerView === 'function') showGameServerView();
     if (view === 'welcome' && typeof showWelcomeView === 'function') showWelcomeView();
     if (view === 'tournaments') routeTournamentDetail(detailKind, detailKey === undefined ? undefined : decodeURIComponent(detailKey));
     else {

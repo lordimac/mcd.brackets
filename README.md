@@ -2,7 +2,7 @@
 
 Ein vollständiges Turnierverwaltungssystem mit Event-basiertem Meisterschafts-Punktesystem, entwickelt mit [brackets-manager](https://www.npmjs.com/package/brackets-manager).
 
-**Version:** 0.33.0-beta
+**Version:** 0.34.0-beta
 
 ---
 
@@ -173,6 +173,16 @@ Standardwerte:
 - Räume **duplizieren** („Duplizieren“ neben „+ Raum“): Kopie mit Tischgruppen, Türen und Startnummern — ins selbe oder ein anderes Event, ohne Belegung
 - Ein neues Event übernimmt die Räume des letzten Events (ohne Belegung)
 
+### 🎮 Gameserver (Reiter „Server“)
+- Pro Event eine Liste der Dedicated Server: **UT99, UT2004, Call of Duty 2, Call of Duty 4, Counter-Strike 2, Quake III Arena**
+- Für alle sichtbar: online/offline, Map, Modus, Spielerzahl und die **aktuellen Spieler** mit Punkten und Ping, Adresse zum Kopieren (CS2 mit „Verbinden“-Link); aktualisiert sich alle 10 Sekunden
+- Spieler werden **den Teilnehmern zugeordnet** — über die IP aus RCON `status` (CoD, Quake 3, CS2), sonst über den Namen (auch mit Clan-Tag wie `[M4E]lordimac`). Dann stehen dort Clan-Nickname, „du“ und ein Sprung zum Sitzplatz
+- **Verwaltung (Admins):** Nachricht an alle, Map wechseln, Map neu starten, nächste Map (CoD/Q3), Spieler kicken (CoD/Q3/CS2) und eine freie **RCON-Konsole** mit Ausgabe
+- UT99 und UT2004 haben kein RCON: Verwaltet wird über die **WebAdmin** (Konsole; Kicken geht dort nicht über die App)
+- Abfrage: Quake-3-Protokoll (`getstatus`/`rcon`, UDP) für CoD2/CoD4/Q3, A2S + Source-RCON (TCP) für CS2, GameSpy (UT99) bzw. UT2-Query (UT2004) auf Spielport + 1
+- Passwörter bleiben auf dem Server (nie an den Browser, leeres Feld = behalten); ein neues Event übernimmt die Serverliste des letzten Events
+- **Dockhand:** „Aus Dockhand“ liest die Container einer Docker-Umgebung, erkennt die Gameserver (Image-/Containername oder Label `mcd.game`) und legt sie an bzw. aktualisiert sie — IP aus dem macvlan-Netz, Port und RCON-/WebAdmin-Passwort aus Umgebungsvariablen oder Startparametern. Danach zeigt jede Karte den Containerstatus, Admins können Container starten, stoppen und neu starten
+
 ### 🔥 OPNsense / Unbound
 - Überträgt die DNS-Namen eines Events per OPNsense-API als **Host Overrides** nach Unbound (getestet gegen die API von OPNsense 26.7)
 - Erst Vorschau (neu / geändert / gelöscht / Konflikt), dann „Übertragen“; danach wird Unbound automatisch neu geladen
@@ -295,6 +305,34 @@ Umgebungsvariablen:
 4. Beim Event muss eine **Domain** eingetragen sein. Der Button **„OPNsense“** über der Teilnehmerliste zeigt die Vorschau, „Übertragen“ schreibt die Einträge
 
 Die Zugangsdaten gelten für alle Events und liegen in der Datenbank (`db.json`, damit auch im Backup). Das Secret wird nach dem Speichern nie wieder an den Browser geschickt; die Einstellungen sind nur angemeldet sichtbar. Der Container muss die Firewall im Netz erreichen können.
+
+### Gameserver eintragen (Reiter „Server“)
+1. „+ Server“: Spiel wählen, Adresse und Spielport (leer = Standard: CS2 27015, CoD 28960, Q3 27960, UT 7777). Der Query-Port ist nur nötig, wenn er vom Standard abweicht (UT: Spielport + 1)
+2. **CoD2/CoD4/Quake 3:** `rcon_password` in der Server-Config setzen und hier eintragen
+3. **CS2:** Server mit `-usercon` starten und `rcon_password` setzen (RCON läuft per TCP auf dem Spielport)
+4. **UT99/UT2004:** WebAdmin aktivieren (`[UWeb.WebServer]` `bEnabled=True`, `ListenPort=…`) und Port, Benutzer und Passwort der WebAdmin eintragen
+5. Ohne Passwort zeigt die Seite nur den Status; mit RCON kommen die IP-Zuordnung und die Verwaltung dazu
+
+Der Container muss die Server per UDP (und TCP für CS2-RCON/WebAdmin) erreichen. Die Passwörter liegen im Klartext in `db.json` und im Backup.
+
+### Gameserver aus Dockhand übernehmen
+1. In Dockhand einen **API-Token** anlegen (beginnt mit `dh_`). Rechte: Container ansehen und inspizieren (für Port und Passwörter aus den Umgebungsvariablen), für die Buttons zusätzlich starten, stoppen, neu starten
+2. Reiter „Server“ → Zahnrad neben **„Aus Dockhand“**: Adresse von Dockhand (z.B. `http://192.168.120.2:3000`) und Token eintragen, „Verbindung testen“, Docker-Umgebung mit den Gameservern wählen, speichern
+3. **„Aus Dockhand“** zeigt alle Container: erkannte Gameserver sind vorausgewählt, bei anderen wählt man das Spiel von Hand. „Übernehmen“ legt neue Server an und aktualisiert bestehende (IP, Port, Passwort). Name und Hinweis bleiben. Verknüpft wird über den Containernamen, deshalb übersteht die Verknüpfung ein Neu-Erstellen per Compose
+4. Nach einer neuen IP im macvlan einfach noch einmal „Aus Dockhand“
+
+Erkennung und Werte (Labels am Container gewinnen):
+
+| Was | Label | sonst |
+|-----|-------|-------|
+| Spiel | `mcd.game` = `ut99`, `ut2004`, `cod2`, `cod4`, `cs2`, `q3` | Image- oder Containername enthält z.B. `cs2`, `cod4`, `ut2004`, `ut99`, `quake3`/`ioquake3` |
+| Adresse | `mcd.host` | IP im Netz mit `macvlan`/`ipvlan` im Namen, sonst eine IP außerhalb von 172.16.0.0/12 |
+| Port | `mcd.port`, `mcd.query_port` | `CS2_PORT`, `GAME_PORT`, `SERVER_PORT`, `PORT` …, Startparameter `+set net_port`/`-port`, UDP-Port des Containers, Standardport |
+| RCON | – | `RCON_PASSWORD`, `CS2_RCONPW`, `SRCDS_RCONPW` …, Startparameter `+set rcon_password` |
+| WebAdmin (UT) | `mcd.webadmin_port`, `mcd.webadmin_user` | `WEBADMIN_PASSWORD`, `UT_ADMINPWD`, `ADMIN_PASSWORD` |
+| Name | `mcd.name` | Containername |
+
+Adresse und Token gelten für alle Events. Der Token wird nie an den Browser geschickt, liegt aber im Klartext in `db.json` und im Backup.
 
 ### Turnier erstellen (Reiter „Turniere“)
 1. Event auswählen — alle Teilnehmer des Events spielen mit
@@ -419,6 +457,29 @@ Lesen ist öffentlich, Ändern nur mit Admin-Sitzung. Ein Raum hat `width` × `h
 | PUT    | `/api/rooms/:id/seats/:key` | Platz vergeben `{ attendee_id }` oder freigeben `{ attendee_id: null }`; ein Teilnehmer hat höchstens einen Platz je Event → alle Räume |
 | POST   | `/api/rooms/:id/clear` | Alle Plätze des Raums freigeben |
 | POST   | `/api/rooms/:id/autofill` | Alle ohne Platz auf freie Plätze dieses Raums setzen → `{ rooms, seated, remaining }` |
+
+### Gameserver
+Lesen öffentlich (ohne Passwörter, IPs und Slots), alles andere nur mit Admin-Sitzung. Fehler des Spielservers kommen als `502` mit lesbarer Meldung.
+
+| Method | Endpoint | Beschreibung |
+|--------|----------|--------------|
+| GET    | `/api/events/:id/gameservers` | Serverliste (Admins zusätzlich `has_rcon_password`, WebAdmin-Daten) |
+| PUT    | `/api/events/:id/gameservers` | Komplette Liste `{ servers }` — leere Passwörter behalten die gespeicherten, `clear_rcon_password`/`clear_webadmin_password` entfernen sie |
+| GET    | `/api/events/:id/gameservers/status` | Status aller Server mit Spielern (je Server wenige Sekunden zwischengespeichert) |
+| POST   | `/api/events/:id/gameservers/:serverId/rcon` | Freier Befehl `{ command }` → `{ command, output }` |
+| POST   | `/api/events/:id/gameservers/:serverId/action` | `{ action: say \| map \| restart \| next \| kick, value }` → `{ command, output }` |
+| POST   | `/api/events/:id/gameservers/:serverId/container` | Container über Dockhand `{ action: start \| stop \| restart }` |
+
+### Dockhand
+Nur mit Admin-Sitzung (auch GET). Fehler von Dockhand kommen als `502`.
+
+| Method | Endpoint | Beschreibung |
+|--------|----------|--------------|
+| GET    | `/api/dockhand` | `{ url, has_token, env_id, insecure_tls, configured }` (ohne Token) |
+| PUT    | `/api/dockhand` | Speichern `{ url, token?, env_id, insecure_tls }` — leerer Token behält den gespeicherten |
+| POST   | `/api/dockhand/test` | Verbindung testen → `{ environments: [{ id, name }], containers }` |
+| POST   | `/api/events/:id/dockhand/preview` | Alle Container mit erkanntem Spiel und geplanter Änderung → `{ items }` |
+| POST   | `/api/events/:id/dockhand/apply` | `{ items: [{ container_id, game }] }` → `{ created, updated, skipped, servers }` |
 
 ### OPNsense
 Alle Endpunkte nur mit Admin-Sitzung (auch GET). Fehler der Firewall kommen als `502` mit lesbarer Meldung.

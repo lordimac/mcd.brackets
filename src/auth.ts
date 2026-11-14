@@ -132,7 +132,8 @@ export function rejectCrossSite(req: Request, _res: Response, next: NextFunction
 
 // Reads are public; every change, the full backup and the OPNsense settings need the admin session
 const PUBLIC_PATHS = new Set(['/auth', '/login', '/logout']);
-const isProtectedRead = (path: string) => path === '/backup' || path === '/opnsense' || path.startsWith('/opnsense/');
+const isProtectedRead = (path: string) => path === '/backup' || path === '/opnsense' || path.startsWith('/opnsense/')
+  || path === '/dockhand' || path.startsWith('/dockhand/');
 
 // Burger orders: everyone may order and change/cancel their own order; attendees set their own
 // SMB shares. The routes check ownership themselves (burger-routes.ts, share-routes.ts)

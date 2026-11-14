@@ -9,6 +9,8 @@ import type { PointsConfig } from './points';
 import type { Room } from './seating';
 import type { Timetable } from './timetable';
 import type { BurgerMenu, BurgerOrder } from './burger';
+import type { GameServerRecord } from './gameservers';
+import type { DockhandSettings } from './dockhand';
 
 export const dataDir = path.resolve(process.env.DATA_DIR ?? path.join(__dirname, '../data'));
 export const dbPath = path.join(dataDir, 'db.json');
@@ -72,9 +74,11 @@ interface AppTables {
   timetable: Timetable;       // at most one record per event: own entries and notes
   burger_menu: BurgerMenu & { id: number }; // at most one record: burger designer menu (default if missing)
   burger_order: BurgerOrder;  // burger orders of an event
+  gameservers: GameServerRecord; // at most one record per event: its game servers (with RCON passwords)
+  dockhand: DockhandSettings; // at most one record: connection to Dockhand (game server containers)
 }
 type AppTable = keyof AppTables;
-export const APP_TABLES: AppTable[] = ['event', 'attendee', 'opnsense', 'room', 'points', 'timetable', 'burger_menu', 'burger_order'];
+export const APP_TABLES: AppTable[] = ['event', 'attendee', 'opnsense', 'room', 'points', 'timetable', 'burger_menu', 'burger_order', 'gameservers', 'dockhand'];
 
 export interface AppStore {
   select<T extends AppTable>(table: T): Promise<AppTables[T][] | null>;

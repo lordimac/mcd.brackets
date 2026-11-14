@@ -27,6 +27,9 @@
         <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
         <symbol id="i-flag" viewBox="0 0 24 24"><path d="M4 21V4M4 4h13l-2 4 2 4H4"/></symbol>
         <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5"/></symbol>
+        <symbol id="i-server" viewBox="0 0 24 24"><path d="M3 4h18v7H3zM3 13h18v7H3zM7 7.5h.01M7 16.5h.01M11 7.5h6M11 16.5h6"/></symbol>
+        <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15l12-7.5z"/></symbol>
+        <symbol id="i-stop" viewBox="0 0 24 24"><path d="M6 6h12v12H6z"/></symbol>
         <symbol id="i-network" viewBox="0 0 24 24"><path d="M9 2h6v5H9zM2 17h6v5H2zM16 17h6v5h-6zM12 7v5M5 17v-5h14v5"/></symbol>
         <symbol id="i-search" viewBox="0 0 24 24"><path d="M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM21 21l-4.3-4.3"/></symbol>
         <symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></symbol>
@@ -66,6 +69,7 @@
                 <a href="#zeitplan" class="tab" data-view="timetable"><svg class="icon"><use href="#i-clock"/></svg><span>Zeitplan</span></a>
                 <a href="#burger" class="tab" data-view="burger"><svg class="icon"><use href="#i-burger"/></svg><span>Burger</span></a>
                 <a href="#turniere" class="tab" data-view="tournaments"><svg class="icon"><use href="#i-trophy"/></svg><span>Turniere</span></a>
+                <a href="#server" class="tab" data-view="servers"><svg class="icon"><use href="#i-server"/></svg><span>Server</span></a>
             </nav>
             <div class="topbar-actions">
                 <a href="#willkommen" class="me-chip" id="meChip" hidden></a>
@@ -224,6 +228,37 @@
                     <div class="kitchen-done-list" id="burgerKitchenDone"></div>
                 </footer>
             </div>
+        </main>
+
+        <!-- Game servers of an event: status and players for everyone, RCON/WebAdmin for admins -->
+        <main class="layout view" id="view-servers" style="display: none;">
+            <h1 class="view-title"><span class="tape-wrap"><span class="tape">Server</span></span></h1>
+            <section class="card toolbar-card">
+                <div class="section-header event-bar">
+                    <div class="event-picker">
+                        <h2><svg class="icon icon-accent"><use href="#i-flag"/></svg>Event</h2>
+                        <select id="gsEventSelect" onchange="selectGameServerEvent(this.value)" aria-label="Event auswählen"></select>
+                    </div>
+                    <div class="section-actions">
+                        <p class="gs-summary" id="gsSummary"></p>
+                        <button class="btn btn-ghost btn-sm" id="gsRefreshBtn" onclick="refreshGameServerStatus(true)" title="Status jetzt abfragen (sonst alle 10 Sekunden)">
+                            <svg class="icon"><use href="#i-refresh"/></svg><span>Aktualisieren</span>
+                        </button>
+                        <button class="btn btn-ghost btn-sm admin-only" onclick="openGameServerModal()">
+                            <svg class="icon"><use href="#i-plus"/></svg><span>Server</span>
+                        </button>
+                        <span class="btn-group admin-only">
+                            <button class="btn btn-ghost btn-sm" onclick="openDockhandImport()" title="Gameserver-Container aus Dockhand übernehmen (IP, Port, RCON-Passwort)">
+                                <svg class="icon"><use href="#i-download"/></svg><span>Aus Dockhand</span>
+                            </button>
+                            <button class="btn btn-ghost btn-sm btn-icon" onclick="openDockhandSettings()" title="Dockhand verbinden" aria-label="Dockhand verbinden">
+                                <svg class="icon"><use href="#i-settings"/></svg>
+                            </button>
+                        </span>
+                    </div>
+                </div>
+            </section>
+            <div id="gsList" class="gs-list"><p class="loading">Lade Server…</p></div>
         </main>
 
         <!-- Timetable of an event: own entries, tournament rounds from the deadlines, notes -->
@@ -985,6 +1020,135 @@
     </div>
 
     <!-- Timetable entry -->
+    <div id="gsModal" class="modal">
+        <div class="modal-content">
+            <button type="button" class="close" onclick="closeModal('gsModal')" aria-label="Schließen"><svg class="icon"><use href="#i-x"/></svg></button>
+            <h2 id="gsModalTitle">Server</h2>
+            <form id="gsForm">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="gsGame">Spiel</label>
+                        <select id="gsGame">
+                            <option value="cs2">Counter-Strike 2</option>
+                            <option value="cod4">Call of Duty 4</option>
+                            <option value="cod2">Call of Duty 2</option>
+                            <option value="q3">Quake III Arena</option>
+                            <option value="ut2004">Unreal Tournament 2004</option>
+                            <option value="ut99">Unreal Tournament (UT99)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="gsName">Name <span class="label-hint">optional</span></label>
+                        <input type="text" id="gsName" maxlength="60" autocomplete="off">
+                    </div>
+                </div>
+                <div class="form-row gs-host-row">
+                    <div class="form-group">
+                        <label for="gsHost">Adresse <span class="label-hint">IP oder DNS-Name</span></label>
+                        <input type="text" id="gsHost" required maxlength="253" autocomplete="off" spellcheck="false" placeholder="z.B. 192.168.120.10">
+                    </div>
+                    <div class="form-group">
+                        <label for="gsPort">Spielport</label>
+                        <input type="number" id="gsPort" min="1" max="65535">
+                    </div>
+                    <div class="form-group">
+                        <label for="gsQueryPort">Query-Port</label>
+                        <input type="number" id="gsQueryPort" min="1" max="65535">
+                    </div>
+                </div>
+                <div id="gsRconFields">
+                    <div class="form-group">
+                        <label for="gsRcon">RCON-Passwort <span class="label-hint">für Verwaltung und Spieler-IPs; bleibt auf dem Server</span></label>
+                        <input type="password" id="gsRcon" maxlength="128" autocomplete="new-password">
+                    </div>
+                    <label class="toggle" id="gsRconClearRow"><input type="checkbox" id="gsRconClear"><span>Gespeichertes Passwort entfernen</span></label>
+                    <p class="field-hint">CS2 braucht beim Start <code>-usercon</code> und <code>rcon_password</code>, CoD und Quake 3 <code>rcon_password</code> in der Config.</p>
+                </div>
+                <div id="gsWebFields" hidden>
+                    <p class="field-hint">UT99 und UT2004 haben kein RCON — verwaltet wird über die WebAdmin (in der Server-INI unter <code>[UWeb.WebServer]</code> <code>bEnabled=True</code>).</p>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="gsWebPort">WebAdmin-Port</label>
+                            <input type="number" id="gsWebPort" min="1" max="65535" placeholder="z.B. 8075">
+                        </div>
+                        <div class="form-group">
+                            <label for="gsWebPath">Pfad</label>
+                            <input type="text" id="gsWebPath" maxlength="60" autocomplete="off" spellcheck="false" placeholder="/ServerAdmin">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="gsWebUser">Benutzer</label>
+                            <input type="text" id="gsWebUser" maxlength="64" autocomplete="off" spellcheck="false">
+                        </div>
+                        <div class="form-group">
+                            <label for="gsWebPassword">Passwort</label>
+                            <input type="password" id="gsWebPassword" maxlength="128" autocomplete="new-password">
+                        </div>
+                    </div>
+                    <label class="toggle" id="gsWebClearRow"><input type="checkbox" id="gsWebClear"><span>Gespeichertes Passwort entfernen</span></label>
+                </div>
+                <div class="form-group">
+                    <label for="gsInfo">Hinweis <span class="label-hint">optional, z.B. Mod oder Mappool</span></label>
+                    <input type="text" id="gsInfo" maxlength="200" autocomplete="off">
+                </div>
+                <p class="field-hint is-warning" id="gsError" role="alert"></p>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-danger modal-action-left" id="gsDelete" onclick="deleteGameServer()">Entfernen</button>
+                    <button type="button" class="btn btn-ghost" onclick="closeModal('gsModal')">Abbrechen</button>
+                    <button type="submit" class="btn btn-primary">Speichern</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="dockhandModal" class="modal">
+        <div class="modal-content">
+            <button type="button" class="close" onclick="closeModal('dockhandModal')" aria-label="Schließen"><svg class="icon"><use href="#i-x"/></svg></button>
+            <h2>Dockhand verbinden</h2>
+            <p class="field-hint">In Dockhand unter Profil › API-Tokens einen Token anlegen. Er braucht die Rechte, Container zu sehen und zu inspizieren (für Port und RCON-Passwort aus den Umgebungsvariablen), für die Buttons auch Starten, Stoppen und Neustarten. Der Token bleibt auf dem Server.</p>
+            <form id="dockhandForm">
+                <div class="form-group">
+                    <label for="dhUrl">Adresse <span class="label-hint">Weboberfläche von Dockhand</span></label>
+                    <input type="text" id="dhUrl" required maxlength="200" autocomplete="off" spellcheck="false" placeholder="z.B. http://192.168.120.2:3000">
+                </div>
+                <div class="form-group">
+                    <label for="dhToken">API-Token</label>
+                    <input type="password" id="dhToken" maxlength="200" autocomplete="new-password" spellcheck="false">
+                </div>
+                <label class="toggle"><input type="checkbox" id="dhInsecure"><span>Zertifikat nicht prüfen <span class="label-hint">nur bei https mit eigenem Zertifikat</span></span></label>
+                <div class="form-group">
+                    <label for="dhEnv">Docker-Umgebung <span class="label-hint">der Host mit den Gameservern</span></label>
+                    <div class="gs-action-row">
+                        <select id="dhEnv"></select>
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="testDockhand()">Verbindung testen</button>
+                    </div>
+                    <p class="field-hint" id="dhTestResult" role="status"></p>
+                </div>
+                <p class="field-hint">Erkannt werden Container mit cs2, cod2, cod4, quake3/ioquake3, ut99 oder ut2004 im Image- oder Containernamen. Eindeutig geht es mit Labels am Container: <code>mcd.game</code> (ut99, ut2004, cod2, cod4, cs2, q3), optional <code>mcd.port</code>, <code>mcd.host</code>, <code>mcd.name</code>, <code>mcd.webadmin_port</code>.</p>
+                <p class="field-hint is-warning" id="dhError" role="alert"></p>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-ghost" onclick="closeModal('dockhandModal')">Abbrechen</button>
+                    <button type="submit" class="btn btn-primary">Speichern</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="dockhandImportModal" class="modal">
+        <div class="modal-content modal-wide">
+            <button type="button" class="close" onclick="closeModal('dockhandImportModal')" aria-label="Schließen"><svg class="icon"><use href="#i-x"/></svg></button>
+            <h2>Aus Dockhand übernehmen</h2>
+            <p class="field-hint">Neue Gameserver werden angelegt, schon vorhandene bekommen die aktuelle IP, den Port und das RCON-Passwort aus dem Container. Name und Hinweis bleiben, wie du sie eingetragen hast.</p>
+            <div id="dhImportList" class="dh-import"></div>
+            <p class="field-hint is-warning" id="dhImportError" role="alert"></p>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-ghost" onclick="closeModal('dockhandImportModal')">Abbrechen</button>
+                <button type="button" class="btn btn-primary" id="dhImportApply" onclick="applyDockhandImport()"><svg class="icon"><use href="#i-download"/></svg><span class="btn-label">Übernehmen</span></button>
+            </div>
+        </div>
+    </div>
+
     <div id="ttEntryModal" class="modal">
         <div class="modal-content">
             <button type="button" class="close" onclick="closeModal('ttEntryModal')" aria-label="Schließen"><svg class="icon"><use href="#i-x"/></svg></button>
@@ -1337,5 +1501,6 @@
     <script src="shares.js"></script>
     <script src="burger.js"></script>
     <script src="burger-labels.js"></script>
+    <script src="gameservers.js"></script>
 </body>
 </html>

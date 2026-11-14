@@ -14,6 +14,9 @@ import { seatingRouter } from './seating-routes';
 import { timetableRouter } from './timetable-routes';
 import { burgerRouter } from './burger-routes';
 import { shareRouter } from './share-routes';
+import { gameServerRouter } from './gameserver-routes';
+import { dockhandRouter } from './dockhand-routes';
+import { DockhandError } from './dockhand';
 import { resolveIpAdmin, welcomeRouter } from './welcome-routes';
 import { loadPoints, pointsRouter } from './points-routes';
 import { migrateRooms } from './seating-store';
@@ -138,6 +141,8 @@ app.use('/api', seatingRouter);
 app.use('/api', timetableRouter);
 app.use('/api', burgerRouter);
 app.use('/api', shareRouter);
+app.use('/api', gameServerRouter);
+app.use('/api', dockhandRouter);
 app.use('/api', pointsRouter);
 app.use('/api', welcomeRouter);
 
@@ -407,7 +412,7 @@ const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
   const clientStatus = Number(error?.status ?? error?.statusCode);
   const status = error instanceof HttpError ? error.status
     : error instanceof ValidationError ? 400
-    : error instanceof OpnsenseError ? 502
+    : error instanceof OpnsenseError || error instanceof DockhandError ? 502
     : clientStatus >= 400 && clientStatus < 500 ? clientStatus
     : 500;
   if (status === 500) console.error(error);
