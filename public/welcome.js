@@ -186,11 +186,6 @@ function heroHtml(event) {
                 <strong class="welcome-fact-value is-mono">${escapeHtml(me.expected.ip)}</strong>
                 <span class="welcome-fact-sub">${escapeHtml(me.expected.dns_name)}</span>
             </div>
-            <div class="welcome-fact is-next" id="welcomeNextMatch">
-                <span class="welcome-fact-label">${icon('bracket')}Nächstes Match</span>
-                <strong class="welcome-fact-value is-text">…</strong>
-                <span class="welcome-fact-sub">wird geladen</span>
-            </div>
         </div>
     </section>`;
 }
@@ -302,7 +297,6 @@ async function loadMyTournaments() {
             .sort((a, b) => a.stage.tournament_id - b.stage.tournament_id);
         if (!mine.length) {
             list.innerHTML = '<p class="field-hint">Für dieses Event gibt es noch keine Turniere.</p>';
-            renderNextMatchFact(null);
             return;
         }
         const details = await Promise.all(mine.map(async entry => {
@@ -322,10 +316,8 @@ async function loadMyTournaments() {
             return (nb ? 1 : 0) - (na ? 1 : 0) || a.stage.tournament_id - b.stage.tournament_id;
         });
         list.innerHTML = details.map(myTournamentHtml).join('');
-        renderNextMatchFact(next.get(details[0]) ?? null);
     } catch (error) {
         list.innerHTML = `<p class="field-hint is-warning">Die Turniere konnten nicht geladen werden: ${escapeHtml(error.message)}</p>`;
-        renderNextMatchFact(null, 'nicht geladen');
     }
 }
 
@@ -356,29 +348,6 @@ function compareNextMatches(a, b) {
         || a.stage.tournament_id - b.stage.tournament_id;
 }
 
-function renderNextMatchFact(next, failure = '') {
-    const fact = document.getElementById('welcomeNextMatch');
-    if (!fact) return;
-    const label = `<span class="welcome-fact-label">${icon('bracket')}Nächstes Match</span>`;
-    if (!next) {
-        fact.className = 'welcome-fact is-next';
-        fact.innerHTML = `${label}<strong class="welcome-fact-value is-text">–</strong><span class="welcome-fact-sub">${failure || 'gerade keins offen'}</span>`;
-        return;
-    }
-    const when = next.round?.ends_at ? `bis ${formatDeadline(next.round.ends_at)}` : next.round?.starts_at ? `ab ${formatDeadline(next.round.starts_at)}` : '';
-    const replacement = document.createElement('button');
-    replacement.type = 'button';
-    replacement.id = 'welcomeNextMatch';
-    replacement.className = 'welcome-fact is-next is-link';
-    replacement.dataset.stage = next.stage.id;
-    replacement.title = 'Im Bracket zeigen';
-    replacement.setAttribute('onclick', 'openMyMatch(this.dataset.stage)');
-    replacement.innerHTML = `${label}
-        <strong class="welcome-fact-value is-text">${next.opponent ? `gegen ${escapeHtml(next.opponent)}` : 'Gegner offen'}</strong>
-        <span class="welcome-fact-sub">${escapeHtml(next.stage.name)}${when ? ` · ${escapeHtml(when)}` : ''}</span>`;
-    fact.replaceWith(replacement);
-}
-
 function myTournamentHtml(entry) {
     const { stage, standing } = entry;
     const next = nextMatchOf(entry);
@@ -398,8 +367,7 @@ function myTournamentHtml(entry) {
         status = '<span class="muted">Gerade kein offenes Match</span>';
     }
 
-    // Playable now (opponent known): marked and sorted first; orange stays with the "Nächstes Match"
-    // tile at the top, so the page has one orange thing for one fact
+    // Playable now (opponent known): marked and sorted first
     const playable = Boolean(next?.opponent);
     return `<div class="my-tournament type-${escapeHtml(stage.type)}${playable ? ' is-mine' : ''}">
         ${standing?.placement != null ? `<div class="my-tournament-rank"><span class="my-tournament-rank-label">Platz</span>${rankBadge(standing)}</div>` : ''}

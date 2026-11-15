@@ -4953,7 +4953,7 @@ body:not(.read-only) #seatPlanCard:not(.is-layout):not(.is-view) .cell-seat:hove
     min-width: 0;
 }
 
-/* In the narrow column the tiles fill the card: seat and IP side by side, the next match below */
+/* In the narrow column the tiles fill the card: seat and IP side by side */
 .welcome-main .welcome-facts {
     width: 100%;
 }
@@ -4961,11 +4961,6 @@ body:not(.read-only) #seatPlanCard:not(.is-layout):not(.is-view) .cell-seat:hove
 .welcome-main .welcome-fact {
     flex: 1 1 150px;
     min-width: 0;
-}
-
-.welcome-main .welcome-fact.is-next {
-    flex-basis: 100%;
-    max-width: none;
 }
 
 @media (max-width: 960px) {
@@ -5194,26 +5189,6 @@ body:not(.read-only) #seatPlanCard:not(.is-layout):not(.is-view) .cell-seat:hove
     color: var(--text-secondary);
     font-size: 0.82rem;
     overflow-wrap: anywhere;
-}
-
-/* Next own match: text instead of a number, orange like the own match in the bracket */
-.welcome-fact-value.is-text {
-    font-size: 1.45rem;
-    line-height: 1.15;
-    overflow-wrap: anywhere;
-}
-
-.welcome-fact.is-next {
-    flex: 1 1 220px;
-    max-width: 360px;
-}
-
-.welcome-fact.is-next.is-link {
-    border-color: var(--primary-color);
-}
-
-.welcome-fact.is-next.is-link .welcome-fact-label .icon {
-    color: var(--primary-text);
 }
 
 .check-list {

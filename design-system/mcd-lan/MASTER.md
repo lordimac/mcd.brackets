@@ -151,7 +151,7 @@ Ein einziger Moment: Das Ausweis-Etikett „druckt“ beim ersten Laden heraus (
 
 - Jeder Dialog (`.modal`) ist `role="dialog"`/`aria-modal`, nimmt beim Öffnen den Fokus, hält Tab im Dialog, schließt mit Esc und Klick daneben und gibt den Fokus zurück (`openModal`/`closeModal`/`dismissModal` in `app.js`).
 - Eine Aktion, die oft und unter Lärm getippt wird (Sieger eintragen), braucht keine Rückfrage, aber ein „Rückgängig“ im Hinweis (`notify(…, { action })`).
-- Pro Bildschirm genau ein oranges Element je Fakt: auf der Startseite nur die Kachel „Nächstes Match“, die Turnierkarten darunter sind neutral.
+- Pro Bildschirm genau ein oranges Element je Fakt. Die Startseite hat keine Kachel „Nächstes Match“ mehr (Wunsch des Users: doppelt zu „Deine Turniere“, das alle offenen Matches zeigt); die Turnierkarten sind neutral.
 - Selten gebrauchte Einrichtung (Drucker/Tablet beim Burger) steht zugeklappt; sichtbar bleibt, was man am Abend braucht.
 
 ## Kritik Runde 2 (01.11.2026)
