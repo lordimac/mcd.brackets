@@ -2,7 +2,7 @@
 
 Ein vollständiges Turnierverwaltungssystem mit Event-basiertem Meisterschafts-Punktesystem, entwickelt mit [brackets-manager](https://www.npmjs.com/package/brackets-manager).
 
-**Version:** 0.35.0-beta
+**Version:** 0.36.0-beta
 
 ---
 
@@ -175,9 +175,9 @@ Standardwerte:
 
 ### 🎮 Gameserver (Reiter „Server“)
 - Pro Event eine Liste der Dedicated Server: **UT99, UT2004, Call of Duty 2, Call of Duty 4, Counter-Strike 2, Quake III Arena**
-- **Live-Tafel für alle** (Modus „Ansehen“): online/offline, Map, Modus (z.B. „Search & Destroy“ statt `sd`), Spielerzahl und die **aktuellen Spieler** mit Punkten und Ping; volle Server zuerst, ausgefallene am Ende; aktualisiert sich alle 10 Sekunden
+- **Live-Tafel für alle** (Modus „Ansehen“): **nach Spiel gruppiert** mit dem Original-Icon des Spiels, je Server online/offline, Map, Modus (z.B. „Search & Destroy“ statt `sd`), Spielerzahl und die **aktuellen Spieler** mit Punkten und Ping; innerhalb eines Spiels volle Server zuerst, ausgefallene am Ende; aktualisiert sich alle 10 Sekunden
 - **„Beitreten“** auf jeder Karte: CS2 (`steam://`), UT99 (`unreal://`) und UT2004 (`ut2004://`) starten das Spiel direkt, bei CoD und Quake 3 kopiert der Button `/connect host:port` für die Spielkonsole
-- **Spieler suchen** über alle Server (Taste `/`), Sprungmarken zu den Servern ab drei Servern, ausgefallene Server werden in der Zusammenfassung gezählt („1 offline“) und Bildschirmlesern angesagt
+- **Spieler suchen** über alle Server (Taste `/`), ab drei Servern oben eine Übersicht je Spiel (Icon, Server- und Spielerzahl, die Server als Sprungmarken; am Handy nur die Spiele), ausgefallene Server werden in der Zusammenfassung gezählt („1 offline“) und Bildschirmlesern angesagt
 - Spieler werden **den Teilnehmern zugeordnet** — über die IP aus RCON `status` (CoD, Quake 3, CS2), sonst über den Namen (auch mit Clan-Tag wie `[M4E]lordimac`). Dann stehen dort Clan-Nickname, „du“ und ein Sprung zum Sitzplatz
 - **Verwaltung (Admins, Modus „Verwalten“):** kaputte Server zuerst, dazu Spieler-IPs, Containerstatus, Nachricht an alle, Map wechseln, Map neu starten, nächste Map (CoD/Q3), Spieler kicken (CoD/Q3/CS2) und eine freie **RCON-Konsole** (eingeklappt, mit Befehls-History per Pfeiltasten, die letzten Ausgaben bleiben stehen)
 - UT99 und UT2004 haben kein RCON: Verwaltet wird über die **WebAdmin** (Konsole; Kicken geht dort nicht über die App)

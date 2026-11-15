@@ -32,6 +32,8 @@ let gsStale = false;         // last poll failed: the shown state is old
 let gsListKey = '';          // re-render the cards only when the list itself changes
 let gsMode = 'view';         // 'view' or 'manage' (admins)
 const gsWasOnline = new Map(); // server id → online at the last poll (announce changes)
+const gsIconMissing = new Set(); // games without an icon file (img/games/<game>.png): neutral symbol instead
+let gsJumpHtml = '';         // the overview is only replaced when it changes (icons do not reload)
 const gsHistory = new Map();   // server id → { list: [commands], pos }
 
 try { if (localStorage.getItem('mcd.gsMode') === 'manage') gsMode = 'manage'; } catch { /* storage unavailable */ }
@@ -200,19 +202,25 @@ function renderGameServers() {
     gsListKey = key;
     if (currentEventId == null) {
         list.innerHTML = '<p class="empty-state">Lege zuerst unter „Teilnehmer“ ein Event an.</p>';
+        renderGameServerJump();
         renderGameServerSummary();
         return;
     }
     if (!gsServers.length) {
         list.innerHTML = `<p class="empty-state">Noch keine Server eingetragen.${isAdmin ? ' Unter „Verwalten“ trägst du sie von Hand ein oder übernimmst sie aus Dockhand.' : ''}</p>`;
+        renderGameServerJump();
         renderGameServerSummary();
         return;
     }
-    list.innerHTML = gsServers.map(server => `
-        <article class="card gs-card gs-${escapeHtml(server.game)}" data-id="${escapeHtml(server.id)}" id="gs-${escapeHtml(server.id)}" aria-labelledby="gsName-${escapeHtml(server.id)}">
+    const heads = gameServerGroups().map(group => `
+        <h2 class="gs-group-head" id="gsGroup-${escapeHtml(group.game)}" data-game="${escapeHtml(group.game)}" tabindex="-1">
+            ${gameIcon(group.game)}<span class="gs-group-name">${escapeHtml(group.label)}</span><span class="gs-group-count"></span>
+        </h2>`).join('');
+    list.innerHTML = heads + gsServers.map(server => `
+        <article class="card gs-card" data-id="${escapeHtml(server.id)}" data-game="${escapeHtml(server.game)}" id="gs-${escapeHtml(server.id)}" aria-labelledby="gsName-${escapeHtml(server.id)}">
             <header class="gs-head">
                 <div class="gs-title">
-                    <h2 id="gsName-${escapeHtml(server.id)}">${escapeHtml(server.name)}</h2>
+                    <h3 id="gsName-${escapeHtml(server.id)}" tabindex="-1">${escapeHtml(server.name)}</h3>
                     <p class="gs-meta"><span class="gs-game" title="${escapeHtml(server.game_label)}">${escapeHtml(server.game_short)}</span> <code>${escapeHtml(gsConnectAddress(server))}</code></p>
                 </div>
                 ${gameServerJoinHtml(server)}
@@ -252,38 +260,113 @@ function sortedGameServers() {
     });
 }
 
-// Moves the cards (keeps their DOM, so open forms and console output stay) and redraws the jump chips
-function orderGameServerCards() {
-    const list = document.getElementById('gsList');
-    const order = sortedGameServers();
-    const cards = order.map(s => list.querySelector(`.gs-card[data-id="${CSS.escape(s.id)}"]`)).filter(Boolean);
-    const current = [...list.querySelectorAll('.gs-card')];
-    if (cards.some((card, i) => current[i] !== card)) cards.forEach(card => list.appendChild(card));
-    renderGameServerJump(order);
+// The original icon of a game (public/img/games/<game>.png); without a file a neutral symbol
+function gameIcon(game) {
+    if (gsIconMissing.has(game)) return `<span class="gs-icon is-missing" aria-hidden="true">${icon('server')}</span>`;
+    return `<span class="gs-icon" aria-hidden="true"><img src="img/games/${escapeHtml(game)}.png" alt="" width="64" height="64" data-game="${escapeHtml(game)}" onerror="gameIconFailed(this)"></span>`;
 }
 
-// Chips above the list (from three servers): game, name, players — tap jumps to the card
-function renderGameServerJump(order = sortedGameServers()) {
-    const nav = document.getElementById('gsJump');
-    if (gsServers.length < 3) {
-        nav.hidden = true;
-        nav.innerHTML = '';
-        return;
+function gameIconFailed(img) {
+    gsIconMissing.add(img.dataset.game);
+    img.parentElement.classList.add('is-missing');
+    img.outerHTML = icon('server');
+}
+
+// Servers by game: the games keep a fixed order (the board does not jump around), inside a game
+// the board order of sortedGameServers()
+function gameServerGroups(order = sortedGameServers()) {
+    const games = Object.keys(GS_GAMES);
+    const rank = game => (games.includes(game) ? games.indexOf(game) : games.length);
+    return [...new Set(gsServers.map(s => s.game))]
+        .sort((a, b) => rank(a) - rank(b) || a.localeCompare(b))
+        .map(game => {
+            const servers = order.filter(s => s.game === game);
+            const statuses = servers.map(s => gsStatus.get(s.id)).filter(Boolean);
+            return {
+                game,
+                servers,
+                label: GS_GAMES[game]?.label ?? servers[0].game_label,
+                short: GS_GAMES[game]?.short ?? servers[0].game_short,
+                known: statuses.length > 0,
+                players: statuses.reduce((sum, s) => sum + (s.online ? s.player_count ?? 0 : 0), 0),
+                offline: statuses.filter(s => !s.online).length,
+            };
+        });
+}
+
+// "6 Server · 12 Spieler · 1 offline" for a game
+function gameGroupCountHtml(group) {
+    return [
+        `${group.servers.length} Server`,
+        group.known ? `${group.players} Spieler` : '',
+        group.offline ? `<span class="gs-group-offline">${group.offline} offline</span>` : '',
+    ].filter(Boolean).join(' · ');
+}
+
+// Moves the group headings and cards (keeps their DOM, so open forms and console output stay)
+// and redraws the overview
+function orderGameServerCards() {
+    const list = document.getElementById('gsList');
+    const groups = gameServerGroups();
+    const nodes = [];
+    for (const group of groups) {
+        const head = list.querySelector(`.gs-group-head[data-game="${CSS.escape(group.game)}"]`);
+        if (head) {
+            head.querySelector('.gs-group-count').innerHTML = gameGroupCountHtml(group);
+            nodes.push(head);
+        }
+        for (const server of group.servers) {
+            const card = list.querySelector(`.gs-card[data-id="${CSS.escape(server.id)}"]`);
+            if (card) nodes.push(card);
+        }
     }
-    nav.hidden = false;
-    nav.innerHTML = order.map(server => {
-        const status = gsStatus.get(server.id);
-        const count = status?.online ? `<span class="gs-jump-count">${status.player_count}<span class="sr-only"> Spieler</span></span>` : status ? '<span class="gs-jump-count is-offline">offline</span>' : '';
-        return `<button type="button" class="gs-jump-chip gs-${escapeHtml(server.game)}${status && !status.online ? ' is-offline' : ''}" data-id="${escapeHtml(server.id)}" onclick="jumpToGameServer(this.dataset.id)"><span class="gs-swatch" aria-hidden="true"></span><span class="gs-jump-name">${escapeHtml(server.name)}</span> ${count}</button>`;
+    const current = [...list.querySelectorAll('.gs-group-head, .gs-card')];
+    if (nodes.some((node, i) => current[i] !== node)) nodes.forEach(node => list.appendChild(node));
+    renderGameServerJump(groups);
+}
+
+// Overview above the list (from three servers): one row per game — icon, name, players — with its
+// servers as chips; a tap jumps to the game or the card. On a phone only the games.
+function renderGameServerJump(groups = gameServerGroups()) {
+    const nav = document.getElementById('gsJump');
+    const html = gsServers.length < 3 ? '' : groups.map(group => {
+        const chips = group.servers.map(server => {
+            const status = gsStatus.get(server.id);
+            const count = status?.online
+                ? `<span class="gs-jump-count${status.player_count ? ' is-busy' : ''}">${status.player_count}<span class="sr-only"> Spieler</span></span>`
+                : status ? '<span class="gs-jump-count is-offline">offline</span>' : '';
+            return `<li><button type="button" class="gs-jump-chip${status && !status.online ? ' is-offline' : ''}" data-id="${escapeHtml(server.id)}" onclick="jumpToGameServer(this.dataset.id)"><span class="gs-jump-name">${escapeHtml(server.name)}</span> ${count}</button></li>`;
+        }).join('');
+        return `<div class="gs-jump-group" role="group" aria-label="${escapeHtml(group.label)}">
+            <button type="button" class="gs-jump-game${group.offline ? ' has-offline' : ''}" data-game="${escapeHtml(group.game)}" onclick="jumpToGameGroup(this.dataset.game)" title="Zu den ${escapeHtml(group.label)}-Servern springen">
+                ${gameIcon(group.game)}
+                <span class="gs-jump-game-text">
+                    <span class="gs-jump-game-name"><span class="label-long">${escapeHtml(group.label)}</span><span class="label-short">${escapeHtml(group.short)}</span></span>
+                    <span class="gs-jump-game-count">${gameGroupCountHtml(group)}</span>
+                </span>
+            </button>
+            <ul class="gs-jump-servers">${chips}</ul>
+        </div>`;
     }).join('');
+    if (html === gsJumpHtml) return;
+    gsJumpHtml = html;
+    nav.hidden = !html;
+    nav.innerHTML = html;
+}
+
+function scrollToGameServerNode(node, focus) {
+    node.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+    focus.focus({ preventScroll: true });
 }
 
 function jumpToGameServer(id) {
     const card = document.getElementById(`gs-${id}`);
-    if (!card) return;
-    card.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
-    card.querySelector('h2').setAttribute('tabindex', '-1');
-    card.querySelector('h2').focus({ preventScroll: true });
+    if (card) scrollToGameServerNode(card, card.querySelector('h3'));
+}
+
+function jumpToGameGroup(game) {
+    const head = document.getElementById(`gsGroup-${game}`);
+    if (head) scrollToGameServerNode(head, head);
 }
 
 const gsClock = iso => new Date(iso).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -401,6 +484,9 @@ function filterGameServerPlayers() {
         });
         card.hidden = !!query && found === 0;
         matches += found;
+    });
+    document.querySelectorAll('#gsList .gs-group-head').forEach(head => {
+        head.hidden = !document.querySelector(`#gsList .gs-card[data-game="${CSS.escape(head.dataset.game)}"]:not([hidden])`);
     });
     const result = document.getElementById('gsSearchResult');
     result.hidden = !query;

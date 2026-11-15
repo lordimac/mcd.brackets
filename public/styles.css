@@ -6636,7 +6636,8 @@ body.burger-kitchen-open {
     .checkin-browse a,
     .tour-standings-link,
     .tour-open > summary,
-    .gs-jump-chip {
+    .gs-jump-chip,
+    .gs-jump-game {
         min-height: 44px;
     }
 
@@ -7289,43 +7290,139 @@ body.single-event .event-bar {
     border-top: 1px solid var(--border-color);
 }
 
-/* Game colors: a small square next to the neutral label (the full cable colors belong to the areas) */
-.gs-card, .gs-jump-chip { --gs-color: var(--band-white); }
-.gs-cs2 { --gs-color: var(--line-yellow); }
-.gs-cod4 { --gs-color: var(--line-green); }
-.gs-cod2 { --gs-color: var(--line-brown); }
-.gs-q3 { --gs-color: var(--line-violet); }
-.gs-ut2004 { --gs-color: var(--line-blue); }
-.gs-ut99 { --gs-color: var(--band-white); }
-
-.gs-swatch,
-.gs-game::before {
-    width: 0.6rem;
-    height: 0.6rem;
+/* Game icons: the original icon of each game (public/img/games/<game>.png), never a color code —
+   the cable colors belong to the areas. Without a file a neutral symbol. */
+.gs-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     flex: none;
-    background: var(--gs-color);
-    border-radius: 1px;
+    width: var(--gs-icon-size, 1.25rem);
+    height: var(--gs-icon-size, 1.25rem);
 }
 
-.gs-game::before {
-    content: '';
+.gs-icon img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    border-radius: var(--radius-sm);
 }
 
+.gs-icon.is-missing {
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+}
+
+.gs-icon.is-missing .icon {
+    width: 62%;
+    height: 62%;
+}
+
+/* Overview by game: one row per game (icon, name, players), its servers as chips to the right */
 .gs-jump {
     display: flex;
-    flex-wrap: wrap;
-    gap: 0.4rem;
+    flex-direction: column;
+    border-top: 1px solid var(--border-color);
 }
 
 .gs-jump[hidden] {
     display: none;
 }
 
+.gs-jump-group {
+    display: grid;
+    grid-template-columns: 14.5rem minmax(0, 1fr);
+    align-items: center;
+    gap: 0.4rem 1rem;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.gs-jump-group:last-child {
+    padding-bottom: 0;
+    border-bottom: 0;
+}
+
+.gs-jump-game {
+    --gs-icon-size: 2rem;
+    position: relative; /* keeps .sr-only parts inside (no page-wide overflow) */
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    min-width: 0;
+    padding: 0.2rem 0.4rem 0.2rem 0.2rem;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--text-color);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.gs-jump-game:hover {
+    background: var(--surface-2);
+    border-color: var(--border-color);
+}
+
+.gs-jump-game:focus-visible,
+.gs-jump-chip:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+}
+
+.gs-jump-game-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.gs-jump-game-name {
+    font-family: var(--font-title);
+    font-size: 1.1rem;
+    font-weight: 600;
+    line-height: 1.15;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.gs-jump-game-count,
+.gs-group-count {
+    color: var(--text-secondary);
+    font-family: var(--font);
+    font-size: 0.82rem;
+    font-weight: 400;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.gs-group-offline {
+    color: var(--warning-color);
+}
+
+.gs-jump-servers {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.gs-jump-servers li {
+    display: flex;
+    min-width: 0;
+    max-width: 100%;
+}
+
 .gs-jump-chip {
     position: relative; /* keeps the .sr-only count inside the scrolling row (no page-wide overflow) */
     display: inline-flex;
     align-items: center;
-    gap: 0.45rem;
+    gap: 0.5rem;
     max-width: 100%;
     padding: 0.3rem 0.6rem;
     border: 1px solid var(--border-color);
@@ -7342,11 +7439,6 @@ body.single-event .event-bar {
     border-color: var(--border-strong);
 }
 
-.gs-jump-chip:focus-visible {
-    outline: none;
-    box-shadow: var(--focus-ring);
-}
-
 .gs-jump-name {
     overflow: hidden;
     text-overflow: ellipsis;
@@ -7354,8 +7446,14 @@ body.single-event .event-bar {
 }
 
 .gs-jump-count {
-    color: var(--text-secondary);
+    color: var(--text-faint);
     font-variant-numeric: tabular-nums;
+}
+
+/* Where people play: the count stands out */
+.gs-jump-count.is-busy {
+    color: var(--text-color);
+    font-weight: 600;
 }
 
 .gs-jump-count.is-offline {
@@ -7398,6 +7496,45 @@ body.single-event .event-bar {
     align-items: start;
 }
 
+/* One heading per game above its cards: icon, name, servers and players */
+.gs-group-head {
+    --gs-icon-size: 2rem;
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    margin-top: 0.75rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border-color);
+    font-family: var(--font-title);
+    font-size: 1.45rem;
+    font-weight: 600;
+    line-height: 1.2;
+    scroll-margin-top: calc(var(--topbar-height, 64px) + 0.75rem);
+}
+
+.gs-group-head:first-child {
+    margin-top: 0;
+}
+
+.gs-group-head[hidden] {
+    display: none;
+}
+
+.gs-group-head:focus {
+    outline: none;
+}
+
+.gs-group-head:focus-visible .gs-group-name {
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+}
+
+.gs-group-count {
+    margin-left: auto;
+    font-size: 0.88rem;
+}
+
 .gs-card {
     display: flex;
     flex-direction: column;
@@ -7426,12 +7563,15 @@ body.single-event .event-bar {
     min-width: 0;
 }
 
-.gs-card h2 {
+.gs-card h3 {
+    font-family: var(--font-title);
     font-size: 1.35rem;
+    font-weight: 600;
+    line-height: 1.2;
     overflow-wrap: anywhere;
 }
 
-.gs-card h2:focus {
+.gs-card h3:focus {
     outline: none;
 }
 
@@ -7899,9 +8039,51 @@ body.single-event .event-bar {
         display: none;
     }
 
-    /* On a phone the cards follow each other directly; the offline count in the summary still jumps */
+    /* On a phone only the games: icon, short name and players, two side by side */
     .gs-jump {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.4rem;
+        padding-top: 0.75rem;
+    }
+
+    .gs-jump-group {
+        display: block;
+        padding: 0;
+        border: 0;
+    }
+
+    .gs-jump-game {
+        width: 100%;
+    }
+
+    .gs-jump-servers {
         display: none;
+    }
+
+    .gs-jump-game {
+        --gs-icon-size: 1.5rem;
+        gap: 0.5rem;
+        padding: 0.3rem 0.6rem 0.3rem 0.4rem;
+        border-color: var(--border-color);
+        background: var(--surface-2);
+    }
+
+    .gs-jump-game.has-offline {
+        border-color: var(--warning-color);
+    }
+
+    .gs-jump-game-name {
+        font-size: 1rem;
+    }
+
+    .gs-jump-game-count {
+        font-size: 0.78rem;
+    }
+
+    .gs-group-head {
+        --gs-icon-size: 1.6rem;
+        font-size: 1.25rem;
     }
 
     .gs-players .gs-ping,
