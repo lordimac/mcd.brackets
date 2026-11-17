@@ -258,11 +258,16 @@
                         <p class="section-subtitle" id="goodiesTotals"></p>
                     </div>
                     <div class="section-actions admin-only">
+                        <div class="segmented goodies-settlement" id="goodiesSettlementSwitch" role="group" aria-label="Wie abgerechnet wird">
+                            <button type="button" data-settlement="simplified" aria-pressed="true" onclick="setGoodiesSettlement('simplified')" title="So wenige Überweisungen wie möglich — es kann sein, dass man jemand anderem zahlt als dem, der ausgelegt hat">Wenigste Überweisungen</button>
+                            <button type="button" data-settlement="direct" aria-pressed="false" onclick="setGoodiesSettlement('direct')" title="Jeder zahlt an den, der seine Goodies ausgelegt hat">Direkt an den Zahler</button>
+                        </div>
                         <button type="button" class="btn btn-secondary btn-sm" onclick="openGoodiesPayment()">
                             <svg class="icon"><use href="#i-plus"/></svg><span>Zahlung eintragen</span>
                         </button>
                     </div>
                 </div>
+                <p class="field-hint goodies-settlement-hint" id="goodiesSettlementHint"></p>
                 <div id="goodiesTransfers" class="goodies-transfers"></div>
                 <details class="goodies-more" id="goodiesBalanceBox">
                     <summary><svg class="icon"><use href="#i-chevron"/></svg>Stand je Person</summary>

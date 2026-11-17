@@ -86,6 +86,28 @@ test('changing the article of an entry also changes its name', async () => {
   }
 });
 
+test('direct settlement: everybody pays whoever paid for their goodies, pairs net out', () => {
+  // 9 paid A's and B's goodies, 8 paid the mouse pads (one of them for 9); 2 paid 9 back in part
+  const data = {
+    items: [item(1, 9, 4500), item(2, 9, 3000), item(2, 8, 1500), item(9, 8, 1500), item(8, 9, 4500), item(9, 9, 2000)],
+    payments: [{ id: 'p', from_id: 2, to_id: 9, amount: 1000, note: '', at: '' }],
+  };
+  const transfers = goodies.settleDirect(data);
+  const key = (t: { from_id: number; to_id: number; amount: number }) => `${t.from_id}>${t.to_id}:${t.amount}`;
+  assert.deepEqual(transfers.map(key).sort(), ['1>9:4500', '2>8:1500', '2>9:2000', '8>9:3000'].sort());
+  // Same balances as the simplified settlement
+  const net = new Map<number, number>();
+  for (const t of transfers) {
+    net.set(t.from_id, (net.get(t.from_id) ?? 0) + t.amount);
+    net.set(t.to_id, (net.get(t.to_id) ?? 0) - t.amount);
+  }
+  for (const b of goodies.computeBalances(data)) assert.equal(net.get(b.person_id) ?? 0, -b.balance);
+  // Overpaid: the payee owes the difference back
+  assert.deepEqual(goodies.settleDirect({ items: [item(1, 9, 1000)], payments: [{ id: 'p', from_id: 1, to_id: 9, amount: 1500, note: '', at: '' }] }).map(key), ['9>1:500']);
+  assert.equal(goodies.normalizeSettlement(undefined), 'simplified');
+  assert.throws(() => goodies.normalizeSettlement('egal'), /Abrechnungsart/);
+});
+
 test('validation: articles, PayPal names, amounts', () => {
   const people = new Map([[7, { id: 7 } as never], [8, { id: 8 } as never]]);
   const [article] = goodies.validateArticles([{ name: 'Hoodie', price: 4500, variants: 'S, M, m, XL', payer_id: 7 }], people);

@@ -84,6 +84,7 @@ function applyGoodies(data) {
 
 function renderGoodies() {
     renderGoodiesForms();
+    renderGoodiesSettlement();
     renderGoodiesSettle();
     renderGoodiesItems();
     renderGoodiesOrderSummary();
@@ -312,6 +313,38 @@ function renderGoodiesSettle() {
     document.getElementById('goodiesPaymentBox').hidden = !payments.length;
     document.getElementById('goodiesPaymentTitle').textContent = `Erledigte Zahlungen (${payments.length})`;
     document.getElementById('goodiesPayments').innerHTML = `<ul class="goodies-payment-list">${[...payments].reverse().map(paymentHtml).join('')}</ul>`;
+}
+
+// How transfers are suggested: for everybody the same (stored with the goodies)
+const SETTLEMENT_HINTS = {
+    simplified: 'So wenige Überweisungen wie möglich. Dabei kann es sein, dass du jemand anderem zahlst als dem, der deine Goodies ausgelegt hat — am Ende geht es für alle auf.',
+    direct: 'Jeder zahlt an den, der seine Goodies ausgelegt hat. Wer selbst etwas ausgelegt und bekommen hat, verrechnet nur mit derselben Person.',
+};
+
+function renderGoodiesSettlement() {
+    const mode = goodiesData?.settlement ?? 'simplified';
+    document.querySelectorAll('#goodiesSettlementSwitch button').forEach(button => {
+        const active = button.dataset.settlement === mode;
+        button.classList.toggle('active', active);
+        button.setAttribute('aria-pressed', String(active));
+    });
+    const hint = document.getElementById('goodiesSettlementHint');
+    hint.textContent = goodiesData?.transfers.length ? SETTLEMENT_HINTS[mode] : '';
+    hint.hidden = !hint.textContent;
+}
+
+async function setGoodiesSettlement(mode) {
+    if (!goodiesData || goodiesData.settlement === mode) return;
+    // Payments made for the other way can look odd now (e.g. someone owes money back): say so
+    if (goodiesData.payments.length && !(await confirmDialog(
+        `Es sind schon ${goodiesData.payments.length} Zahlungen eingetragen. Sie bleiben gültig und die Summen stimmen weiter, aber Zahlungen, die nach der anderen Art geflossen sind, können jetzt als Rückzahlung oder Umweg auftauchen. Trotzdem umstellen?`,
+        { title: 'Abrechnung umstellen?', confirmLabel: 'Umstellen', danger: false }))) return;
+    try {
+        applyGoodies(await apiFetch(`/events/${currentEventId}/goodies/settings`, { method: 'PUT', body: JSON.stringify({ settlement: mode }) }));
+        announce(mode === 'direct' ? 'Abrechnung: direkt an den Zahler' : 'Abrechnung: wenigste Überweisungen');
+    } catch (error) {
+        notify('❌ ' + error.message);
+    }
 }
 
 function transferHtml(t) {

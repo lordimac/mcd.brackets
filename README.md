@@ -2,7 +2,7 @@
 
 Ein vollständiges Turnierverwaltungssystem mit Event-basiertem Meisterschafts-Punktesystem, entwickelt mit [brackets-manager](https://www.npmjs.com/package/brackets-manager).
 
-**Version:** 0.37.0-beta
+**Version:** 0.37.1-beta
 
 ---
 
@@ -100,7 +100,7 @@ Ein vollständiges Turnierverwaltungssystem mit Event-basiertem Meisterschafts-P
 
 ### 👕 Goodies-Abrechnung (Reiter „Goodies“)
 - Wie Settle Up, nur für Hoodies, Shirts & Co.: Admins legen die **Artikel** an (Preis je Stück, Varianten wie `S, M, L, XL` oder `3 mm, 5 mm` und **wer ihn beim Shop bezahlt hat** — z. B. ein Orga-Mitglied oder die Vereinskasse, dafür einen Gast anlegen) und tragen ein, **wer was bekommt**. Preis und Zahler kommen vom Artikel und lassen sich je Eintrag ändern. Ohne Zahler zählt ein Eintrag noch nicht als Schuld
-- **Wer zahlt wem**: Das System verrechnet alles und schlägt die wenigsten Überweisungen vor („Frag → lordimac 80,00 €“). Mit hinterlegtem PayPal.me-Namen gibt es „Mit PayPal zahlen“ mit vorausgefülltem Betrag; „Bezahlt“ trägt die Zahlung ein (auch bar oder per Überweisung über „Zahlung eintragen“), erledigte Zahlungen lassen sich wieder löschen
+- **Wer zahlt wem**: Das System verrechnet alles und schlägt die Überweisungen vor („Frag → lordimac 80,00 €“). Umschaltbar (gilt für alle): **Wenigste Überweisungen** — so wenige wie möglich, man zahlt dabei evtl. jemand anderem als dem, der ausgelegt hat — oder **Direkt an den Zahler** — jeder zahlt an den, der seine Goodies ausgelegt hat; wer selbst ausgelegt und bekommen hat, verrechnet nur mit derselben Person. Mit hinterlegtem PayPal.me-Namen gibt es „Mit PayPal zahlen“ mit vorausgefülltem Betrag; „Bezahlt“ trägt die Zahlung ein (auch bar oder per Überweisung über „Zahlung eintragen“), erledigte Zahlungen lassen sich wieder löschen
 - **Tabelle einfügen**: Bestellliste aus Excel, Numbers oder Google Sheets kopieren und einfügen — vorne der Name, dahinter eine Spalte je Artikel mit den Größen (`XL + XL`, `XL+2XL`, `2x XL`; leer oder `-` = nichts; `2XL` = `XXL`, `5mm` = `5 mm`), optional eine Spalte mit der Anzahl. Die Vorschau ordnet jede Spalte zu (per Kopfzeile mit Artikelnamen, über die Größen — `5mm` passt zum Mauspad — oder in Reihenfolge; Zahlen-Spalten werden „Menge“; alles änderbar), findet die Personen über ihren Klarnamen und legt Unbekannte auf Wunsch als Gäste an; Größen, die es beim Artikel nicht gibt, und Personen, die schon Einträge haben (doppelter Import), werden markiert
 - „Stand je Person“ (Goodies, ausgelegt, gezahlt, erhalten), „Sammelbestellung“ (Stückzahl je Artikel und Variante für den Shop) und ein Haken „ausgegeben“ je Eintrag fürs Verteilen auf der LAN
 - Lesen ist öffentlich: Jeder sieht, was er bekommt und wem er was schuldet; per IP erkannte Geräte sehen das auch auf der Willkommens-Seite („Deine Goodies“). Der Reiter erscheint für Besucher erst, wenn es Einträge gibt
@@ -468,12 +468,13 @@ Beträge in Cent. Lesen ist öffentlich, Ändern nur mit Admin-Sitzung. Personen
 
 | Method | Endpoint | Beschreibung |
 |--------|----------|--------------|
-| GET    | `/api/events/:id/goodies` | `{ articles: [{ id, name, price, variants, payer_id }], items: [{ id, article_id, name, variant, quantity, price, recipient_id, payer_id, handed_out, note, created_at }], payments: [{ id, from_id, to_id, amount, note, at }], paypal: { <personId>: name }, people: [{ id, name, display_name, real_name, guest, paypal }], balances: [{ person_id, received, paid, sent, got, balance, open }], transfers: [{ from_id, to_id, amount }] }` |
+| GET    | `/api/events/:id/goodies` | `{ articles: [{ id, name, price, variants, payer_id }], items: [{ id, article_id, name, variant, quantity, price, recipient_id, payer_id, handed_out, note, created_at }], payments: [{ id, from_id, to_id, amount, note, at }], paypal: { <personId>: name }, settlement, people: [{ id, name, display_name, real_name, guest, paypal }], balances: [{ person_id, received, paid, sent, got, balance, open }], transfers: [{ from_id, to_id, amount }] }` |
 | PUT    | `/api/events/:id/goodies/articles` | Artikel speichern `{ articles: [{ id?, name, price, variants, payer_id }] }` (immer vollständig; `variants` als Liste oder `"S, M, L"`) |
 | POST   | `/api/events/:id/goodies/items` | Eintrag `{ article_id?, name?, variant, quantity, price?, recipient_id, payer_id?, note? }` (`price`/`payer_id` fehlen = vom Artikel, `payer_id: null` = noch niemand) oder mehrere als `{ items: [...] }` |
 | PUT/DELETE | `/api/events/:id/goodies/items/:itemId` | Eintrag ändern (nur die angegebenen Felder) bzw. löschen |
 | POST   | `/api/events/:id/goodies/payments` | Erledigte Zahlung `{ from_id, to_id, amount, note? }` |
 | DELETE | `/api/events/:id/goodies/payments/:paymentId` | Zahlung löschen |
+| PUT    | `/api/events/:id/goodies/settings` | Abrechnungsart `{ settlement: "simplified" \| "direct" }` (wenigste Überweisungen bzw. direkt an den Zahler) |
 | PUT    | `/api/events/:id/goodies/paypal` | PayPal.me-Name `{ person_id, paypal }` (Name oder ganzer Link, leer = entfernen) |
 
 ### Sitzplan

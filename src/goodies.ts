@@ -45,7 +45,13 @@ export interface GoodiesRecord {
   items: GoodiesItem[];
   payments: GoodiesPayment[];
   paypal: Record<string, string>; // person ID → PayPal.me name
+  settlement?: Settlement;        // how the transfers are suggested; missing = 'simplified'
 }
+
+// simplified: fewest transfers overall (anyone may pay anyone);
+// direct: everybody pays whoever paid for their goodies, two people only net out between themselves
+export const SETTLEMENTS = ['simplified', 'direct'] as const;
+export type Settlement = typeof SETTLEMENTS[number];
 
 export type GoodiesData = Omit<GoodiesRecord, 'id' | 'event_id'>;
 
@@ -55,7 +61,7 @@ const MAX_ARTICLES = 50;
 const MAX_ITEMS = 2000;
 const MAX_PAYMENTS = 1000;
 
-const EMPTY: GoodiesData = { articles: [], items: [], payments: [], paypal: {} };
+const EMPTY: GoodiesData = { articles: [], items: [], payments: [], paypal: {}, settlement: 'simplified' };
 
 /* Validation
    ========================================================================== */
@@ -244,6 +250,33 @@ export function settle(balances: Pick<Balance, 'person_id' | 'balance'>[]): Tran
   return transfers;
 }
 
+// Direct: debts per pair of people (goodies of one paid by the other, minus payments between
+// them), netted within the pair. Same balances as settle(), just more transfers.
+export function settleDirect(data: Pick<GoodiesData, 'items' | 'payments'>): Transfer[] {
+  const pairs = new Map<string, { a: number; b: number; amount: number }>(); // amount > 0: a owes b
+  const add = (debtor: number, creditor: number, amount: number) => {
+    if (debtor === creditor || !amount) return;
+    const [a, b] = debtor < creditor ? [debtor, creditor] : [creditor, debtor];
+    const pair = pairs.get(`${a}:${b}`) ?? { a, b, amount: 0 };
+    pair.amount += debtor === a ? amount : -amount;
+    pairs.set(`${a}:${b}`, pair);
+  };
+  for (const item of data.items) {
+    if (item.payer_id != null) add(item.recipient_id, item.payer_id, item.price * item.quantity);
+  }
+  for (const payment of data.payments) add(payment.to_id, payment.from_id, payment.amount);
+  return [...pairs.values()]
+    .filter(p => p.amount !== 0)
+    .map(p => (p.amount > 0 ? { from_id: p.a, to_id: p.b, amount: p.amount } : { from_id: p.b, to_id: p.a, amount: -p.amount }))
+    .sort((x, y) => y.amount - x.amount || x.from_id - y.from_id || x.to_id - y.to_id);
+}
+
+export function normalizeSettlement(value: unknown): Settlement {
+  if (value === undefined) return 'simplified';
+  if (!SETTLEMENTS.includes(value as Settlement)) throw new ValidationError('Unbekannte Abrechnungsart');
+  return value as Settlement;
+}
+
 /* Storage
    ========================================================================== */
 
@@ -254,7 +287,7 @@ async function stored(eventId: number): Promise<GoodiesRecord | null> {
 export async function getGoodies(eventId: number): Promise<GoodiesData> {
   const record = await stored(eventId);
   return record
-    ? { articles: (record.articles ?? []).map(a => ({ ...a, payer_id: a.payer_id ?? null })), items: record.items ?? [], payments: record.payments ?? [], paypal: record.paypal ?? {} }
+    ? { articles: (record.articles ?? []).map(a => ({ ...a, payer_id: a.payer_id ?? null })), items: record.items ?? [], payments: record.payments ?? [], paypal: record.paypal ?? {}, settlement: record.settlement ?? 'simplified' }
     : structuredClone(EMPTY);
 }
 
@@ -311,10 +344,12 @@ export function peopleView(people: Attendee[], paypal: Record<string, string>): 
 // Everything the page needs: data, people and the computed settlement
 export function goodiesView(data: GoodiesData, people: Attendee[]) {
   const balances = computeBalances(data);
+  const settlement = data.settlement ?? 'simplified';
   return {
     ...data,
+    settlement,
     people: peopleView(people, data.paypal),
     balances,
-    transfers: settle(balances),
+    transfers: settlement === 'direct' ? settleDirect(data) : settle(balances),
   };
 }

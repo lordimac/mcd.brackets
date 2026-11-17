@@ -5,7 +5,7 @@ import { HttpError } from './http-error';
 import { getEvent, listPeople } from './lan-store';
 import { ValidationError } from './lan';
 import {
-  changeGoodies, getGoodies, goodiesView, normalizePaypal, validateArticles, validateItem, validatePayment, type GoodiesData,
+  changeGoodies, getGoodies, goodiesView, normalizePaypal, normalizeSettlement, validateArticles, validateItem, validatePayment, type GoodiesData,
 } from './goodies';
 
 // Goodies settlement (goodies.ts). Reading is public (everyone sees what they owe and can pay
@@ -112,6 +112,14 @@ goodiesRouter.delete('/events/:id/goodies/payments/:paymentId', async (req: Requ
     d.payments = d.payments.filter(p => p.id !== req.params.paymentId);
     if (d.payments.length === before) throw new HttpError(404, 'Zahlung nicht gefunden');
   }));
+  await respond(res, event.id, data);
+});
+
+// Body { settlement: 'simplified' | 'direct' }: how the transfers are suggested
+goodiesRouter.put('/events/:id/goodies/settings', async (req: Request<IdParams>, res: Response) => {
+  const event = await getEvent(idParam(req));
+  const settlement = normalizeSettlement(req.body?.settlement ?? null);
+  const data = await withLock(() => changeGoodies(event.id, d => { d.settlement = settlement; }));
   await respond(res, event.id, data);
 });
 

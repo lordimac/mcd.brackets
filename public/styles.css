@@ -8889,3 +8889,23 @@ body.single-event .event-bar {
     border-color: var(--warning-color);
     color: var(--warning-color);
 }
+
+/* Goodies: how transfers are suggested */
+.goodies-settlement-hint {
+    margin: 0 0 0.75rem;
+}
+
+@media (max-width: 640px) {
+    #goodiesSettleCard .section-actions {
+        flex-wrap: wrap;
+    }
+
+    .goodies-settlement {
+        width: 100%;
+    }
+
+    .goodies-settlement button {
+        flex: 1;
+        white-space: normal;
+    }
+}
