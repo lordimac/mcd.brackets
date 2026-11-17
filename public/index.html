@@ -52,6 +52,10 @@
         <symbol id="i-info" viewBox="0 0 24 24"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 11v6M12 7.5h.01"/></symbol>
         <symbol id="i-burger" viewBox="0 0 24 24"><path d="M4 10.5C4 6.4 7.6 4 12 4s8 2.4 8 6.5zM3 14c1.5 0 1.5-1 3-1s1.5 1 3 1 1.5-1 3-1 1.5 1 3 1 1.5-1 3-1 1.5 1 3 1M4 17.5h16V18a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 18z"/></symbol>
         <symbol id="i-more" viewBox="0 0 24 24"><path d="M5 12h.01M12 12h.01M19 12h.01" stroke-width="3"/></symbol>
+        <symbol id="i-user" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"/></symbol>
+        <symbol id="i-shirt" viewBox="0 0 24 24"><path d="M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z"/></symbol>
+        <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 5l7 7-7 7"/></symbol>
+        <symbol id="i-wallet" viewBox="0 0 24 24"><path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/></symbol>
         <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/></symbol>
     </svg>
 
@@ -71,6 +75,7 @@
                 <a href="#sitzplan" class="tab" data-view="seating"><svg class="icon"><use href="#i-seat"/></svg><span>Sitzplan</span></a>
                 <a href="#zeitplan" class="tab" data-view="timetable"><svg class="icon"><use href="#i-clock"/></svg><span>Zeitplan</span></a>
                 <a href="#burger" class="tab" data-view="burger"><svg class="icon"><use href="#i-burger"/></svg><span>Burger</span></a>
+                <a href="#goodies" class="tab tab-goodies" data-view="goodies"><svg class="icon"><use href="#i-shirt"/></svg><span>Goodies</span></a>
                 <a href="#turniere" class="tab" data-view="tournaments"><svg class="icon"><use href="#i-trophy"/></svg><span>Turniere</span></a>
                 <a href="#server" class="tab" data-view="servers"><svg class="icon"><use href="#i-server"/></svg><span>Server</span></a>
             </nav>
@@ -234,6 +239,116 @@
         </main>
 
         <!-- Game servers of an event: status and players for everyone, RCON/WebAdmin for admins -->
+        <!-- Goodies settlement (goodies.js): who gets what, who paid, who sends whom how much -->
+        <main class="layout view" id="view-goodies" style="display: none;">
+            <h1 class="view-title"><span class="tape-wrap"><span class="tape">Goodies</span></span></h1>
+            <section class="card only-picker">
+                <div class="section-header event-bar">
+                    <div class="event-picker">
+                        <h2><svg class="icon icon-accent"><use href="#i-flag"/></svg>Event</h2>
+                        <select id="goodiesEventSelect" onchange="selectGoodiesEvent(this.value)" aria-label="Event auswählen"></select>
+                    </div>
+                </div>
+            </section>
+
+            <section class="card" id="goodiesSettleCard">
+                <div class="section-header">
+                    <div>
+                        <h2><svg class="icon icon-accent"><use href="#i-wallet"/></svg>Wer zahlt wem</h2>
+                        <p class="section-subtitle" id="goodiesTotals"></p>
+                    </div>
+                    <div class="section-actions admin-only">
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="openGoodiesPayment()">
+                            <svg class="icon"><use href="#i-plus"/></svg><span>Zahlung eintragen</span>
+                        </button>
+                    </div>
+                </div>
+                <div id="goodiesTransfers" class="goodies-transfers"></div>
+                <details class="goodies-more" id="goodiesBalanceBox">
+                    <summary><svg class="icon"><use href="#i-chevron"/></svg>Stand je Person</summary>
+                    <div id="goodiesBalances"></div>
+                </details>
+                <details class="goodies-more" id="goodiesPaymentBox">
+                    <summary><svg class="icon"><use href="#i-chevron"/></svg><span id="goodiesPaymentTitle">Erledigte Zahlungen</span></summary>
+                    <div id="goodiesPayments"></div>
+                </details>
+            </section>
+
+            <section class="card" id="goodiesItemsCard">
+                <div class="section-header">
+                    <div>
+                        <h2><svg class="icon icon-accent"><use href="#i-shirt"/></svg>Wer bekommt was</h2>
+                        <p class="section-subtitle" id="goodiesItemSummary"></p>
+                    </div>
+                    <div class="section-actions admin-only">
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="openGoodiesImport()" title="Bestellliste aus Excel, Numbers oder Google Sheets einfügen">
+                            <svg class="icon"><use href="#i-list"/></svg><span>Tabelle einfügen</span>
+                        </button>
+                    </div>
+                </div>
+                <form id="goodiesAddForm" class="goodies-form goodies-add admin-only" autocomplete="off">
+                    <div class="form-group goodies-field-article">
+                        <label for="giNewArticle">Artikel</label>
+                        <select id="giNewArticle" onchange="applyGoodiesArticle('giNew')"></select>
+                        <input type="text" id="giNewName" maxlength="60" placeholder="Artikel" hidden aria-label="Artikel (frei)">
+                    </div>
+                    <div class="form-group goodies-field-variant">
+                        <label for="giNewVariant">Variante</label>
+                        <input type="text" id="giNewVariant" maxlength="30" list="giNewVariantList" placeholder="z.B. XL">
+                        <datalist id="giNewVariantList"></datalist>
+                    </div>
+                    <div class="form-group goodies-field-qty">
+                        <label for="giNewQuantity">Menge</label>
+                        <input type="number" id="giNewQuantity" min="1" max="100" value="1" required>
+                    </div>
+                    <div class="form-group goodies-field-price">
+                        <label for="giNewPrice">Preis/Stück</label>
+                        <input type="text" id="giNewPrice" inputmode="decimal" placeholder="0,00 €" required>
+                    </div>
+                    <div class="form-group goodies-field-person">
+                        <label for="giNewRecipient">Für wen</label>
+                        <select id="giNewRecipient" required></select>
+                    </div>
+                    <div class="form-group goodies-field-person">
+                        <label for="giNewPayer">Bezahlt von</label>
+                        <select id="giNewPayer"></select>
+                    </div>
+                    <button type="submit" class="btn btn-primary"><svg class="icon"><use href="#i-plus"/></svg><span>Eintragen</span></button>
+                </form>
+                <div class="list-toolbar">
+                    <div class="search-field">
+                        <svg class="icon"><use href="#i-search"/></svg>
+                        <input type="text" id="goodiesSearch" aria-keyshortcuts="/" title="Suchen (Taste /)" placeholder="Name, Nickname oder Artikel" oninput="renderGoodiesItems()" autocomplete="off">
+                    </div>
+                </div>
+                <div id="goodiesItems" class="goodies-people"></div>
+            </section>
+
+            <section class="card" id="goodiesOrderCard">
+                <div class="section-header">
+                    <div>
+                        <h2><svg class="icon icon-accent"><use href="#i-list"/></svg>Sammelbestellung</h2>
+                        <p class="section-subtitle">Stückzahl je Artikel und Variante — für die Bestellung beim Shop und zum Auspacken.</p>
+                    </div>
+                </div>
+                <div id="goodiesOrderSummary"></div>
+            </section>
+
+            <section class="card admin-only" id="goodiesArticlesCard">
+                <div class="section-header">
+                    <div>
+                        <h2><svg class="icon icon-accent"><use href="#i-settings"/></svg>Artikel</h2>
+                        <p class="section-subtitle">Was es gibt, mit Preis je Stück, Varianten (z.B. Größen) und wer es beim Shop bezahlt hat. Beim Eintragen werden Preis und Zahler übernommen und lassen sich ändern.</p>
+                    </div>
+                </div>
+                <div id="goodiesArticles" class="goodies-articles"></div>
+                <div class="form-actions goodies-article-actions">
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="addGoodiesArticleRow()"><svg class="icon"><use href="#i-plus"/></svg><span>Artikel hinzufügen</span></button>
+                    <button type="button" class="btn btn-primary btn-sm" id="goodiesArticlesSave" onclick="saveGoodiesArticles()" disabled>Speichern</button>
+                </div>
+            </section>
+        </main>
+
         <main class="layout view" id="view-servers" style="display: none;">
             <h1 class="view-title"><span class="tape-wrap"><span class="tape">Server</span></span></h1>
             <section class="card toolbar-card gs-toolbar">
@@ -797,6 +912,24 @@
                     </table>
                 </div>
                 <p class="memorial-note" id="memorialNote" style="display: none;"></p>
+            </section>
+
+            <!-- Guests: no IP addresses, no tournaments; burger and goodies yes -->
+            <section class="card guest-card" id="guestCard">
+                <div class="section-header">
+                    <div>
+                        <h2><svg class="icon icon-accent"><use href="#i-user"/></svg>Gäste</h2>
+                        <p class="section-subtitle" id="guestSummary"></p>
+                    </div>
+                </div>
+                <p class="field-hint guest-hint">Gäste bekommen keine IP-Adresse, keinen Sitzplatz und spielen in keinem Turnier mit. Burger bestellen und Goodies abrechnen geht trotzdem.</p>
+                <form id="addGuestForm" class="attendee-form guest-form admin-only">
+                    <input type="text" id="newGuestFirstName" placeholder="Vorname" autocomplete="off" aria-label="Vorname des Gastes">
+                    <input type="text" id="newGuestLastName" placeholder="Nachname" autocomplete="off" aria-label="Nachname des Gastes">
+                    <input type="text" id="newGuestNickname" placeholder="Nickname (optional)" autocomplete="off" spellcheck="false" aria-label="Nickname des Gastes">
+                    <button type="submit" class="btn btn-secondary"><svg class="icon"><use href="#i-plus"/></svg><span>Gast hinzufügen</span></button>
+                </form>
+                <ul class="guest-list" id="guestRows"></ul>
             </section>
         </main>
 
@@ -1449,10 +1582,131 @@
         </div>
     </div>
 
+    <div id="goodiesItemModal" class="modal">
+        <div class="modal-content">
+            <button type="button" class="close" onclick="closeModal('goodiesItemModal')" aria-label="Schließen"><svg class="icon"><use href="#i-x"/></svg></button>
+            <h2>Eintrag bearbeiten</h2>
+            <form id="goodiesEditForm" class="goodies-form" autocomplete="off">
+                <input type="hidden" id="giEditId">
+                <div class="form-group">
+                    <label for="giEditArticle">Artikel</label>
+                    <select id="giEditArticle" onchange="applyGoodiesArticle('giEdit')"></select>
+                    <input type="text" id="giEditName" maxlength="60" placeholder="Artikel" hidden aria-label="Artikel (frei)">
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="giEditVariant">Variante</label>
+                        <input type="text" id="giEditVariant" maxlength="30" list="giEditVariantList">
+                        <datalist id="giEditVariantList"></datalist>
+                    </div>
+                    <div class="form-group">
+                        <label for="giEditQuantity">Menge</label>
+                        <input type="number" id="giEditQuantity" min="1" max="100" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="giEditPrice">Preis/Stück</label>
+                        <input type="text" id="giEditPrice" inputmode="decimal" required>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="giEditRecipient">Für wen</label>
+                        <select id="giEditRecipient" required></select>
+                    </div>
+                    <div class="form-group">
+                        <label for="giEditPayer">Bezahlt von</label>
+                        <select id="giEditPayer"></select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="giEditNote">Notiz</label>
+                    <input type="text" id="giEditNote" maxlength="200">
+                </div>
+                <label class="toggle">
+                    <input type="checkbox" id="giEditHandedOut">
+                    <span>Ausgegeben <span class="label-hint">hat das Goodie schon bekommen</span></span>
+                </label>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-ghost" onclick="closeModal('goodiesItemModal')">Abbrechen</button>
+                    <button type="submit" class="btn btn-primary">Speichern</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="goodiesImportModal" class="modal">
+        <div class="modal-content bulk-modal">
+            <button type="button" class="close" onclick="closeModal('goodiesImportModal')" aria-label="Schließen"><svg class="icon"><use href="#i-x"/></svg></button>
+            <h2>Bestellliste einfügen</h2>
+            <p class="match-info-text">Tabelle aus Excel, Numbers oder Google Sheets kopieren und hier einfügen: vorne der Name, dahinter eine Spalte je Artikel mit den Größen, optional eine Spalte mit der Anzahl. Die Spalten werden über die Größen dem passenden Artikel zugeordnet (änderbar). Mehrere Stück mit <code>+</code> (<code>XL + XL</code>, <code>XL+2XL</code>) oder <code>2x XL</code>; leer oder <code>-</code> = nichts. <code>2XL</code> und <code>XXL</code> gelten als gleich. Preis und „Bezahlt von“ kommen vom Artikel.</p>
+            <div class="form-group">
+                <textarea id="goodiesImportText" rows="8" spellcheck="false" placeholder="Moritz Heine&#9;L+L&#9;-&#9;L&#10;Sven Lohfink&#9;XL&#9;-&#9;-"></textarea>
+            </div>
+            <div id="goodiesImportPreview" class="bulk-preview"></div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-ghost" onclick="closeModal('goodiesImportModal')">Abbrechen</button>
+                <button type="button" class="btn btn-primary" id="goodiesImportButton" onclick="runGoodiesImport()" disabled><span class="btn-label">Eintragen</span></button>
+            </div>
+        </div>
+    </div>
+
+    <div id="goodiesPaymentModal" class="modal">
+        <div class="modal-content goodies-small-modal">
+            <button type="button" class="close" onclick="closeModal('goodiesPaymentModal')" aria-label="Schließen"><svg class="icon"><use href="#i-x"/></svg></button>
+            <h2>Zahlung eintragen</h2>
+            <p class="field-hint">Geld, das schon geflossen ist (bar, PayPal, Überweisung). Es wird mit den offenen Beträgen verrechnet.</p>
+            <form id="goodiesPaymentForm" autocomplete="off">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="gpFrom">Von</label>
+                        <select id="gpFrom" required></select>
+                    </div>
+                    <div class="form-group">
+                        <label for="gpTo">An</label>
+                        <select id="gpTo" required></select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="gpAmount">Betrag</label>
+                        <input type="text" id="gpAmount" inputmode="decimal" placeholder="0,00 €" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="gpNote">Notiz <span class="label-hint">optional</span></label>
+                        <input type="text" id="gpNote" maxlength="200" placeholder="z.B. bar">
+                    </div>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-ghost" onclick="closeModal('goodiesPaymentModal')">Abbrechen</button>
+                    <button type="submit" class="btn btn-primary">Eintragen</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="goodiesPaypalModal" class="modal">
+        <div class="modal-content goodies-small-modal">
+            <button type="button" class="close" onclick="closeModal('goodiesPaypalModal')" aria-label="Schließen"><svg class="icon"><use href="#i-x"/></svg></button>
+            <h2>PayPal.me von <span id="gppName"></span></h2>
+            <p class="field-hint">Mit dem PayPal.me-Namen bekommt jede Zahlung an diese Person einen Knopf „Mit PayPal zahlen“, der den Betrag schon einträgt. Den Namen findet man in PayPal unter <em>Profil › PayPal.me</em>.</p>
+            <form id="goodiesPaypalForm" autocomplete="off">
+                <input type="hidden" id="gppPerson">
+                <div class="form-group">
+                    <label for="gppInput">paypal.me/</label>
+                    <input type="text" id="gppInput" maxlength="60" placeholder="Name oder ganzer Link" spellcheck="false">
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-ghost" onclick="closeModal('goodiesPaypalModal')">Abbrechen</button>
+                    <button type="submit" class="btn btn-primary">Speichern</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <div id="attendeeModal" class="modal">
         <div class="modal-content">
             <button type="button" class="close" onclick="closeModal('attendeeModal')" aria-label="Schließen"><svg class="icon"><use href="#i-x"/></svg></button>
-            <h2>Teilnehmer bearbeiten</h2>
+            <h2 id="attendeeModalTitle">Teilnehmer bearbeiten</h2>
             <form id="editAttendeeForm">
                 <input type="hidden" id="editAttendeeId">
                 <div class="form-group">
@@ -1464,7 +1718,7 @@
                     <input type="text" id="editLastName" autocomplete="off">
                 </div>
                 <div class="form-row">
-                    <div class="form-group">
+                    <div class="form-group attendee-only">
                         <label for="editClan">Clan</label>
                         <input type="text" id="editClan" autocomplete="off" spellcheck="false">
                     </div>
@@ -1474,11 +1728,11 @@
                     </div>
                 </div>
                 <p class="field-hint edit-preview">Anzeige: <strong id="editDisplayPreview"></strong></p>
-                <label class="toggle">
+                <label class="toggle attendee-only">
                     <input type="checkbox" id="editAdmin">
                     <span>Admin <span class="label-hint">von den IP-Adressen dieses Teilnehmers ohne Passwort angemeldet (nur mit IP-Erkennung)</span></span>
                 </label>
-                <p class="field-hint">Änderungen an Clan oder Nickname werden auch in den Turnieren des Events übernommen. IP-Adressen bleiben gleich, DNS-Namen folgen dem Nickname.</p>
+                <p class="field-hint attendee-only">Änderungen an Clan oder Nickname werden auch in den Turnieren des Events übernommen. IP-Adressen bleiben gleich, DNS-Namen folgen dem Nickname.</p>
                 <div class="modal-actions">
                     <button type="button" class="btn btn-ghost" onclick="closeModal('attendeeModal')">Abbrechen</button>
                     <button type="submit" class="btn btn-primary">Speichern</button>
@@ -1530,6 +1784,7 @@
     <script src="debug.js"></script>
     <script src="shares.js"></script>
     <script src="burger.js"></script>
+    <script src="goodies.js"></script>
     <script src="burger-labels.js"></script>
     <script src="gameservers.js"></script>
 </body>

@@ -8,7 +8,7 @@ Status: umgesetzt in `public/styles.css`, `public/index.html`, `public/welcome.j
 
 Eine LAN-Party besteht physisch aus Patchkabeln, Netzwerkschränken und Etiketten — die App druckt selbst schon DYMO-Etiketten für Burger. Daraus kommt alles:
 
-- **Farben = Kabelfarben.** Das Logo-Orange ist die orange Ader eines Netzwerkkabels; Blau, Grün, Braun und Weiß sind die übrigen Aderfarben, Violett, Gelb und Türkis übliche Patchkabel-Farben. Orange gehört allein der Hauptaktion und „du“ — kein Bereich ist orange. Alle Bereichsfarben sind feste Vollfarben, nichts ist gestreift.
+- **Farben = Kabelfarben.** Das Logo-Orange ist die orange Ader eines Netzwerkkabels; Blau, Grün, Braun und Weiß sind die übrigen Aderfarben, Violett, Gelb, Türkis und Pink übliche Patchkabel-Farben. Orange gehört allein der Hauptaktion und „du“ — kein Bereich ist orange. Alle Bereichsfarben sind feste Vollfarben, nichts ist gestreift.
 - **Fläche = Netzwerkschrank in RAL 7016 Anthrazitgrau.** Es gibt nur diesen einen dunklen Modus — keinen hellen Modus, keinen Schalter, kein `prefers-color-scheme`. Die Halle ist abends dunkel, und ein einziges Farbschema hält Oberfläche, Exporte und PDFs einfach.
 - **Ein markantes Element: Etikettenband.** Bereichstitel, eigener Nickname (oben rechts und auf dem Ausweis), Burger-Nummer sitzen auf geprägtem Label-Tape. Alles andere bleibt ruhig.
 
@@ -38,11 +38,12 @@ Adern — zwei Stufen: **Band** (Fläche, Etikettenband, Clan-Tag, Reiter-Linie;
 | Grün | `#2e7d38` (Reiter `#4fb35f`) | `#7fd18c` | Sitzplan |
 | Braun | `#7a4a26` (Reiter `#b98251`) | `#d9a77c` | Burger |
 | Türkis | `#0d7680` (Reiter `#2fb3be`) | `#86d9df` | Server |
+| Pink | `#b0306a` (Reiter `#e05a96`) | `#f2a0c4` | Goodies |
 
 Status (Punkt / Text): ok `#5cc06c` / `#7fd18c`, Warnung `#e0b52e` / `#e8c25a`, Fehler `#ff6b5e` / `#ffa49c`.
 
 Regeln:
-- Auf Orange und Gelb steht `#1d2023`, nicht Weiß (Weiß auf `#ff4500` hat nur 3.4:1). Auf Blau, Grün, Braun, Türkis steht `#f7f8f5` (Türkis 5:1).
+- Auf Orange und Gelb steht `#1d2023`, nicht Weiß (Weiß auf `#ff4500` hat nur 3.4:1). Auf Blau, Grün, Braun, Türkis, Pink steht `#f7f8f5` (Türkis 5:1).
 - Kein reines Schwarz und kein fast-schwarzer Seitengrund: die Seite ist anthrazitgrau, nur das Panel ist dunkler.
 - Status immer mit Symbol + Text (wie Port-LEDs: Punkt, Halbkreis, Ring), nie nur Farbe.
 - Nur hex/rgba — html2canvas kann kein `color-mix()`/`oklch()`.
@@ -58,6 +59,7 @@ Regeln:
 | Burger | Braun | `#7a4a26` | `#b98251` | `#d9a77c` |
 | Turniere | Gelb | `#f2c418` (Schrift `#1d2023`) | `#e6bb1e` | `#f0d36a` |
 | Server | Türkis | `#0d7680` | `#2fb3be` | `#86d9df` |
+| Goodies | Pink | `#b0306a` | `#e05a96` | `#f2a0c4` |
 
 Keine gestreiften Farben — weder auf Reitern noch auf dem Etikettenband.
 
@@ -123,6 +125,7 @@ Mobil (< 520 px): Reiter nur als Icons mit `aria-label`, Ausweis über den Check
 - **Sitzplan:** Raum als Fläche mit 20-px-Raster, Wände 3 px in `--ink-2`, Tür als Lücke mit gestricheltem Schwenkbogen. Tische 72 × 44 mit Platznummer und Nickname, Stühle als graue Balken. Eigener Platz orange umrandet, Suchtreffer grün, freie Tische gestrichelt. Daneben Suche, „Ohne Platz“ und Legende.
 - **Zeitplan:** Tage als Umschalter (aktiver Tag hell mit violetter Unterkante). Einträge an einem senkrechten Kabelstrang, der Knoten in der Farbe der Kategorie (Essen Braun, Programm Grün, Turnier Gelb, Sonstiges Grau), Kategorie zusätzlich als Text-Tag. „Jetzt“ als kleines orangefarbenes Etikett mit Linie; Vergangenes in `--ink-2`.
 - **Burger:** Links der Burger als gestapelte Schichten, die sich beim Wählen sofort ändern, darunter Zusammenfassung, Hinweis und „Burger bestellen“. Rechts Kategorien mit Optionen als 44-px-Schaltern (gewählt = braunes Band, nicht verfügbar = durchgestrichen). Bestellnummern als braunes Etikett, Status als Text.
+- **Goodies:** Oben „Wer zahlt wem“ als Liste von Überweisungen (Name → Name, Betrag groß in der Display-Schrift; „Mit PayPal zahlen“ für den Zahlenden orange, sonst sekundär; eigene Zeilen mit orangem Rahmen). Darunter je Person ein Block mit ihren Goodies, Größe als pinkfarbenes Umriss-Etikett, „noch nicht bezahlt“ in `--warning-color`, Haken „ausgegeben“ grün. Namen sind hier Klarnamen, nicht Nicknames.
 - **Server:** Zwei Modi wie im Sitzplan: „Ansehen“ (Live-Tafel für alle) und „Verwalten“ (Admins). Die Server sind nach Spiel gruppiert: oben in der Werkzeugleiste je Spiel eine Zeile wie an einem Patchfeld (Original-Icon, Spielname, „6 Server · 12 Spieler“, rechts die Server als neutrale Chips mit Spielerzahl — fett, sobald jemand spielt, offline in `--warning-color`), in der Liste je Spiel eine Überschrift mit Icon über seinen Karten. Je Gameserver eine Karte: Name als Überschrift, darunter das Spiel als neutrales Text-Etikett (Kurzname, ohne Icon — das Icon steht nur an der Rubrik) und die Adresse in Mono. Hauptaktion der Karte ist „Beitreten“ als Umriss-Button in Türkis (Bereichsfarbe, nicht Orange und nicht gefüllt — Orange bleibt die eine Hauptaktion). Spiele werden nie über eine Farbe unterschieden (die früheren Farbquadrate sind auf Wunsch des Users entfallen), sondern über ihr Original-Icon (`public/img/games/<spiel>.png`, unverändert und nicht eingefärbt, 32 px, nur in der Übersicht und an der Überschrift des Spiels, nie auf den einzelnen Karten — Wunsch des Users —, immer mit dem Spielnamen daneben); fehlt die Datei, steht ein neutrales Server-Symbol im Rahmen. Status als Punkt (online, grün) bzw. Ring (offline) mit Text; ausgefallene Server haben einen Rahmen in `--warning-color` und werden oben als „1 offline“ gezählt. Spieler als dichte Zebra-Tabelle, eigene Zeile `--me-row` mit „du“, Bots grau mit Tag. Im Modus „Verwalten“ kommen IPs, Containerzeile, Kicken (Icon Person mit Kreuz) und der Verwaltungsblock dazu; alle Buttons dort sind sekundär, die freie Konsole ist eingeklappt, Ausgabe in Mono auf `--panel`, Spalten bleiben erhalten (horizontal scrollen).
 - **Turniere:** Turniere als Auswahlkacheln (aktiv mit oranger Unterkante), Modus als Text-Tag (DE Orange, SE Blau, RR Braun). Bracket mit 2-px-Leitungen in `--line`, abgeschlossene Matches mit grüner Kante, offenes eigenes Match orange umrandet, eigene Zeile `--me-row`, ausgeloste Matches mit Tag „Los“. Spielzeit je Runde unter der Rundenüberschrift. Daneben die Gesamtwertung mit geteilten Plätzen („4–5“).
 

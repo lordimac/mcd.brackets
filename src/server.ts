@@ -16,6 +16,7 @@ import { burgerRouter } from './burger-routes';
 import { shareRouter } from './share-routes';
 import { gameServerRouter } from './gameserver-routes';
 import { dockhandRouter } from './dockhand-routes';
+import { goodiesRouter } from './goodies-routes';
 import { DockhandError } from './dockhand';
 import { resolveIpAdmin, welcomeRouter } from './welcome-routes';
 import { loadPoints, pointsRouter } from './points-routes';
@@ -143,6 +144,7 @@ app.use('/api', burgerRouter);
 app.use('/api', shareRouter);
 app.use('/api', gameServerRouter);
 app.use('/api', dockhandRouter);
+app.use('/api', goodiesRouter);
 app.use('/api', pointsRouter);
 app.use('/api', welcomeRouter);
 

@@ -2,7 +2,7 @@
 
 Ein vollständiges Turnierverwaltungssystem mit Event-basiertem Meisterschafts-Punktesystem, entwickelt mit [brackets-manager](https://www.npmjs.com/package/brackets-manager).
 
-**Version:** 0.36.0-beta
+**Version:** 0.37.0-beta
 
 ---
 
@@ -75,6 +75,7 @@ Ein vollständiges Turnierverwaltungssystem mit Event-basiertem Meisterschafts-P
 - **Anleitung (PDF)** — je eine Seite für Windows (10/11) und macOS (ab 13): feste IP-Adresse einstellen, mit Subnetzmaske, Gateway und DNS des Events in nachgezeichneten Dialogen, Test per ping und Rückstellung nach der LAN
 - **Exporte** — CSV (Excel), hosts-Datei (dnsmasq/Pi-hole), BIND-Zone
 - **SMB-Shares** — Teilnehmer geben Ordner ihrer PCs frei (SMB 3, je PC wählbar, optional Benutzer/Passwort). Festlegen kann das der per IP erkannte Teilnehmer selbst („+ Share“ in der eigenen Zeile bzw. auf der Willkommens-Seite) oder ein Admin. In der Liste steht unter der IP „1 Share“; ein Klick zeigt Pfad und Zugangsdaten mit **macOS** (öffnet den Finder per `smb://`), **Windows** (lädt ein kleines `.cmd`, das per `net use` verbindet und den Explorer öffnet — Windows-Browser öffnen SMB-Links nicht selbst) und „Pfad kopieren“ (`\\host\freigabe`). Benutzer und Passwort sieht jeder, der die Seite öffnet — nur Gast-Zugänge verwenden
+- **Gäste** — eigene Liste unter den Teilnehmern (Vorname, Nachname, Nickname optional): keine IP-Adressen, kein Sitzplatz, kein Turnier, aber Burger bestellen und in der Goodies-Abrechnung stehen. Werden beim Übernehmen aus einem anderen Event mitkopiert
 - **Automatische Spieler** — Turniere nehmen alle Teilnehmer ihres Events (per Nickname). Kommen Teilnehmer hinzu oder fallen weg, passen sich die Turniere des Events sofort an, ohne dass gespielte Ergebnisse verloren gehen:
   - *Noch nicht begonnen:* Neue Spieler bekommen einen freien Platz (BYE), Weggefallene machen ihren Platz frei; die Auslosung bleibt. Muss das Bracket größer oder kleiner werden, wird neu ausgelost
   - *Läuft schon:* Neue Spieler bekommen einen freien Platz in Runde 1, solange dessen Folge-Matches noch nicht gespielt sind; alle Ergebnisse bleiben erhalten. Bei Round Robin bekommen sie Matches gegen alle. Gibt es keinen freien Platz mehr, können sie nicht mehr einsteigen (Hinweis; „Neu auslosen“ nimmt alle auf, verwirft aber die Ergebnisse)
@@ -96,6 +97,15 @@ Ein vollständiges Turnierverwaltungssystem mit Event-basiertem Meisterschafts-P
 - Etiketten für den DYMO LabelWriter 450 (DYMO 11354, 57 × 32 mm): „Neue drucken“ druckt alle noch nicht gedruckten Bestellungen — Nummer, Name, Kurzfassung („Einfach, Fleisch, Blauschimmel, Zwiebeln, Bacon, extra viel Burgersauce“) und Anmerkung. Gedruckte werden nicht noch einmal gedruckt; einzeln nachdrucken oder zurück in die Warteschlange geht über die Liste. Mit „Neue automatisch drucken“ druckt der Grill-PC neue Bestellungen von selbst (ganz ohne Druckdialog mit Chrome `--kiosk-printing`)
 - Ausgabe wählbar: Bestellungen gehen an den **Etikettendrucker**, an die **Tablet-Anzeige** oder an beides (Schalter in der Bestellliste)
 - Tablet-Anzeige für den Grill: Vollbild mit den Spalten „Neu“ und „In Arbeit“, große Karten mit Nummer, Name, gezeichnetem Burger, Kurzfassung und Anmerkung; „Zubereiten“ → „Fertig“ (rückgängig über „Zuletzt fertig“). Ton bei neuen Bestellungen, länger als 20 Minuten wartende werden rot, der Bildschirm bleibt an. Das Tablet merkt sich die Anzeige und öffnet sie beim nächsten Aufruf von selbst. Teilnehmer sehen „beim Grill“ bzw. „fertig“
+
+### 👕 Goodies-Abrechnung (Reiter „Goodies“)
+- Wie Settle Up, nur für Hoodies, Shirts & Co.: Admins legen die **Artikel** an (Preis je Stück, Varianten wie `S, M, L, XL` oder `3 mm, 5 mm` und **wer ihn beim Shop bezahlt hat** — z. B. ein Orga-Mitglied oder die Vereinskasse, dafür einen Gast anlegen) und tragen ein, **wer was bekommt**. Preis und Zahler kommen vom Artikel und lassen sich je Eintrag ändern. Ohne Zahler zählt ein Eintrag noch nicht als Schuld
+- **Wer zahlt wem**: Das System verrechnet alles und schlägt die wenigsten Überweisungen vor („Frag → lordimac 80,00 €“). Mit hinterlegtem PayPal.me-Namen gibt es „Mit PayPal zahlen“ mit vorausgefülltem Betrag; „Bezahlt“ trägt die Zahlung ein (auch bar oder per Überweisung über „Zahlung eintragen“), erledigte Zahlungen lassen sich wieder löschen
+- **Tabelle einfügen**: Bestellliste aus Excel, Numbers oder Google Sheets kopieren und einfügen — vorne der Name, dahinter eine Spalte je Artikel mit den Größen (`XL + XL`, `XL+2XL`, `2x XL`; leer oder `-` = nichts; `2XL` = `XXL`, `5mm` = `5 mm`), optional eine Spalte mit der Anzahl. Die Vorschau ordnet jede Spalte zu (per Kopfzeile mit Artikelnamen, über die Größen — `5mm` passt zum Mauspad — oder in Reihenfolge; Zahlen-Spalten werden „Menge“; alles änderbar), findet die Personen über ihren Klarnamen und legt Unbekannte auf Wunsch als Gäste an; Größen, die es beim Artikel nicht gibt, und Personen, die schon Einträge haben (doppelter Import), werden markiert
+- „Stand je Person“ (Goodies, ausgelegt, gezahlt, erhalten), „Sammelbestellung“ (Stückzahl je Artikel und Variante für den Shop) und ein Haken „ausgegeben“ je Eintrag fürs Verteilen auf der LAN
+- Lesen ist öffentlich: Jeder sieht, was er bekommt und wem er was schuldet; per IP erkannte Geräte sehen das auch auf der Willkommens-Seite („Deine Goodies“). Der Reiter erscheint für Besucher erst, wenn es Einträge gibt
+- Auf der Goodies-Seite stehen alle mit Klarnamen („Vorname Nachname“) — es geht um Geld. Wer keinen Namen eingetragen hat, erscheint mit Nickname; bei gleichem Namen steht der Nickname in Klammern dahinter. Die Suche findet auch Nicknames
+- Personen mit Goodies-Einträgen oder Zahlungen lassen sich nicht löschen (sonst ginge Geld verloren)
 
 ### 🏅 Punktesystem & Rankings
 Platzierungsbasierte Punkte, gleich für alle Turniere. Unter „Turniere“ › „Punktesystem“ lassen sich die Punkte für Platz 1–10 und „ab Platz 11“ anpassen (nur Admin). Unter jedem Feld steht der Standardwert, „Standardwerte eintragen“ setzt alle zurück. Die Punkte werden bei jedem Abruf einer Rangliste aus der Platzierung berechnet. Eine Änderung gilt deshalb sofort für alle Turniere, auch für laufende und abgeschlossene.
@@ -292,6 +302,14 @@ Umgebungsvariablen:
 3. Teilnehmer mit Vorname, Name und Nickname hinzufügen — einzeln oder per „Mehrere auf einmal importieren…“ (`Nachname, Vorname // Clan-Nickname`, eine Zeile pro Teilnehmer). IPs und DNS-Namen werden automatisch vergeben, beim Import in der Reihenfolge der Nachnamen
 4. IP-Zettel als PDF drucken („IP-Zettel (PDF)“ für alle, Datei-Icon in der Zeile für einzelne) und bei Bedarf CSV, hosts-Datei oder BIND-Zone herunterladen
 5. Optional: DNS-Namen mit „OPNsense“ nach Unbound übertragen (siehe unten)
+6. Gäste (ohne PC im Netz, z. B. Partner, Helfer oder die Vereinskasse) unter „Gäste“ eintragen
+
+### Goodies abrechnen (Reiter „Goodies“)
+1. Unter „Artikel“ anlegen, was es gibt, mit Preis je Stück, Varianten (`S, M, L, XL`) und wer ihn bezahlt hat
+2. Bei „Wer bekommt was“ Artikel, Variante, Menge und „Für wen“ wählen und „Eintragen“ — Preis und „Bezahlt von“ kommen vom Artikel, Artikel und Preis bleiben für den nächsten Eintrag stehen
+3. Unter „Stand je Person“ bei denen, die Geld bekommen, den PayPal.me-Namen eintragen (Stift)
+   Oder alles auf einmal mit „Tabelle einfügen“ (Spalten: Name, dann je Artikel die Größen)
+4. „Wer zahlt wem“ zeigt die Überweisungen; ist eine erledigt, „Bezahlt“ klicken
 
 ### Sitzplan (Reiter „Sitzplan“)
 1. Event wählen, mit „+ Raum“ einen Raum anlegen (Breite und Tiefe in Feldern, unter „Raum bearbeiten“ änderbar)
@@ -434,8 +452,9 @@ Ist `ADMIN_PASSWORD` gesetzt, sind alle Anfragen außer GET/HEAD (und `GET /api/
 | POST   | `/api/events` | Event anlegen `{ name, domain?, dns_server?, netmask?, gateway?, ranges? }` (fehlende Werte vom letzten Event) |
 | PUT    | `/api/events/:id` | Event ändern (inkl. `logo`, `memorial: string[]`); Umbenennen wirkt auch auf die Turniere |
 | DELETE | `/api/events/:id` | Event mit Teilnehmern löschen (nur ohne Turniere) |
-| GET    | `/api/events/:id/attendees` | Teilnehmer inkl. `ips` und `dns_names` |
-| POST   | `/api/events/:id/attendees` | Teilnehmer anlegen `{ first_name, last_name, clan, nickname }` |
+| GET    | `/api/events/:id/attendees` | Teilnehmer inkl. `ips` und `dns_names` (ohne Gäste) |
+| GET    | `/api/events/:id/guests` | Gäste des Events (`guest: true`, keine `ips`) |
+| POST   | `/api/events/:id/attendees` | Teilnehmer anlegen `{ first_name, last_name, clan, nickname }`; mit `guest: true` einen Gast (Vorname oder Nickname genügt). Ändern/Löschen von Gästen wie bei Teilnehmern |
 | POST   | `/api/events/:id/attendees/import` | Teilnehmer aus `{ fromEventId }` übernehmen |
 | POST   | `/api/events/:id/attendees/bulk` | Bulk-Import `{ text, dryRun? }` — Zeilen `Nachname, Vorname // Clan-Nickname`; liefert pro Zeile Ergebnis oder Fehler, `dryRun: true` schreibt nichts |
 | PUT    | `/api/attendees/:id` | Teilnehmer ändern; neuer Clan/Nickname wird in den Turnieren übernommen |
@@ -443,6 +462,19 @@ Ist `ADMIN_PASSWORD` gesetzt, sind alle Anfragen außer GET/HEAD (und `GET /api/
 | PUT    | `/api/attendees/:id/shares` | SMB-Shares des Teilnehmers `{ shares: [{ id?, label, path, username, password, range_index }] }` (komplette Liste) — Admins oder der per IP erkannte Teilnehmer selbst |
 | PUT    | `/api/events/:id/shares` | Feste SMB-Shares des Events `{ shares: [{ id?, label, host, path, username, password }] }` (Admin) |
 | GET    | `/api/events/:id/export/csv\|hosts\|zone` | Export als CSV, hosts-Datei oder BIND-Zone |
+
+### Goodies
+Beträge in Cent. Lesen ist öffentlich, Ändern nur mit Admin-Sitzung. Personen = Teilnehmer und Gäste des Events (IDs).
+
+| Method | Endpoint | Beschreibung |
+|--------|----------|--------------|
+| GET    | `/api/events/:id/goodies` | `{ articles: [{ id, name, price, variants, payer_id }], items: [{ id, article_id, name, variant, quantity, price, recipient_id, payer_id, handed_out, note, created_at }], payments: [{ id, from_id, to_id, amount, note, at }], paypal: { <personId>: name }, people: [{ id, name, display_name, real_name, guest, paypal }], balances: [{ person_id, received, paid, sent, got, balance, open }], transfers: [{ from_id, to_id, amount }] }` |
+| PUT    | `/api/events/:id/goodies/articles` | Artikel speichern `{ articles: [{ id?, name, price, variants, payer_id }] }` (immer vollständig; `variants` als Liste oder `"S, M, L"`) |
+| POST   | `/api/events/:id/goodies/items` | Eintrag `{ article_id?, name?, variant, quantity, price?, recipient_id, payer_id?, note? }` (`price`/`payer_id` fehlen = vom Artikel, `payer_id: null` = noch niemand) oder mehrere als `{ items: [...] }` |
+| PUT/DELETE | `/api/events/:id/goodies/items/:itemId` | Eintrag ändern (nur die angegebenen Felder) bzw. löschen |
+| POST   | `/api/events/:id/goodies/payments` | Erledigte Zahlung `{ from_id, to_id, amount, note? }` |
+| DELETE | `/api/events/:id/goodies/payments/:paymentId` | Zahlung löschen |
+| PUT    | `/api/events/:id/goodies/paypal` | PayPal.me-Name `{ person_id, paypal }` (Name oder ganzer Link, leer = entfernen) |
 
 ### Sitzplan
 Lesen ist öffentlich, Ändern nur mit Admin-Sitzung. Ein Raum hat `width` × `height` Felder und `groups`: Tischreihen `{ id, type: "row", x, y, rotation: 0|90|180|270, length, sides: "both"|"one"|"none", numbering?: "forward"|"backward"|"around"|"around-back", start_label?: string }` und Flächen `{ id, type: "area", x, y, width, height, label }`; dazu `doors`: `{ id, side: "top"|"right"|"bottom"|"left", offset, width, swing: "in"|"out", hinge: "start"|"end" }`. Platz-Schlüssel `"<gruppe>.<b|f><index>"` (z.B. `g3.f2`). Antworten enthalten zusätzlich `layout` mit den Zellen jeder Gruppe, allen Plätzen (`key`, `number` = Reihenfolge, `label` = angezeigte Platznummer, `x`, `y`), Überlappungen und doppelten Nummern (`duplicates`).

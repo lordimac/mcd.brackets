@@ -41,6 +41,14 @@ export interface Attendee {
   slot: number;        // offset into every IP range
   admin?: boolean;     // logged in as admin by IP address (welcome-routes.ts); missing = no
   shares?: AttendeeShare[]; // SMB shares of the attendee's PCs (shares.ts); missing = none
+  guest?: boolean;     // guest: no IP addresses (slot -1), no tournaments, no seat; missing = no
+}
+
+// Guests are stored in the attendee table with this slot: they never match an IP address
+export const GUEST_SLOT = -1;
+
+export function isGuest(attendee: Pick<Attendee, 'guest'>): boolean {
+  return attendee.guest === true;
 }
 
 export interface AttendeeView extends Attendee {
@@ -288,11 +296,23 @@ export interface AttendeeInput {
   last_name?: unknown;
   nickname?: unknown;
   admin?: unknown;
+  guest?: unknown;
 }
 
-// Name shown everywhere and used as player name in tournaments: "Clan-Nickname" or just the nickname
-export function displayName(attendee: Pick<Attendee, 'clan' | 'nickname'>): string {
+// Name shown everywhere and used as player name in tournaments: "Clan-Nickname" or just the nickname.
+// Guests may have no nickname: then their first and last name.
+export function displayName(attendee: Pick<Attendee, 'clan' | 'nickname'> & Partial<Pick<Attendee, 'first_name' | 'last_name'>>): string {
+  if (!attendee.nickname) return `${attendee.first_name ?? ''} ${attendee.last_name ?? ''}`.trim();
   return attendee.clan ? `${attendee.clan}-${attendee.nickname}` : attendee.nickname;
+}
+
+// Guests: a name is enough (nickname or first name), no clan, no DNS name
+export function validateGuest(input: AttendeeInput): Pick<Attendee, 'first_name' | 'last_name' | 'clan' | 'nickname' | 'hostname'> {
+  const text = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
+  const guest = { first_name: text(input.first_name), last_name: text(input.last_name), clan: '', nickname: text(input.nickname), hostname: '' };
+  if (!guest.nickname && !guest.first_name) throw new ValidationError('Vorname oder Nickname fehlt');
+  if (displayName(guest).length > 60) throw new ValidationError('Name ist zu lang (max. 60 Zeichen)');
+  return guest;
 }
 
 export function validateAttendee(input: AttendeeInput): Pick<Attendee, 'first_name' | 'last_name' | 'clan' | 'nickname' | 'hostname'> {
@@ -330,11 +350,18 @@ export function parseBulkLine(text: string): { first_name: string; last_name: st
 }
 
 // Throws if nickname, display name or any derived DNS name collides with another attendee of the event
-export function assertUniqueAttendee(candidate: Pick<Attendee, 'clan' | 'nickname' | 'hostname'>, others: Attendee[]): void {
+// Guests only need a unique display name (burger orders and goodies are picked by name).
+export function assertUniqueAttendee(candidate: Pick<Attendee, 'clan' | 'nickname' | 'hostname'> & Partial<Pick<Attendee, 'first_name' | 'last_name' | 'guest'>>, others: Attendee[]): void {
   const nickname = candidate.nickname.toLowerCase();
   const display = displayName(candidate).toLowerCase();
   const names = new Set(hostnamesFor(candidate.hostname));
   for (const other of others) {
+    if (isGuest(candidate) || isGuest(other)) {
+      if (displayName(other).toLowerCase() === display) {
+        throw new ValidationError(`„${displayName(candidate)}“ gibt es in diesem Event schon (${isGuest(other) ? 'Gast' : 'Teilnehmer'})`);
+      }
+      continue;
+    }
     if (other.nickname.toLowerCase() === nickname) {
       throw new ValidationError(`Nickname „${candidate.nickname}“ ist in diesem Event schon vergeben (${displayName(other)})`);
     }
@@ -358,16 +385,19 @@ export function nextFreeSlot(usedSlots: number[], capacity: number): number | nu
 }
 
 export function describeAttendee(event: LanEvent, attendee: Attendee): AttendeeView {
+  if (isGuest(attendee)) {
+    return { ...attendee, clan: '', admin: false, shares: [], guest: true, display_name: displayName(attendee), ips: [], dns_names: [] };
+  }
   const ips = event.ranges.map(range => formatIPv4(parseIPv4(range.start)! + attendee.slot));
   const dnsNames = hostnamesFor(attendee.hostname).map(name => (event.domain ? `${name}.${event.domain}` : name));
-  return { ...attendee, clan: attendee.clan ?? '', admin: attendee.admin === true, shares: attendee.shares ?? [], display_name: displayName({ clan: attendee.clan ?? '', nickname: attendee.nickname }), ips, dns_names: dnsNames };
+  return { ...attendee, clan: attendee.clan ?? '', admin: attendee.admin === true, shares: attendee.shares ?? [], guest: false, display_name: displayName({ clan: attendee.clan ?? '', nickname: attendee.nickname }), ips, dns_names: dnsNames };
 }
 
 /* Exports
    ========================================================================== */
 
 function sortedViews(event: LanEvent, attendees: Attendee[]): AttendeeView[] {
-  return [...attendees].sort((a, b) => a.slot - b.slot).map(a => describeAttendee(event, a));
+  return attendees.filter(a => !isGuest(a)).sort((a, b) => a.slot - b.slot).map(a => describeAttendee(event, a));
 }
 
 function csvCell(value: string): string {

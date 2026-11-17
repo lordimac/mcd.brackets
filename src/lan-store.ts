@@ -3,18 +3,21 @@ import type { Participant, Stage } from 'brackets-model';
 import { getAppStore, getStorage } from './db';
 import {
   assertNotMemorial, assertUniqueAttendee, AttendeeInput, DEFAULT_RANGES, describeAttendee, displayName, eventCapacity,
-  EventSettingsInput, nextFreeSlot, parseBulkLine, validateAttendee, validateEventSettings, ValidationError,
+  EventSettingsInput, GUEST_SLOT, isGuest, nextFreeSlot, parseBulkLine, validateAttendee, validateEventSettings, validateGuest, ValidationError,
   type Attendee, type AttendeeView, type LanEvent,
 } from './lan';
 import { HttpError } from './http-error';
 import { detachOrphanedOrders } from './burger';
 import { validateAttendeeShares, validateEventShares, type AttendeeShare, type EventShare } from './shares';
 import { copyServers } from './gameservers';
+import { goodiesPeople } from './goodies';
 
 type StageWithEvent = Stage & { event_name?: string };
 
 export interface EventSummary extends LanEvent {
   attendee_count: number;
+  guest_count: number;
+  goodies_count: number; // entries of the goodies settlement (the tab shows for visitors only with entries)
   capacity: number;
   tournament_count: number;
 }
@@ -37,8 +40,18 @@ export async function findEventByName(name: string): Promise<LanEvent | null> {
   return (await allEvents()).find(e => e.name === name) ?? null;
 }
 
-export async function listAttendees(eventId: number): Promise<Attendee[]> {
+// Everybody of an event: attendees and guests (they share the attendee table)
+export async function listPeople(eventId: number): Promise<Attendee[]> {
   return (await getAppStore().select('attendee', { event_id: eventId })) ?? [];
+}
+
+// Attendees with IP addresses, tournaments and seats — without guests
+export async function listAttendees(eventId: number): Promise<Attendee[]> {
+  return (await listPeople(eventId)).filter(a => !isGuest(a));
+}
+
+export async function listGuests(eventId: number): Promise<Attendee[]> {
+  return (await listPeople(eventId)).filter(isGuest);
 }
 
 async function assertUniqueEventName(name: string, exceptId?: number): Promise<void> {
@@ -51,14 +64,17 @@ async function assertUniqueEventName(name: string, exceptId?: number): Promise<v
    ========================================================================== */
 
 export async function listEventSummaries(): Promise<EventSummary[]> {
-  const [events, attendees, stages] = await Promise.all([
+  const [events, attendees, stages, goodies] = await Promise.all([
     allEvents(),
     getAppStore().select('attendee').then(a => a ?? []),
     allStages(),
+    getAppStore().select('goodies').then(g => g ?? []),
   ]);
   return events.map(event => ({
     ...event,
-    attendee_count: attendees.filter(a => a.event_id === event.id).length,
+    attendee_count: attendees.filter(a => a.event_id === event.id && !isGuest(a)).length,
+    guest_count: attendees.filter(a => a.event_id === event.id && isGuest(a)).length,
+    goodies_count: goodies.find(g => g.event_id === event.id)?.items?.length ?? 0,
     capacity: eventCapacity(event),
     tournament_count: stages.filter(s => s.event_name === event.name).length,
   }));
@@ -151,6 +167,7 @@ export async function deleteEvent(id: number): Promise<void> {
   await getAppStore().delete('timetable', { event_id: id });
   await getAppStore().delete('burger_order', { event_id: id });
   await getAppStore().delete('gameservers', { event_id: id });
+  await getAppStore().delete('goodies', { event_id: id });
   await getAppStore().delete('event', { id });
 }
 
@@ -164,12 +181,26 @@ export async function listAttendeeViews(eventId: number): Promise<AttendeeView[]
     .map(a => describeAttendee(event, a));
 }
 
+export async function listGuestViews(eventId: number): Promise<AttendeeView[]> {
+  const event = await getEvent(eventId);
+  return (await listGuests(eventId))
+    .map(a => describeAttendee(event, a))
+    .sort((a, b) => a.display_name.localeCompare(b.display_name, 'de', { sensitivity: 'base' }));
+}
+
+// Guests (input.guest === true) get no slot, no admin flag and take part in no tournament
 export async function addAttendee(eventId: number, input: AttendeeInput): Promise<AttendeeView> {
   const event = await getEvent(eventId);
+  if (input.guest === true) {
+    const guest = { ...validateGuest(input), guest: true };
+    assertUniqueAttendee(guest, await listPeople(eventId));
+    const id = await getAppStore().insert('attendee', { ...guest, admin: false, event_id: eventId, slot: GUEST_SLOT });
+    return describeAttendee(event, { ...guest, admin: false, id, event_id: eventId, slot: GUEST_SLOT });
+  }
   const attendee = validateAttendee(input);
-  const others = await listAttendees(eventId);
-  assertUniqueAttendee(attendee, others);
+  assertUniqueAttendee(attendee, await listPeople(eventId));
   assertNotMemorial(displayName(attendee), event.memorial);
+  const others = await listAttendees(eventId);
 
   const slot = nextFreeSlot(others.map(a => a.slot), eventCapacity(event));
   if (slot === null) throw new ValidationError(`Alle ${eventCapacity(event)} Plätze sind vergeben — IP-Bereiche vergrößern`);
@@ -184,9 +215,18 @@ export async function updateAttendee(id: number, input: AttendeeInput): Promise<
   const existing = await getAppStore().select('attendee', id);
   if (!existing) throw new HttpError(404, 'Teilnehmer nicht gefunden');
   const event = await getEvent(existing.event_id);
+  const others = (await listPeople(event.id)).filter(a => a.id !== id);
+
+  // A guest stays a guest (and an attendee an attendee)
+  if (isGuest(existing)) {
+    const changes = validateGuest(input);
+    assertUniqueAttendee({ ...changes, guest: true }, others);
+    const updated: Attendee = { ...existing, ...changes };
+    await getAppStore().update('attendee', id, updated);
+    return describeAttendee(event, updated);
+  }
 
   const changes = validateAttendee(input);
-  const others = (await listAttendees(event.id)).filter(a => a.id !== id);
   assertUniqueAttendee(changes, others);
   assertNotMemorial(displayName(changes), event.memorial);
 
@@ -205,6 +245,7 @@ export async function updateAttendee(id: number, input: AttendeeInput): Promise<
 export async function setAttendeeShares(id: number, input: unknown): Promise<AttendeeShare[]> {
   const existing = await getAppStore().select('attendee', id);
   if (!existing) throw new HttpError(404, 'Teilnehmer nicht gefunden');
+  if (isGuest(existing)) throw new ValidationError('Gäste haben keine PCs im Netz und damit keine Shares');
   const shares = validateAttendeeShares(input);
   await getAppStore().update('attendee', id, { ...existing, shares });
   return shares;
@@ -213,6 +254,10 @@ export async function setAttendeeShares(id: number, input: unknown): Promise<Att
 export async function deleteAttendee(id: number): Promise<void> {
   const existing = await getAppStore().select('attendee', id);
   if (!existing) throw new HttpError(404, 'Teilnehmer nicht gefunden');
+  // Money must not get lost: IDs are reused, a new person would inherit the entries
+  if ((await goodiesPeople(existing.event_id)).has(id)) {
+    throw new HttpError(409, `${displayName({ ...existing, clan: existing.clan ?? '' })} hat noch Goodies-Einträge oder Zahlungen — diese zuerst in der Goodies-Abrechnung löschen`);
+  }
   await getAppStore().delete('attendee', { id });
   // Free their seat in the seating plan
   for (const room of (await getAppStore().select('room', { event_id: existing.event_id })) ?? []) {
@@ -227,17 +272,18 @@ export async function deleteAttendee(id: number): Promise<void> {
 export async function importAttendees(eventId: number, fromEventId: number): Promise<{ added: number; skipped: string[] }> {
   if (eventId === fromEventId) throw new ValidationError('Quelle und Ziel sind dasselbe Event');
   await getEvent(fromEventId);
-  const source = (await listAttendees(fromEventId)).sort((a, b) => a.slot - b.slot);
+  // Attendees in address order, then the guests
+  const source = (await listPeople(fromEventId)).sort((a, b) => Number(isGuest(a)) - Number(isGuest(b)) || a.slot - b.slot);
 
   let added = 0;
   const skipped: string[] = [];
   for (const attendee of source) {
     try {
-      await addAttendee(eventId, { ...attendee, admin: false });
+      await addAttendee(eventId, { ...attendee, admin: false, guest: isGuest(attendee) });
       added++;
     } catch (error) {
       if (!(error instanceof ValidationError)) throw error;
-      skipped.push(displayName({ clan: attendee.clan ?? '', nickname: attendee.nickname }));
+      skipped.push(displayName({ ...attendee, clan: attendee.clan ?? '' }));
     }
   }
   return { added, skipped };
@@ -271,6 +317,7 @@ export async function importBulk(eventId: number, text: string, dryRun: boolean)
   const event = await getEvent(eventId);
   const capacity = eventCapacity(event);
   const known = await listAttendees(eventId);
+  const guests = await listGuests(eventId);
   const accepted: { line: number; text: string; attendee: ReturnType<typeof validateAttendee> }[] = [];
   const rejected: BulkRow[] = [];
 
@@ -279,7 +326,7 @@ export async function importBulk(eventId: number, text: string, dryRun: boolean)
     if (!line) continue;
     try {
       const attendee = validateAttendee(parseBulkLine(line));
-      assertUniqueAttendee(attendee, [...known, ...accepted.map(a => ({ ...a.attendee, id: -1, event_id: eventId, slot: -1 }))]);
+      assertUniqueAttendee(attendee, [...guests, ...known, ...accepted.map(a => ({ ...a.attendee, id: -1, event_id: eventId, slot: -1 }))]);
       assertNotMemorial(displayName(attendee), event.memorial);
       accepted.push({ line: index + 1, text: line, attendee });
     } catch (error) {

@@ -5,10 +5,12 @@ const RANGE_LABELS = ['Haupt-PC', 'Zweiter PC', 'Dritter PC'];
 
 let currentEventId = null;
 let attendees = [];
+let guests = []; // no IP addresses, no tournaments (burger and goodies yes)
 
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('eventSettingsForm').addEventListener('submit', saveEventSettings);
     document.getElementById('addAttendeeForm').addEventListener('submit', addAttendee);
+    document.getElementById('addGuestForm').addEventListener('submit', addGuest);
     document.getElementById('editAttendeeForm').addEventListener('submit', saveAttendee);
     document.getElementById('newEventForm').addEventListener('submit', createLanEvent);
     document.getElementById('rangeInputs').addEventListener('input', updateCapacityHint);
@@ -16,7 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('#attendeeHead th.sortable').forEach(th => {
         th.querySelector('.sort-btn').addEventListener('click', () => sortAttendeesBy(th.dataset.sort));
     });
-    for (const id of ['editClan', 'editNickname']) {
+    for (const id of ['editClan', 'editNickname', 'editFirstName', 'editLastName']) {
         document.getElementById(id).addEventListener('input', updateEditDisplayPreview);
     }
 });
@@ -65,6 +67,7 @@ function renderEventSelect() {
     const event = currentEvent();
     document.getElementById('eventSettingsForm').style.display = event ? '' : 'none';
     document.getElementById('addAttendeeForm').style.display = event ? '' : 'none';
+    document.getElementById('guestCard').style.display = event ? '' : 'none';
     document.getElementById('deleteEventBtn').style.display = event ? '' : 'none';
     document.getElementById('exportActions').style.display = event ? '' : 'none';
 
@@ -196,7 +199,7 @@ async function createLanEvent(e) {
 async function deleteLanEvent() {
     const event = currentEvent();
     if (!event) return;
-    const message = `„${event.name}“ wird mit allem gelöscht, was daran hängt: ${event.attendee_count} Teilnehmer, alle Sitzpläne, der Zeitplan und alle Burger-Bestellungen. Das lässt sich nicht rückgängig machen, außer über ein Backup.`;
+    const message = `„${event.name}“ wird mit allem gelöscht, was daran hängt: ${event.attendee_count} Teilnehmer, ${event.guest_count ?? 0} Gäste, alle Sitzpläne, der Zeitplan, alle Burger-Bestellungen und die Goodies-Abrechnung. Das lässt sich nicht rückgängig machen, außer über ein Backup.`;
     if (!(await confirmDialog(message, { title: 'Event löschen?', confirmLabel: 'Event löschen', typeToConfirm: event.name }))) return;
     try {
         await apiFetch(`/events/${event.id}`, { method: 'DELETE' });
@@ -257,16 +260,81 @@ function dnsHtml(name) {
 }
 
 function updateEditDisplayPreview() {
-    const clan = document.getElementById('editClan').value.trim();
+    const guest = document.getElementById('attendeeModal').classList.contains('is-guest');
+    const clan = guest ? '' : document.getElementById('editClan').value.trim();
     const nickname = document.getElementById('editNickname').value.trim();
-    document.getElementById('editDisplayPreview').textContent = clan ? `${clan}-${nickname}` : nickname;
+    const fullName = `${document.getElementById('editFirstName').value.trim()} ${document.getElementById('editLastName').value.trim()}`.trim();
+    document.getElementById('editDisplayPreview').textContent = !nickname && guest ? fullName : clan ? `${clan}-${nickname}` : nickname;
 }
 
 async function loadAttendees() {
-    attendees = currentEventId != null ? await apiFetch(`/events/${currentEventId}/attendees`).catch(() => []) : [];
+    [attendees, guests] = currentEventId != null
+        ? await Promise.all([
+            apiFetch(`/events/${currentEventId}/attendees`).catch(() => []),
+            apiFetch(`/events/${currentEventId}/guests`).catch(() => []),
+        ])
+        : [[], []];
     refreshFooter();
     renderClanFilter();
     renderAttendees();
+    renderGuests();
+}
+
+/* Guests */
+
+function renderGuests() {
+    const list = document.getElementById('guestRows');
+    const summary = document.getElementById('guestSummary');
+    summary.textContent = guests.length ? `${guests.length} ${guests.length === 1 ? 'Gast' : 'Gäste'}` : '';
+    if (!guests.length) {
+        list.innerHTML = `<li class="guest-empty muted">Noch keine Gäste.</li>`;
+        return;
+    }
+    list.innerHTML = guests.map(g => {
+        const fullName = [g.first_name, g.last_name].filter(Boolean).join(' ');
+        const extra = g.nickname && fullName ? fullName : '';
+        return `
+        <li class="guest-row${isMe(g.id) ? ' is-me' : ''}">
+            <span class="guest-name"><strong>${escapeHtml(g.display_name)}</strong>${extra ? ` <span class="muted">${escapeHtml(extra)}</span>` : ''}</span>
+            <span class="guest-actions admin-only">
+                <button class="btn btn-ghost btn-icon" onclick="editAttendee(${g.id})" title="${escapeHtml(g.display_name)} bearbeiten" aria-label="${escapeHtml(g.display_name)} bearbeiten">${icon('edit')}</button>
+                ${actionMenu([
+                    { icon: 'trash', label: 'Löschen', onclick: `deleteGuest(${g.id})`, adminOnly: true, danger: true },
+                ], `Weitere Aktionen für ${escapeHtml(g.display_name)}`)}
+            </span>
+        </li>`;
+    }).join('');
+}
+
+async function addGuest(e) {
+    e.preventDefault();
+    const fields = ['newGuestFirstName', 'newGuestLastName', 'newGuestNickname'].map(id => document.getElementById(id));
+    try {
+        await apiFetch(`/events/${currentEventId}/attendees`, {
+            method: 'POST',
+            body: JSON.stringify({ first_name: fields[0].value, last_name: fields[1].value, nickname: fields[2].value, guest: true })
+        });
+        fields.forEach(f => { f.value = ''; });
+        fields[0].focus();
+        await loadEvents();
+        renderEventSelect();
+        await loadAttendees();
+    } catch (error) {
+        notify('❌ ' + error.message);
+    }
+}
+
+async function deleteGuest(id) {
+    const guest = guests.find(g => g.id === id);
+    if (!guest || !(await confirmDialog(`Gast „${guest.display_name}“ löschen?`, { title: 'Gast löschen?' }))) return;
+    try {
+        await apiFetch(`/attendees/${id}`, { method: 'DELETE' });
+        await loadEvents();
+        renderEventSelect();
+        await loadAttendees();
+    } catch (error) {
+        notify('❌ ' + error.message);
+    }
 }
 
 // Clan filter: all, without clan, and every clan of the event (keeps the selection if still present)
@@ -436,8 +504,13 @@ async function addAttendee(e) {
 }
 
 function editAttendee(id) {
-    const attendee = attendees.find(a => a.id === id);
+    const attendee = attendees.find(a => a.id === id) || guests.find(g => g.id === id);
     if (!attendee) return;
+    // Guests: no clan, no admin, nickname optional
+    const guest = !!attendee.guest;
+    document.getElementById('attendeeModal').classList.toggle('is-guest', guest);
+    document.getElementById('attendeeModalTitle').textContent = guest ? 'Gast bearbeiten' : 'Teilnehmer bearbeiten';
+    document.getElementById('editNickname').required = !guest;
     document.getElementById('editAttendeeId').value = id;
     document.getElementById('editFirstName').value = attendee.first_name;
     document.getElementById('editLastName').value = attendee.last_name;

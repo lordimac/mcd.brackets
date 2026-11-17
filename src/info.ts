@@ -114,7 +114,7 @@ export async function getStats(): Promise<Stats> {
   ]);
   return {
     events: events?.length ?? 0,
-    attendees: attendees?.length ?? 0,
+    attendees: (attendees ?? []).filter(a => !a.guest).length,
     tournaments: stages?.length ?? 0,
     matches_played: (matches ?? []).filter(isPlayedMatch).length,
   };

@@ -96,7 +96,14 @@ async function selectBurgerEvent(id) {
 }
 
 async function loadBurgerEventData() {
-    burgerAttendees = currentEventId != null ? await apiFetch(`/events/${currentEventId}/attendees`).catch(() => []) : [];
+    // Guests can order too (they come after the attendees in the list)
+    const [players, guestList] = currentEventId != null
+        ? await Promise.all([
+            apiFetch(`/events/${currentEventId}/attendees`).catch(() => []),
+            apiFetch(`/events/${currentEventId}/guests`).catch(() => []),
+        ])
+        : [[], []];
+    burgerAttendees = [...players, ...guestList];
     burgerAttendees.sort((a, b) => a.display_name.localeCompare(b.display_name, 'de', { sensitivity: 'base' }));
     await loadBurgerOrders();
     renderBurgerWho();
@@ -316,10 +323,15 @@ function renderBurgerWho() {
     const meId = burgerMeId ?? (me?.status === 'identified' ? me.attendee.id : null);
     const previous = select.value;
     select.innerHTML = `<option value="">— bitte wählen —</option>`
-        + burgerAttendees.map(a => `<option value="${a.id}">${escapeHtml(a.display_name)}${a.id === meId ? ' (du)' : ''}</option>`).join('')
+        + burgerWhoOptions(burgerAttendees.filter(a => !a.guest), meId)
+        + (burgerAttendees.some(a => a.guest) ? `<optgroup label="Gäste">${burgerWhoOptions(burgerAttendees.filter(a => a.guest), meId)}</optgroup>` : '')
         + (isAdmin ? '<option value="__name__">Anderer Name …</option>' : '');
     select.value = [...select.options].some(o => o.value === previous) && previous ? previous : (meId != null ? String(meId) : '');
     updateBurgerWhoName();
+}
+
+function burgerWhoOptions(people, meId) {
+    return people.map(a => `<option value="${a.id}">${escapeHtml(a.display_name)}${a.id === meId ? ' (du)' : ''}</option>`).join('');
 }
 
 function updateBurgerWhoName() {

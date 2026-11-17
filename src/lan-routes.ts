@@ -6,7 +6,7 @@ import { exportBindZone, exportCsv, exportHosts } from './lan';
 import { syncEventStages } from './stage-sync';
 import {
   addAttendee, createEvent, deleteAttendee, deleteEvent, getEvent, importAttendees, importBulk,
-  listAttendees, listAttendeeViews, listEventSummaries, updateAttendee, updateEvent,
+  listAttendees, listAttendeeViews, listGuestViews, listEventSummaries, updateAttendee, updateEvent,
 } from './lan-store';
 
 export const lanRouter = Router();
@@ -66,6 +66,11 @@ lanRouter.delete('/events/:id', async (req: Request<IdParams>, res: Response) =>
 lanRouter.get('/events/:id/attendees', async (req: Request<IdParams>, res: Response) => {
   const views = await listAttendeeViews(idParam(req));
   res.json(isAdmin(req) ? views : views.map(({ admin: _admin, ...view }) => view));
+});
+
+// Guests: no IP addresses, no tournaments (added via POST /events/:id/attendees with guest: true)
+lanRouter.get('/events/:id/guests', async (req: Request<IdParams>, res: Response) => {
+  res.json(await listGuestViews(idParam(req)));
 });
 
 lanRouter.post('/events/:id/attendees', async (req: Request<IdParams>, res: Response) => {

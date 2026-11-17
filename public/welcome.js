@@ -70,7 +70,7 @@ function refreshMeHighlights() {
 async function showWelcomeView() {
     await Promise.all([loadWhoami(), loadEvents()]);
     renderWelcome();
-    await loadMyTournaments();
+    await Promise.all([loadMyTournaments(), loadMyGoodies()]);
 }
 
 /* Page
@@ -101,6 +101,7 @@ function renderWelcome() {
                 </div>
                 <div id="welcomeTournamentList" class="my-tournaments"><p class="loading">Lade Turniere…</p></div>
             </section>` : '',
+        me.status === 'identified' && event.goodies_count > 0 ? '<div id="welcomeGoodies"></div>' : '',
         withNetwork ? networkHtml(event) : '',
         welcomeSharesHtml(event),
     ].join('');
@@ -277,6 +278,40 @@ function networkHtml(event) {
             ${actions}
         </div>
         ${body}
+    </section>`;
+}
+
+/* Own goodies (goodies.js): what is waiting, what to pay to whom
+   ========================================================================== */
+
+async function loadMyGoodies() {
+    const box = document.getElementById('welcomeGoodies');
+    const event = welcomeEvent();
+    if (!box || !event || me?.status !== 'identified') return;
+    const myId = me.attendee.id;
+    const data = await apiFetch(`/events/${event.id}/goodies`).catch(() => null);
+    if (!data) return;
+    const items = data.items.filter(i => i.recipient_id === myId);
+    const transfers = data.transfers.filter(t => t.from_id === myId || t.to_id === myId);
+    if (!items.length && !transfers.length) return;
+    const name = id => escapeHtml(data.people.find(p => p.id === id)?.name ?? 'Unbekannt');
+    const transferLine = t => {
+        const receiver = data.people.find(p => p.id === t.to_id);
+        if (t.to_id === myId) return `<li><span>${name(t.from_id)} zahlt dir</span><strong>${formatEuro(t.amount)}</strong></li>`;
+        const pay = receiver?.paypal
+            ? `<a class="btn btn-primary btn-sm" href="${escapeHtml(paypalUrl(receiver.paypal, t.amount))}" target="_blank" rel="noopener noreferrer">${icon('external')}<span>Mit PayPal zahlen</span></a>`
+            : '';
+        return `<li><span>Du zahlst an ${name(t.to_id)}</span><strong>${formatEuro(t.amount)}</strong>${pay}</li>`;
+    };
+    box.innerHTML = `<section class="card welcome-goodies">
+        <div class="section-header">
+            <h2><svg class="icon icon-accent"><use href="#i-shirt"/></svg>Deine Goodies</h2>
+            <a class="btn btn-ghost btn-sm" href="#goodies">Zur Abrechnung</a>
+        </div>
+        ${items.length ? `<ul class="welcome-goodies-items">${items.map(i => `<li class="${i.handed_out ? 'is-handed-out' : ''}">
+            <span>${i.quantity}× ${escapeHtml(i.name)}${i.variant ? ` <span class="goodies-variant">${escapeHtml(i.variant)}</span>` : ''}</span>
+            <span class="muted">${i.handed_out ? 'ausgegeben' : 'noch nicht ausgegeben'}</span></li>`).join('')}</ul>` : ''}
+        ${transfers.length ? `<ul class="welcome-goodies-pay">${transfers.map(transferLine).join('')}</ul>` : ''}
     </section>`;
 }
 

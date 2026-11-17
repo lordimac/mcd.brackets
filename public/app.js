@@ -215,7 +215,7 @@ document.addEventListener('click', event => {
     }
 });
 // "/" jumps to the search of the current view (attendees, seating), like in many web apps
-const VIEW_SEARCH = { attendees: 'attendeeSearch', seating: 'seatSearch', servers: 'gsSearch' };
+const VIEW_SEARCH = { attendees: 'attendeeSearch', seating: 'seatSearch', servers: 'gsSearch', goodies: 'goodiesSearch' };
 document.addEventListener('keydown', event => {
     if (event.key !== '/' || event.ctrlKey || event.metaKey || event.altKey) return;
     const target = event.target;
@@ -394,7 +394,7 @@ function setupEventListeners() {
 }
 
 // Views: #willkommen (default), #teilnehmer, #sitzplan, #zeitplan, #burger, #turniere and #server
-const VIEWS = { '#turniere': 'tournaments', '#teilnehmer': 'attendees', '#sitzplan': 'seating', '#zeitplan': 'timetable', '#burger': 'burger', '#server': 'servers' };
+const VIEWS = { '#turniere': 'tournaments', '#teilnehmer': 'attendees', '#sitzplan': 'seating', '#zeitplan': 'timetable', '#burger': 'burger', '#goodies': 'goodies', '#server': 'servers' };
 
 function showView() {
     // "#turniere/bracket/3": tournaments view with a detail page (bracket, ranking, match list)
@@ -406,6 +406,7 @@ function showView() {
     document.getElementById('view-seating').style.display = view === 'seating' ? '' : 'none';
     document.getElementById('view-timetable').style.display = view === 'timetable' ? '' : 'none';
     document.getElementById('view-burger').style.display = view === 'burger' ? '' : 'none';
+    document.getElementById('view-goodies').style.display = view === 'goodies' ? '' : 'none';
     document.getElementById('view-servers').style.display = view === 'servers' ? '' : 'none';
     // Another area starts at its top; staying within one (detail pages, reload) keeps the position
     if (document.body.dataset.view && document.body.dataset.view !== view) window.scrollTo(0, 0);
@@ -420,6 +421,7 @@ function showView() {
     if (view === 'seating' && typeof showSeatingView === 'function') showSeatingView();
     if (view === 'timetable' && typeof showTimetableView === 'function') showTimetableView();
     if (view === 'burger' && typeof showBurgerView === 'function') showBurgerView();
+    if (view === 'goodies' && typeof showGoodiesView === 'function') showGoodiesView();
     if (view === 'servers' && typeof showGameServerView === 'function') showGameServerView();
     if (view === 'welcome' && typeof showWelcomeView === 'function') showWelcomeView();
     if (view === 'tournaments') routeTournamentDetail(detailKind, detailKey === undefined ? undefined : decodeURIComponent(detailKey));
@@ -611,6 +613,8 @@ async function loadEvents() {
     }
     // With one event there is nothing to choose: the event pickers step aside (styles.css)
     document.body.classList.toggle('single-event', lanEvents.length <= 1);
+    // The goodies tab shows for visitors only when there is something to settle (admins always)
+    document.body.classList.toggle('has-goodies', lanEvents.some(e => e.goodies_count > 0));
     updateEventDropdown();
     updateBrandLogo();
 }
