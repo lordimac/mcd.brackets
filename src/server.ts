@@ -27,7 +27,7 @@ import { getStats, startUpdateChecks, updateFor } from './info';
 import { getEvent, playerNamesForEvent, syncEventsFromStages } from './lan-store';
 import { memorialByes, migrateMemorialStages, setConsolationFinal, setGrandFinalDouble } from './stage-sync';
 import { isStageType, normalizeNames } from './seeding';
-import { assertMatchStageOpen, assertStageOpen, createStage, deleteStage, findStage, pickSettings, setStageClosed } from './stages';
+import { assertMatchStageOpen, assertStageOpen, createStage, deleteStage, findStage, pickSettings, renameStage, setStageClosed } from './stages';
 import { clearMatchResult, describeFollowing, updateMatchResult } from './results';
 import { decideOverdueMatches, eventFinals, eventSchedule, relabelSchedules, saveEventSchedule, saveSchedule, stageRounds, startScheduleChecks } from './schedule';
 import { getStandings } from './standings';
@@ -326,6 +326,11 @@ app.delete('/api/stages/:id', async (req: Request<{ id: string }>, res: Response
 });
 
 // Close a finished tournament ({ closed: true }) or open it again ({ closed: false })
+// Body { name }: new name of the tournament (only the label changes)
+app.put('/api/stages/:id/name', async (req: Request<{ id: string }>, res: Response) => {
+  res.json(await withLock(() => renameStage(parseInt(req.params.id), req.body?.name)));
+});
+
 app.put('/api/stages/:id/closed', async (req: Request<{ id: string }>, res: Response) => {
   if (typeof req.body?.closed !== 'boolean') throw new HttpError(400, 'closed fehlt');
   res.json(await withLock(() => setStageClosed(parseInt(req.params.id), req.body.closed)));

@@ -2,7 +2,7 @@
 
 Ein vollständiges Turnierverwaltungssystem mit Event-basiertem Meisterschafts-Punktesystem, entwickelt mit [brackets-manager](https://www.npmjs.com/package/brackets-manager).
 
-**Version:** 0.37.1-beta
+**Version:** 0.38.0-beta
 
 ---
 
@@ -366,6 +366,7 @@ Adresse und Token gelten für alle Events. Der Token wird nie an den Browser ges
 - **BYE-Matches**: Werden automatisch entschieden
 - **Debug-Modus (nur Admins)**: Schalter „Debug“ im Footer. Danach lässt sich in der Teilnehmerliste über das Personen-Symbol eine IP eines Teilnehmers wählen, um die Seite so zu sehen wie auf dessen Gerät (zurück über das Kreuz neben dem Namen oben rechts), und im Footer eine andere Uhrzeit vortäuschen, z. B. um den Zeitplan an einem anderen Tag zu prüfen. Beides wirkt nur in diesem Browser
 - **Zoom und Vollbild**: Über dem Bracket verkleinern/vergrößern (40–150 %), „Einpassen“ zeigt den ganzen Baum in der Breite; „Vollbild“ nutzt den ganzen Bildschirm, Esc beendet es
+- **Turnier umbenennen**: im Menü „⋯“ am Turnier-Reiter (Admins). Nur der Name ändert sich — Ergebnisse, Spielzeiten und Auslosung bleiben, auch bei abgeschlossenen Turnieren
 - **Turnier abschließen**: Ein fertig gespieltes Turnier lässt sich im Menü „⋯“ am Turnier-Reiter abschließen. Danach sind keine Änderungen mehr möglich — keine Ergebnisse, Spielzeiten, Optionen, kein Neu auslosen oder Löschen, und Änderungen an den Teilnehmern wirken sich nicht mehr aus. „Turnier wieder öffnen“ im selben Menü hebt das auf
 - **Spielzeiten**: Über das Uhr-Symbol am Turnier lässt sich festlegen, bis wann eine Runde gespielt sein muss — nur bei Single Elimination und im Winner Bracket von Double Elimination (Tag aus dem Event-Zeitraum + Uhrzeit; ohne Zeitraum Datum frei wählbar; nur eine Uhrzeit übernimmt den Tag der Zeile darüber). Das Loser Bracket und Round Robin haben keine Spielzeiten. „Spielzeiten“ beim Event setzt dieselben Zeiten für alle Turniere des Events über gemeinsame Spielrunden (Runde n → Spielrunde n); einzelne Turniere lassen sich danach noch anpassen, Spielrunden mit unterschiedlichen Zeiten bleiben unverändert, solange man dort nichts einträgt. Die Spiele um Platz 1–3 — Halbfinale, Finale und Spiel um Platz 3, bei Double Elimination Grand Final und Loser-Bracket-Finale (dessen Verlierer wird Dritter) — haben stattdessen eine Beginn-Zeit („ab …“, im Event-Dialog je Turnier unter „Finalspiele“) und werden nie ausgelost. Die Zeit steht im Bracket unter dem Rundennamen, die nächste auch im Kopf des Brackets. Nach Rundenschluss entscheidet für jedes noch offene Match der Runde das Los (geprüft alle 30 Sekunden, sobald beide Gegner feststehen). Solche Ergebnisse sind mit „Los“ markiert und lassen sich über „Ergebnis ändern“ korrigieren; wählt man dort denselben Gewinner, gilt das Ergebnis als bestätigt und die Markierung verschwindet. Ein offenes Bracket mit Spielzeiten lädt jede Minute neu. Nach Schluss von Runde 1 können keine neuen Spieler mehr einsteigen
 - **TBD-Matches**: Noch nicht spielbar, warte auf vorherige Matches
@@ -408,6 +409,7 @@ Ist `ADMIN_PASSWORD` gesetzt, sind alle Anfragen außer GET/HEAD (und `GET /api/
 | POST   | `/api/stages` | Neue Stage erstellen — Body: `{ name, type, eventName, settings?, participants? }`; ohne `participants` spielen alle Teilnehmer des Events. Turnier-ID, Auslosung und BYEs vergibt der Server |
 | POST   | `/api/stages/:id/regenerate` | Stage neu auslosen mit den aktuellen Teilnehmern des Events (oder `{ participants: string[] }`); Einstellungen und Event bleiben erhalten, bei Fehlern wird zurückgerollt |
 | DELETE | `/api/stages/:id` | Stage + Participants löschen |
+| PUT    | `/api/stages/:id/name` | Turnier umbenennen: `{ name }` (max. 80 Zeichen; Ergebnisse, Spielzeiten und Auslosung bleiben, auch bei abgeschlossenen Turnieren) |
 | PUT    | `/api/stages/:id/closed` | `{ closed: true }` schließt ein fertiges Turnier ab (danach 409 bei jeder Änderung), `{ closed: false }` öffnet es wieder |
 
 ### Matches

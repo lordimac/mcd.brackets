@@ -238,3 +238,18 @@ export async function setStageClosed(stageId: Id, closed: boolean): Promise<AppS
   await getStorage().update('stage', stageId, updated);
   return updated;
 }
+
+// Renaming only changes the label: everything else (schedule, timetable, results) reads the name
+// from the stage, and the tournament ID stays. Also allowed for closed tournaments.
+export const MAX_STAGE_NAME = 80;
+
+export async function renameStage(stageId: Id, input: unknown): Promise<AppStage> {
+  const name = typeof input === 'string' ? input.trim().replace(/\s+/g, ' ') : '';
+  if (!name) throw new HttpError(400, 'Der Turniername fehlt');
+  if (name.length > MAX_STAGE_NAME) throw new HttpError(400, `Der Turniername ist zu lang (max. ${MAX_STAGE_NAME} Zeichen)`);
+  const stage = await findStage(stageId);
+  if (stage.name === name) return stage;
+  const updated: AppStage = { ...stage, name };
+  await getStorage().update('stage', stageId, updated);
+  return updated;
+}

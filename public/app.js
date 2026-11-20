@@ -386,6 +386,7 @@ function setupEventListeners() {
     document.getElementById('loginForm').addEventListener('submit', login);
     document.getElementById('pointsForm').addEventListener('submit', savePoints);
     document.getElementById('scheduleForm').addEventListener('submit', saveSchedule);
+    document.getElementById('renameStageForm').addEventListener('submit', renameStage);
     document.getElementById('pointsGrid').addEventListener('input', markChangedPoints);
     document.getElementById('eventName').addEventListener('change', updateEventPlayersHint);
     document.getElementById('tournamentType').addEventListener('change', updateTypeSettings);
@@ -1407,17 +1408,52 @@ function renderBracketHeader(stage) {
 // options, close, new draw, delete); a closed one only shows its matches and can be opened again
 function stageMenuItems(stage) {
     const done = stageProgress(stage).state === 'done';
+    const rename = { icon: 'edit', label: 'Umbenennen', onclick: `openRenameStage(${stage.id})`, adminOnly: true };
     return stage.closed_at ? [
         { icon: 'list', label: 'Matches anzeigen', onclick: `viewStageMatches(${stage.id})` },
+        rename,
         { icon: 'unlock', label: 'Turnier wieder öffnen', onclick: `toggleStageClosed(${stage.id})`, adminOnly: true },
     ] : [
         { icon: 'list', label: 'Matches anzeigen', onclick: `viewStageMatches(${stage.id})` },
+        rename,
         stage.type !== 'round_robin' && { icon: 'clock', label: 'Spielzeiten', onclick: `openScheduleModal(${stage.id})`, adminOnly: true },
         !done && stageOptionMenuItem(stage),
         done && { icon: 'lock', label: 'Turnier abschließen', onclick: `toggleStageClosed(${stage.id})`, adminOnly: true },
         { icon: 'shuffle', label: 'Neu auslosen', onclick: `resetBracket(${stage.id})`, adminOnly: true },
         { icon: 'trash', label: 'Turnier löschen', onclick: `deleteStage(${stage.id})`, adminOnly: true, danger: true },
     ];
+}
+
+// Renaming only changes the label (also for closed tournaments)
+function openRenameStage(stageId) {
+    const stage = stages.find(s => s.id === stageId);
+    if (!stage) return;
+    document.getElementById('renameStageId').value = stageId;
+    const input = document.getElementById('renameStageName');
+    input.value = stage.name;
+    openModal('renameStageModal');
+    input.select();
+}
+
+async function renameStage(e) {
+    e.preventDefault();
+    const stageId = Number(document.getElementById('renameStageId').value);
+    const stage = stages.find(s => s.id === stageId);
+    const name = document.getElementById('renameStageName').value.trim();
+    if (!stage || !name) return;
+    if (name === stage.name) {
+        closeModal('renameStageModal');
+        return;
+    }
+    try {
+        await apiFetch(`/stages/${stageId}/name`, { method: 'PUT', body: JSON.stringify({ name }) });
+        closeModal('renameStageModal');
+        await loadStages();
+        if (currentBracketStageId === stageId) await viewBracket(stageId, true);
+        notify(`✅ „${stage.name}“ heißt jetzt „${name}“.`);
+    } catch (error) {
+        notify('❌ ' + error.message);
+    }
 }
 
 // A finished tournament can be closed: no results, playing times, options, new draw or deleting,

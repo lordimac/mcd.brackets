@@ -91,3 +91,26 @@ for (const type of ['single_elimination', 'double_elimination', 'round_robin'] a
     assert.ok(standings.every(s => !['Opa Willi', 'Tante Erna'].includes(s.participant_name)));
   });
 }
+
+test('renaming a tournament changes only its name, also when it is closed', async () => {
+  const { createStage, findStage, renameStage }: typeof import('./stages') = require('./stages');
+  const stage = await createStage({ tournamentId: 7, name: 'Jenga', type: 'single_elimination', names: ['A', 'B', 'C', 'D'], settings: {}, eventName: 'LAN' });
+  const before = await findStage(stage.id);
+
+  const renamed = await renameStage(stage.id, '  Jenga   XXL ');
+  assert.equal(renamed.name, 'Jenga XXL');
+  const stored = await findStage(stage.id);
+  assert.equal(stored.name, 'Jenga XXL');
+  assert.equal(stored.tournament_id, before.tournament_id);
+  assert.equal(stored.event_name, 'LAN');
+  assert.deepEqual(stored.settings, before.settings, 'settings (incl. seedOrdering) stay');
+
+  await assert.rejects(renameStage(stage.id, '   '), /fehlt/);
+  await assert.rejects(renameStage(stage.id, 'x'.repeat(81)), /zu lang/);
+
+  // A closed tournament can be renamed too (closing needs a finished bracket, so set it directly)
+  const { getStorage }: typeof import('./db') = require('./db');
+  const current = await findStage(stage.id);
+  await getStorage().update('stage', stage.id, { ...current, closed_at: new Date().toISOString() } as typeof current);
+  assert.equal((await renameStage(stage.id, 'Jenga Finale')).name, 'Jenga Finale');
+});

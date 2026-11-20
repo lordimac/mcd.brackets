@@ -1427,6 +1427,25 @@
         </div>
     </div>
 
+    <div id="renameStageModal" class="modal">
+        <div class="modal-content login-modal">
+            <button type="button" class="close" onclick="closeModal('renameStageModal')" aria-label="Schließen"><svg class="icon"><use href="#i-x"/></svg></button>
+            <h2>Turnier umbenennen</h2>
+            <form id="renameStageForm">
+                <input type="hidden" id="renameStageId">
+                <div class="form-group">
+                    <label for="renameStageName">Name</label>
+                    <input type="text" id="renameStageName" required maxlength="80" autocomplete="off">
+                </div>
+                <p class="field-hint">Ergebnisse, Spielzeiten und Auslosung bleiben unverändert.</p>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-ghost" onclick="closeModal('renameStageModal')">Abbrechen</button>
+                    <button type="submit" class="btn btn-primary">Umbenennen</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Bulk Import Modal -->
     <div id="bulkImportModal" class="modal">
         <div class="modal-content bulk-modal">
